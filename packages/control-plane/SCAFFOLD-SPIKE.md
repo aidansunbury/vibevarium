@@ -93,23 +93,23 @@ That distinction is intentional but not a deployment guarantee. A production con
 
 ## Real proof output
 
-From `pnpm --filter @terrarium/control-plane scaffold:demo` (ports and paths vary; the demo also asserts every status and payload):
+From `pnpm --filter @terrarium/control-plane scaffold:demo` (relevant fields; ports and paths vary, and the demo asserts every status and payload):
 
 ```json
 {
   "scaffold": {
     "name": "expenses",
-    "url": "http://127.0.0.1:46065",
+    "url": "http://127.0.0.1:46271",
     "audience": "expenses.terrarium.local",
-    "processId": 1343180,
+    "processId": 1346354,
     "initialCommit": "Initial scaffold",
     "directoryEntry": {
       "app": { "name": "expenses", "status": "up" },
       "tools": [
-        "expenses_TicketsApi_CloseTicket_send",
-        "expenses_TicketsApi_OpenTicket_send",
-        "expenses_TicketsApi_TicketById_get",
-        "expenses_TicketsApi_TicketList_get"
+        { "gatewayName": "expenses_TicketsApi_CloseTicket_send", "stale": false },
+        { "gatewayName": "expenses_TicketsApi_OpenTicket_send", "stale": false },
+        { "gatewayName": "expenses_TicketsApi_TicketById_get", "stale": false },
+        { "gatewayName": "expenses_TicketsApi_TicketList_get", "stale": false }
       ]
     }
   },
@@ -156,6 +156,24 @@ From `pnpm --filter @terrarium/control-plane scaffold:demo` (ports and paths var
         "auth": "on"
       }
     }
+  }
+}
+```
+
+Additional one-off process-level checks exercised the two cleanup paths (the generated repo was still present after `DELETE`):
+
+```json
+{
+  "delete": {
+    "status": 200,
+    "body": { "name": "expenses", "deleted": true },
+    "appStopped": true,
+    "repoStillExists": true,
+    "directoryEmpty": true
+  },
+  "gracefulShutdown": {
+    "controlPlaneSignal": "SIGTERM",
+    "appStoppedByFinalizer": true
   }
 }
 ```

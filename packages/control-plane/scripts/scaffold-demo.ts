@@ -5,7 +5,7 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -62,6 +62,7 @@ const waitForControlPlane = async (url: string, child: ChildProcess) => {
 const stopChild = async (child: ChildProcess, signal: NodeJS.Signals = "SIGKILL") => {
   if (child.exitCode !== null || child.signalCode !== null) return;
   const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+  if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill(signal);
   await exited;
 };
@@ -234,7 +235,12 @@ try {
   }, null, 2));
 } finally {
   if (controlPlane !== undefined) await stopChild(controlPlane).catch(() => {});
-  if (generatedProcessId !== undefined) {
+  if (generatedProcessId === undefined) {
+    generatedProcessId = await readFile(join(appsRoot, "expenses", "app.pid"), "utf8")
+      .then((pid) => Number.parseInt(pid, 10))
+      .catch(() => undefined);
+  }
+  if (generatedProcessId !== undefined && Number.isInteger(generatedProcessId)) {
     try {
       process.kill(-generatedProcessId, "SIGKILL");
     } catch {

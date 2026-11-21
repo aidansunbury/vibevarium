@@ -67,14 +67,15 @@ const linkWorkspaceTemplate = (workspaceRoot: string, repo: GitRepo) =>
     await symlink(relative(dirname(link), join(workspaceRoot, "packages", "template")), link, "dir");
   });
 
+const respond = <A>(effect: Effect.Effect<A, ScaffoldError>, successStatus = 200) =>
+  Effect.matchEffect(effect, {
+    onFailure: (error) => HttpServerResponse.json({ error: error.message }, { status: error.status }),
+    onSuccess: (value) => HttpServerResponse.json(value, { status: successStatus }),
+  });
+
 const registerGeneratedRoutes = HttpRouter.use((router) =>
   Effect.gen(function*() {
     const scaffold = yield* Scaffold;
-    const respond = <A>(effect: Effect.Effect<A, ScaffoldError>, successStatus = 200) =>
-      Effect.matchEffect(effect, {
-        onFailure: (error) => HttpServerResponse.json({ error: error.message }, { status: error.status }),
-        onSuccess: (value) => HttpServerResponse.json(value, { status: successStatus }),
-      });
 
     yield* router.add("POST", "/scaffold", Effect.gen(function*() {
       const request = yield* HttpServerRequest;
