@@ -1,0 +1,15 @@
+{
+  "name": "@terrarium/fake-oauth",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@effect/platform-node": "^4.1.5",
+    "effect": "^4.1.5",
+    "jose": "^6.0.0"
+  }
+}

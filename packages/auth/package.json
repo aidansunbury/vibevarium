@@ -1,0 +1,14 @@
+{
+  "name": "@terrarium/auth",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "effect": "^4.1.5",
+    "jose": "^6.0.0"
+  }
+}

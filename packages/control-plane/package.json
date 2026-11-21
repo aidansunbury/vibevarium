@@ -1,0 +1,24 @@
+{
+  "name": "@terrarium/control-plane",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@effect/platform-node": "^4.1.5",
+    "@alchemy.run/domain": "2.0.0-beta.87",
+    "@electric-sql/pglite": "^0.3.0",
+    "alchemy": "2.0.0-beta.87",
+    "drizzle-orm": "^0.44.0",
+    "effect": "^4.1.5",
+    "jose": "^6.0.0"
+  },
+  "devDependencies": {
+    "@terrarium/auth": "workspace:*",
+    "@terrarium/dev-issuer": "workspace:*",
+    "@terrarium/fake-oauth": "workspace:*"
+  }
+}

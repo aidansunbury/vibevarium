@@ -1,0 +1,19 @@
+{
+  "name": "terrarium",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "scripts": {
+    "typecheck": "tsrs -b",
+    "lint": "oxlint --type-aware .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "oxlint": "^1.94.0",
+    "tsrs": "^7.1.0-beta.tsrs4",
+    "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@electric-sql/pglite"]
+  }
+}
