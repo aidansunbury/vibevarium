@@ -8,7 +8,7 @@ The thesis works locally. One `TicketsApi` declaration drives:
 - streamable-HTTP MCP at `/mcp` via `toMcp` (Effect MCP protocol `2025-11-25`);
 - an executable CLI via `toCli`, using `Domain.protocolHttp` against `/rpc`.
 
-The aggregate and both views run on `Domain.InMemory` in a plain Node process. No cloud credentials, Docker, Bun, frontend, auth, or database are involved. TypeScript execution consistently uses `node --experimental-strip-types`.
+The aggregate and both views run on `Domain.InMemory` in a plain Node process. No cloud credentials, Docker, Bun, frontend, or database are involved. Optional OIDC auth now uses `@terrarium/auth`; the original demo remains unauthenticated by default, and the control-plane scaffold demo exercises authenticated mode. TypeScript execution consistently uses `node --experimental-strip-types`.
 
 ## Run it
 
@@ -43,6 +43,26 @@ curl -X POST http://127.0.0.1:3000/OpenTicket \
 curl http://127.0.0.1:3000/TicketById/http-1
 ```
 
+## Optional OIDC auth
+
+Setting `TERRARIUM_ISSUER` enables `@terrarium/auth` verification for the HTTP API, OpenAPI, RPC, and MCP. `TERRARIUM_AUDIENCE` defaults to `${APP_NAME:-tickets}.terrarium.local`; `TERRARIUM_AUTH=off` explicitly preserves unauthenticated local demos even when an issuer is present. `/health` is public, while `GET /whoami` echoes the verified `CurrentActor`.
+
+For example, with the dev issuer running on port 4010 and `expenses.terrarium.local` in its allowed audiences:
+
+```sh
+TERRARIUM_AUTH=on \
+TERRARIUM_ISSUER=http://127.0.0.1:4010 \
+TERRARIUM_AUDIENCE=expenses.terrarium.local \
+APP_NAME=expenses \
+pnpm --filter @terrarium/template start
+
+TOKEN=$(curl -s 'http://127.0.0.1:4010/dev/token?sub=user-1&name=Ada&aud=expenses.terrarium.local' | node -pe 'JSON.parse(require("node:fs").readFileSync(0)).access_token')
+curl -i http://127.0.0.1:3000/whoami                    # 401
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3000/whoami
+```
+
+The complete automated authenticated proof is `pnpm --filter @terrarium/control-plane scaffold:demo`; see `packages/control-plane/SCAFFOLD-SPIKE.md`.
+
 ## What was built
 
 - `Ticket` aggregate, keyed by `TicketId`, with pure `decide`/`evolve` functions.
@@ -51,7 +71,7 @@ curl http://127.0.0.1:3000/TicketById/http-1
 - `TicketsModel` and one `TicketsApi`; every domain declaration has a `description`.
 - One shared exposure allowlist for commands and view reads in `src/surfaces.ts`.
 - `src/server.ts` hosts all surfaces; `src/cli.ts` is the executable; `src/demo.ts` plus `test/derived-surfaces.test.ts` proves them.
-- The HTTP auth insertion point is marked in `src/server.ts`. The list view has a Drizzle TODO; this spike needs no store beyond the in-memory domain platform.
+- `src/server.ts` wraps the final router with shared OIDC auth (except public `/health`) and exposes `GET /whoami` to echo `CurrentActor`. The list view has a Drizzle TODO; this spike needs no store beyond the in-memory domain platform.
 
 ## Real proof output
 
@@ -232,6 +252,6 @@ The demo then closed that ticket and read it back through the CLI:
 ## Open questions
 
 - Should the template standardize generated ids in the command schema, require caller ids, or add an aggregate creation convention?
-- What is the preferred shared Node host/middleware composition once `@terrarium/auth` exists: HTTP middleware for every surface, Domain middleware per entry, or both at different layers?
+- HTTP middleware now protects every hosted surface. Should Domain command/view middleware also receive `CurrentActor` for domain-level authorization, or should authorization remain in HTTP handlers?
 - For persistent apps, should a cross-ticket list remain a singleton view or become a paged `Query` over a Drizzle projection? The in-memory view was sufficient for this derivation proof.
 - Can the platform provide a Drizzle-backed local `Domain.Platform`, or should persistence be introduced per projection while commands remain on the existing platform?

@@ -15,6 +15,12 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
     discoveryIntervalMs: integerEnv("DISCOVERY_INTERVAL_MS", 30_000),
     discoveryTimeoutMs: integerEnv("DISCOVERY_TIMEOUT_MS", 3_000),
     callTimeoutMs: integerEnv("CALL_TIMEOUT_MS", 3_000),
+    discoveryToken: process.env.DISCOVERY_TOKEN,
+    scaffold: {
+      issuer: process.env.TERRARIUM_ISSUER,
+      appsRoot: process.env.TERRARIUM_APPS_ROOT,
+      startupTimeoutMs: integerEnv("APP_START_TIMEOUT_MS", 20_000),
+    },
   })),
 );
 

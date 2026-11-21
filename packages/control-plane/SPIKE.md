@@ -1,5 +1,7 @@
 # Meta-MCP gateway spike
 
+> See [SCAFFOLD-SPIKE.md](./SCAFFOLD-SPIKE.md) for generated apps, optional template OIDC auth, authenticated discovery, and the end-to-end authenticated gateway proof.
+
 ## Verdict
 
 The hard part works locally. Two independently hosted ticket apps are aggregated behind one Effect MCP streamable-HTTP endpoint. Discovery is asynchronous and stored in PGlite; `tools/list` never calls a child. Calls are routed to a fresh scoped `McpClient` for the selected child, with caller headers and complete tool results passed through. Closing app B does not remove its last-known directory entries, does not hang the gateway, and does not affect subsequent calls to app A.

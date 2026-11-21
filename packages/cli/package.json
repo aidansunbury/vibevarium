@@ -8,12 +8,24 @@
     "./*": "./src/*.ts"
   },
   "bin": {
-    "terrarium": "./src/main.ts"
+    "platform": "./src/main.ts",
+    "platform-dynamic": "./src/dynamic.ts"
+  },
+  "scripts": {
+    "platform": "node --experimental-strip-types src/main.ts",
+    "platform:dynamic": "node --experimental-strip-types src/dynamic.ts",
+    "demo": "node --experimental-strip-types scripts/demo.ts",
+    "typecheck": "tsrs --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@effect/platform-node": "^4.1.5",
     "@alchemy.run/domain": "2.0.0-beta.87",
+    "@terrarium/template": "workspace:*",
     "alchemy": "2.0.0-beta.87",
     "effect": "^4.1.5"
+  },
+  "devDependencies": {
+    "@terrarium/dev-issuer": "workspace:*",
+    "@types/node": "^26.6.6"
   }
 }

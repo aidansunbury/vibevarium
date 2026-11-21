@@ -16,6 +16,7 @@ import { Directory, Discovery } from "./discovery/index.ts";
 import { AppProxy } from "./gateway/proxy.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
 import { RegisterAppInput, Registry } from "./registry/index.ts";
+import { Scaffold, type ScaffoldOptions } from "./scaffold/index.ts";
 import { Database } from "./store/database.ts";
 
 export interface ControlPlaneOptions {
@@ -25,6 +26,8 @@ export interface ControlPlaneOptions {
   readonly discoveryIntervalMs?: number | undefined;
   readonly discoveryTimeoutMs?: number | undefined;
   readonly callTimeoutMs?: number | undefined;
+  readonly discoveryToken?: string | undefined;
+  readonly scaffold?: ScaffoldOptions | undefined;
   readonly fetch?: typeof globalThis.fetch | undefined;
 }
 
@@ -89,7 +92,12 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const databaseLayer = options.databasePath === undefined ? Database.layer() : Database.layer(options.databasePath);
   const storeLayer = Layer.mergeAll(Registry.layer, Directory.layer).pipe(Layer.provide(databaseLayer));
   const servicesLayer = Layer.mergeAll(
-    Discovery.layer({ timeoutMs: options.discoveryTimeoutMs ?? 3_000 }),
+    Discovery.layer({
+      timeoutMs: options.discoveryTimeoutMs ?? 3_000,
+      ...options.discoveryToken === undefined
+        ? {}
+        : { headers: { authorization: `Bearer ${options.discoveryToken}` } },
+    }),
     AppProxy.layer({ timeoutMs: options.callTimeoutMs ?? 3_000 }),
   ).pipe(
     Layer.provideMerge(storeLayer),
@@ -103,6 +111,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const routes = Layer.mergeAll(
     gatewayRegistrations,
     operationalRoutes,
+    Scaffold.routes.pipe(Layer.provide(Scaffold.layer(options.scaffold))),
     scheduledDiscovery(options.discoveryIntervalMs ?? 30_000),
   ).pipe(
     Layer.provide(McpServer.layerHttp({

@@ -37,7 +37,10 @@ export class Discovery extends Context.Service<Discovery, {
   readonly discoverApp: (app: AppRegistration) => Effect.Effect<DiscoveryResult>;
   readonly discoverAll: () => Effect.Effect<ReadonlyArray<DiscoveryResult>>;
 }>()("@terrarium/control-plane/discovery/Discovery") {
-  static readonly layer = (options: { readonly timeoutMs: number }) =>
+  static readonly layer = (options: {
+    readonly timeoutMs: number;
+    readonly headers?: Readonly<Record<string, string>> | undefined;
+  }) =>
     Layer.effect(Discovery)(Effect.gen(function*() {
       const registry = yield* Registry;
       const directory = yield* Directory;
@@ -54,6 +57,7 @@ export class Discovery extends Context.Service<Discovery, {
             version: "0.0.1",
             url: app.url,
             protocol: McpProtocol.v2025_11_25,
+            ...options.headers === undefined ? {} : { headers: options.headers },
             timeout: options.timeoutMs,
           })),
           Effect.provideService(HttpClient.HttpClient, httpClient),
