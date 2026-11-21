@@ -26,6 +26,13 @@ importers:
       jose:
         specifier: ^6.0.0
         version: 6.2.18
+    devDependencies:
+      '@effect/platform-node':
+        specifier: ^4.1.5
+        version: 4.1.5(effect@4.1.5)
+      '@terrarium/dev-issuer':
+        specifier: workspace:*
+        version: link:../dev-issuer
 
   packages/cli:
     dependencies:
@@ -87,6 +94,10 @@ importers:
       jose:
         specifier: ^6.0.0
         version: 6.2.18
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
 
   packages/fake-oauth:
     dependencies:
@@ -121,6 +132,9 @@ importers:
       '@terrarium/auth':
         specifier: workspace:*
         version: link:../auth
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
 
 packages:
 
