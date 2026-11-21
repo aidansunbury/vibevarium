@@ -82,6 +82,15 @@ importers:
       '@terrarium/fake-oauth':
         specifier: workspace:*
         version: link:../fake-oauth
+      '@terrarium/template':
+        specifier: workspace:*
+        version: link:../template
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.6.6)(yaml@2.9.1)
 
   packages/dev-issuer:
     dependencies:

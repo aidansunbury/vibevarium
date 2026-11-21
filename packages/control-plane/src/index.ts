@@ -1,1 +1,10 @@
-export {};
+export { Directory, Discovery } from "./discovery/index.ts";
+export type { DirectoryTool, DiscoveryResult } from "./discovery/index.ts";
+export { AppProxy } from "./gateway/proxy.ts";
+export { namespaceTool, syncGatewayTools } from "./gateway/tools.ts";
+export { RegisterAppInput, Registry } from "./registry/index.ts";
+export type { AppRegistration, RegisterAppInput as RegisterAppInputType } from "./registry/index.ts";
+export { controlPlaneServer, runDiscoveryAndSync, startControlPlane } from "./server.ts";
+export type { ControlPlaneOptions } from "./server.ts";
+export { Database } from "./store/database.ts";
+export type { AppStatus } from "./store/schema.ts";
