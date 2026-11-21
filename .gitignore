@@ -7,3 +7,5 @@ dist/
 .DS_Store
 apps/*/
 !apps/.gitkeep
+.secrets/
+*.pem
