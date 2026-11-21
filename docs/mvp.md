@@ -14,6 +14,10 @@ complex* parts, not the easiest vertical slice.
 - **Routing**: the scalable option — **Workers for Platforms** (one dispatch
   namespace + a router worker in front of `appname.yourdomain.com`), not
   per-app standalone workers. Zeus proved this shape at 600+ apps.
+  **UPDATE (2026-11-21): WFP is purchase-gated on our account (API 403).** The
+  real-deploy spike therefore uses the fallback: **standalone worker per app +
+  a router worker on `gitprops.com` with a `*.gitprops.com` wildcard route**.
+  Documented as a deliberate scalability compromise; WFP is a purchase away.
 - **No live credentials**: most cloud/provider credentials won't be available
   for testing. Everything must be drivable locally — emulators, fakes, and
   recorded fixtures (executor's `@executor-js/emulate` approach is the model:
