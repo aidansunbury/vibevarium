@@ -94,6 +94,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const servicesLayer = Layer.mergeAll(
     Discovery.layer({
       timeoutMs: options.discoveryTimeoutMs ?? 3_000,
+      protocol: options.scaffold?.mode === "cloudflare" ? McpProtocol.v2026_07_28 : McpProtocol.v2025_11_25,
       ...options.discoveryToken === undefined
         ? {}
         : { headers: { authorization: `Bearer ${options.discoveryToken}` } },

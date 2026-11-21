@@ -40,6 +40,7 @@ export class Discovery extends Context.Service<Discovery, {
   static readonly layer = (options: {
     readonly timeoutMs: number;
     readonly headers?: Readonly<Record<string, string>> | undefined;
+  readonly protocol?: McpProtocol.ProtocolAdapter<"2025-11-25" | "2026-07-28"> | undefined;
   }) =>
     Layer.effect(Discovery)(Effect.gen(function*() {
       const registry = yield* Registry;
@@ -56,7 +57,7 @@ export class Discovery extends Context.Service<Discovery, {
             name: "terrarium-discovery",
             version: "0.0.1",
             url: app.url,
-            protocol: McpProtocol.v2025_11_25,
+            protocol: options.protocol ?? McpProtocol.v2025_11_25,
             ...options.headers === undefined ? {} : { headers: options.headers },
             timeout: options.timeoutMs,
           })),

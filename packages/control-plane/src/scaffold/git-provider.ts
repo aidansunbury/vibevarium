@@ -21,6 +21,7 @@ export interface GitProviderShape {
     name: string,
     files: Readonly<Record<string, string>>,
   ) => Effect.Effect<GitRepo, ScaffoldError>;
+  readonly deleteRepo?: (name: string) => Effect.Effect<void, ScaffoldError>;
 }
 
 export class GitProvider extends Context.Service<GitProvider, GitProviderShape>()(

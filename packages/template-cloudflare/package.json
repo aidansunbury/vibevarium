@@ -1,0 +1,23 @@
+{
+  "name": "terrarium-tickets-cloudflare",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "scripts": {
+    "deploy": "alchemy deploy",
+    "destroy": "alchemy destroy",
+    "typecheck": "tsrs --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@alchemy.run/cloudflare": "2.0.0-beta.87",
+    "@alchemy.run/domain": "2.0.0-beta.87",
+    "@effect/platform-node": "^4.1.5",
+    "alchemy": "2.0.0-beta.87",
+    "effect": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "wrangler": "^4.166.0"
+  }
+}

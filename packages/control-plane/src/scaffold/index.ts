@@ -17,6 +17,11 @@ import { syncGatewayTools } from "../gateway/tools.ts";
 import { Registry, type AppRegistration } from "../registry/index.ts";
 import { attempt, asScaffoldError, ScaffoldError } from "./errors.ts";
 import { GitProvider, LocalGitProvider, type GitRepo } from "./git-provider.ts";
+import { GitHubAppProvider } from "./github-app-provider.ts";
+import { CloudflareDeployer, type CloudflareDeployment } from "./cloudflare-deployer.ts";
+import { materializeCloudflareTemplate } from "./template.ts";
+import { RouterDirectory } from "./router-directory.ts";
+import { loadRouterBindings } from "./router-bindings.ts";
 import { allocatePort, AppProcesses, waitForHealth } from "./processes.ts";
 
 const defaultWorkspaceRoot = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -31,6 +36,20 @@ export interface ScaffoldOptions {
   readonly appsRoot?: string | undefined;
   readonly workspaceRoot?: string | undefined;
   readonly startupTimeoutMs?: number | undefined;
+  readonly mode?: "local" | "cloudflare" | undefined;
+  readonly cloudflare?: {
+    readonly accountId: string;
+    readonly alchemyHome: string;
+    readonly workersSubdomain: string;
+    readonly routerNamespaceId: string;
+    readonly zoneId: string;
+  } | undefined;
+  readonly github?: {
+    readonly appId: string;
+    readonly privateKeyPath: string;
+    readonly installationId: number;
+    readonly org: string;
+  } | undefined;
 }
 
 export interface ScaffoldResult {
@@ -39,6 +58,8 @@ export interface ScaffoldResult {
   readonly audience: string;
   readonly repoUrl: string;
   readonly processId: number;
+  readonly hostname?: string | undefined;
+  readonly deployment?: CloudflareDeployment | undefined;
   readonly directoryEntry: {
     readonly app: AppRegistration;
     readonly tools: ReadonlyArray<DirectoryTool>;
@@ -105,7 +126,14 @@ export class Scaffold extends Context.Service<Scaffold, {
   readonly create: (name: string) => Effect.Effect<ScaffoldResult, ScaffoldError>;
   readonly remove: (
     name: string,
-  ) => Effect.Effect<{ readonly name: string; readonly deleted: true; readonly repoKept: string }, ScaffoldError>;
+  ) => Effect.Effect<{
+    readonly name: string;
+    readonly deleted: true;
+    readonly repoKept?: string;
+    readonly workerDeleted?: boolean;
+    readonly d1Deleted?: boolean;
+    readonly repoDeleted?: boolean;
+  }, ScaffoldError>;
 }>()("@terrarium/control-plane/scaffold/Scaffold") {
   static readonly layer = (options: ScaffoldOptions = {}) =>
     Layer.effect(Scaffold)(Effect.gen(function*() {
@@ -122,22 +150,48 @@ export class Scaffold extends Context.Service<Scaffold, {
       const workspaceRoot = options.workspaceRoot ?? defaultWorkspaceRoot;
       const appsRoot = options.appsRoot ?? join(workspaceRoot, "apps");
       const startupTimeoutMs = options.startupTimeoutMs ?? 20_000;
+      const mode = options.mode ?? (options.cloudflare === undefined ? "local" : "cloudflare");
+      const templateRoot = join(workspaceRoot, "packages", "template-cloudflare");
+      const deployer = options.cloudflare === undefined
+        ? undefined
+        : new CloudflareDeployer(options.cloudflare);
+      const routerBindings = options.cloudflare === undefined
+        ? undefined
+        : yield* loadRouterBindings(workspaceRoot, options.cloudflare.accountId);
+      const routerDirectory = options.cloudflare === undefined
+        ? undefined
+        : new RouterDirectory({
+            accountId: options.cloudflare.accountId,
+            namespaceId: options.cloudflare.routerNamespaceId,
+            zoneId: options.cloudflare.zoneId,
+          });
 
-      const create = Effect.fnUntraced(function*(name: string) {
-        if (!dnsLabel.test(name)) {
-          return yield* Effect.fail(new ScaffoldError(400, "Invalid DNS-label-safe app name"));
-        }
+      const register = Effect.fnUntraced(function*(name: string, url: string) {
+        const app = yield* registry.register({ name, url });
+        const discovered = yield* discovery.discoverApp(app);
+        yield* syncGatewayTools.pipe(
+          Effect.provideService(McpServer.McpServer, mcpServer),
+          Effect.provideService(Directory, directory),
+          Effect.provideService(AppProxy, proxy),
+        );
+        const current = yield* registry.get(name);
+        const tools = (yield* directory.list()).filter((tool) => tool.appName === name);
+        return {
+          app: Option.getOrElse(current, () => app),
+          tools,
+          discoveryWarning: discovered.status === "down"
+            ? `${discovered.error._tag}: ${discovered.error.message}`
+            : undefined,
+        };
+      });
+
+      const createLocal = Effect.fnUntraced(function*(name: string) {
         if (options.issuer === undefined || options.issuer.length === 0) {
           return yield* Effect.fail(new ScaffoldError(
             503,
-            "Scaffolding requires TERRARIUM_ISSUER so the generated app can verify OIDC tokens",
+            "Local scaffolding requires TERRARIUM_ISSUER so the generated app can verify OIDC tokens",
           ));
         }
-        const existing = yield* registry.get(name);
-        if (Option.isSome(existing)) {
-          return yield* Effect.fail(new ScaffoldError(409, `App ${name} is already registered`));
-        }
-
         const audience = `${name}.terrarium.local`;
         const port = yield* attempt(() => allocatePort());
         const repo = yield* git.createRepo(name, generatedFiles(name));
@@ -157,37 +211,67 @@ export class Scaffold extends Context.Service<Scaffold, {
         yield* attempt(() => waitForHealth(running, startupTimeoutMs)).pipe(
           Effect.tapError(() => attempt(() => processes.stop(name))),
         );
-
-        const app = yield* registry.register({ name, url: `${running.url}/mcp` });
-        const discovered = yield* discovery.discoverApp(app);
-        yield* syncGatewayTools.pipe(
-          Effect.provideService(McpServer.McpServer, mcpServer),
-          Effect.provideService(Directory, directory),
-          Effect.provideService(AppProxy, proxy),
-        );
-        if (discovered.status === "down") {
+        const directoryEntry = yield* register(name, `${running.url}/mcp`);
+        if (directoryEntry.discoveryWarning !== undefined) {
           return yield* Effect.fail(new ScaffoldError(
             502,
-            `${name} booted but MCP discovery failed: ${discovered.error._tag}: ${discovered.error.message}. Check DISCOVERY_TOKEN.`,
+            `${name} booted but MCP discovery failed: ${directoryEntry.discoveryWarning}. Check DISCOVERY_TOKEN.`,
           ));
         }
-        const current = yield* registry.get(name);
-        const tools = (yield* directory.list()).filter((tool) => tool.appName === name);
         return {
           name,
           url: running.url,
           audience,
           repoUrl: repo.repoUrl,
           processId: running.pid,
-          directoryEntry: { app: Option.getOrElse(current, () => app), tools },
+          directoryEntry,
         } satisfies ScaffoldResult;
       });
 
-      const remove = Effect.fnUntraced(function*(name: string) {
-        const existing = yield* registry.get(name);
-        if (Option.isNone(existing)) {
-          return yield* Effect.fail(new ScaffoldError(404, `App ${name} is not registered`));
+      const createCloudflare = Effect.fnUntraced(function*(name: string) {
+        if (deployer === undefined) {
+          return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
         }
+        const files = yield* attempt(() => materializeCloudflareTemplate(templateRoot, name));
+        const repo = yield* git.createRepo(name, files);
+        const deployment = yield* attempt(() => deployer.deploy(name, repo.directory));
+        yield* attempt(() => routerBindings!.add(name));
+        yield* attempt(() => routerDirectory!.put(name, name));
+        const appUrl = `https://${deployment.hostname}`;
+        const directoryEntry = yield* register(name, `${deployment.workerUrl}/mcp`);
+        return {
+          name,
+          url: appUrl,
+          audience: "unauthenticated-real-spike",
+          repoUrl: repo.repoUrl,
+          processId: 0,
+          hostname: deployment.hostname,
+          deployment,
+          directoryEntry,
+        } satisfies ScaffoldResult;
+      });
+
+      const syncCloudflareDirectory = Effect.fnUntraced(function*() {
+        if (routerDirectory === undefined) return;
+        const apps = yield* registry.list();
+        yield* Effect.forEach(apps, (app) =>
+          attempt(() => routerDirectory.put(app.name, app.name)),
+          { discard: true },
+        );
+      });
+
+      const create = Effect.fnUntraced(function*(name: string) {
+        if (!dnsLabel.test(name)) {
+          return yield* Effect.fail(new ScaffoldError(400, "Invalid DNS-label-safe app name"));
+        }
+        const existing = yield* registry.get(name);
+        if (Option.isSome(existing)) {
+          return yield* Effect.fail(new ScaffoldError(409, `App ${name} is already registered`));
+        }
+        return yield* (mode === "cloudflare" ? createCloudflare(name) : createLocal(name));
+      });
+
+      const removeLocal = Effect.fnUntraced(function*(name: string) {
         yield* attempt(() => processes.stop(name));
         yield* registry.remove(name);
         return {
@@ -197,15 +281,41 @@ export class Scaffold extends Context.Service<Scaffold, {
         } as const;
       });
 
+      const removeCloudflare = Effect.fnUntraced(function*(name: string) {
+        if (deployer === undefined) {
+          return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
+        }
+        const appDirectory = join(appsRoot, name);
+        // Worker.lookup cannot resolve a deleted worker during the router redeploy.
+        yield* attempt(() => routerBindings!.remove(name));
+        yield* attempt(() => deployer.destroy(name, appDirectory));
+        yield* attempt(() => routerDirectory!.delete(name));
+        if (git.deleteRepo !== undefined) yield* git.deleteRepo(name);
+        yield* registry.remove(name);
+        return { name, deleted: true, workerDeleted: true, d1Deleted: true, repoDeleted: true } as const;
+      });
+
+      const remove = Effect.fnUntraced(function*(name: string) {
+        const existing = yield* registry.get(name);
+        if (Option.isNone(existing)) {
+          return yield* Effect.fail(new ScaffoldError(404, `App ${name} is not registered`));
+        }
+        return yield* (mode === "cloudflare" ? removeCloudflare(name) : removeLocal(name));
+      });
+
+      yield* syncCloudflareDirectory();
       return Scaffold.of({ create, remove });
     })).pipe(
-      Layer.provide(LocalGitProvider.layer(
-        options.appsRoot ?? join(options.workspaceRoot ?? defaultWorkspaceRoot, "apps"),
-      )),
+      Layer.provide(options.github === undefined
+        ? LocalGitProvider.layer(options.appsRoot ?? join(options.workspaceRoot ?? defaultWorkspaceRoot, "apps"))
+        : GitHubAppProvider.layer({
+            ...options.github,
+            appsRoot: options.appsRoot ?? join(options.workspaceRoot ?? defaultWorkspaceRoot, "apps"),
+          })),
     );
-
   static readonly routes = registerGeneratedRoutes;
 }
 
 export { GitProvider, LocalGitProvider } from "./git-provider.ts";
+export { GitHubAppProvider } from "./github-app-provider.ts";
 export type { GitRepo } from "./git-provider.ts";

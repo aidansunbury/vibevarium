@@ -20,6 +20,24 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
       issuer: process.env.TERRARIUM_ISSUER,
       appsRoot: process.env.TERRARIUM_APPS_ROOT,
       startupTimeoutMs: integerEnv("APP_START_TIMEOUT_MS", 20_000),
+      mode: process.env.GIT_PROVIDER === "github" ? "cloudflare" : "local",
+      github: process.env.GIT_PROVIDER === "github"
+        ? {
+            appId: process.env.GITHUB_APP_ID!,
+            privateKeyPath: process.env.GITHUB_APP_PRIVATE_KEY_PATH!,
+            installationId: Number(process.env.GITHUB_APP_INSTALLATION_ID),
+            org: process.env.GITHUB_ORG ?? "terrarium-sandbox",
+          }
+        : undefined,
+      cloudflare: process.env.CLOUDFLARE_ACCOUNT_ID === undefined
+        ? undefined
+        : {
+            accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+            alchemyHome: process.env.ALCHEMY_HOME!,
+            workersSubdomain: process.env.CLOUDFLARE_WORKERS_SUBDOMAIN!,
+            routerNamespaceId: process.env.ROUTER_KV_NAMESPACE_ID!,
+            zoneId: process.env.CLOUDFLARE_ZONE_ID!,
+          },
     },
   })),
 );

@@ -76,7 +76,9 @@ export class AppProxy extends Context.Service<AppProxy, {
             name: "terrarium-gateway",
             version: "0.0.1",
             url: app.value.url,
-            protocol: McpProtocol.v2025_11_25,
+            protocol: new URL(app.value.url).hostname.endsWith(".workers.dev")
+              ? McpProtocol.v2026_07_28
+              : McpProtocol.v2025_11_25,
             headers: forwardedHeaders(callerHeaders),
             timeout: options.timeoutMs,
           })),

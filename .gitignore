@@ -8,4 +8,7 @@ dist/
 apps/*/
 !apps/.gitkeep
 .secrets/
+.alchemy/
+.alchemy-home/
+.data/
 *.pem

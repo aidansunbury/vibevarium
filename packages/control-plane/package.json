@@ -11,17 +11,24 @@
     "start": "node --experimental-strip-types src/main.ts",
     "demo": "node --experimental-strip-types scripts/demo.ts",
     "scaffold:demo": "tsx scripts/scaffold-demo.ts",
+    "real:demo": "tsx scripts/real-deploy-demo.ts",
+    "github:demo": "tsx scripts/github-provider-proof.ts",
+    "router:deploy": "alchemy deploy --config src/router/alchemy.run.ts",
     "test": "vitest run src/proof.test.ts",
     "typecheck": "tsrs --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@alchemy.run/cloudflare": "2.0.0-beta.87",
     "@alchemy.run/domain": "2.0.0-beta.87",
+    "@distilled.cloud/cloudflare": "1.0.0-rc.20",
     "@effect/platform-node": "^4.1.5",
     "@electric-sql/pglite": "^0.3.0",
+    "@octokit/auth-app": "^8.3.1",
     "alchemy": "2.0.0-beta.87",
     "drizzle-orm": "^0.44.0",
     "effect": "^4.1.5",
-    "jose": "^6.0.0"
+    "jose": "^6.0.0",
+    "octokit": "^5.0.5"
   },
   "devDependencies": {
     "@terrarium/auth": "workspace:*",
@@ -29,6 +36,7 @@
     "@terrarium/fake-oauth": "workspace:*",
     "@terrarium/template": "workspace:*",
     "@types/node": "^26.6.6",
+    "terrarium-tickets-cloudflare": "workspace:*",
     "tsx": "^4.23.15",
     "vitest": "^3.2.4"
   }
