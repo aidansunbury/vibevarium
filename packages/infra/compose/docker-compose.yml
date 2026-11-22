@@ -58,7 +58,13 @@ services:
       # drizzle is a follow-up (see SPIKE.md).
       DATABASE_PATH: /data/pglite
       DISCOVERY_INTERVAL_MS: "30000"
-      TERRARIUM_ISSUER: https://auth.${DOMAIN}
+      TERRARIUM_ISSUER: https://auth.${DOMAIN}/oidc
+      LOGTO_ISSUER: https://auth.${DOMAIN}/oidc
+      LOGTO_GUI_APP_ID: s9ne7qecvf20vktab5iwl
+      # LOGTO_GUI_APP_SECRET resolves from AWS Secrets Manager (SECRETS_PROVIDER=aws).
+      CONTROL_PLANE_BASE_URL: https://platform.${DOMAIN}
+      PLATFORM_OIDC_AUDIENCE: https://mcp.${DOMAIN}
+      GUI_DIR: /app/packages/control-plane/web/dist
       # Secrets come from AWS Secrets Manager via the EC2 instance profile —
       # no secret env vars here. Key NAMES are mapped in src/secrets/boot.ts.
       SECRETS_PROVIDER: aws
