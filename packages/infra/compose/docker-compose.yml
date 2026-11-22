@@ -28,6 +28,7 @@ services:
     environment:
       TRUST_PROXY_HEADER: "1"
       ENDPOINT: https://auth.${DOMAIN}
+      ADMIN_ENDPOINT: https://auth.${DOMAIN}/console
       DB_URL: postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/logto?sslmode=no-verify
     # First-run seed: idempotent — logto's cli db seed is a no-op when the
     # schema is already at the current version. Runs on every container start;

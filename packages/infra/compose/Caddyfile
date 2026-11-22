@@ -2,7 +2,14 @@
 # DOMAIN is substituted at deploy time (envsubst).
 
 auth.{$DOMAIN} {
-	reverse_proxy logto:3001
+	# Admin console is a separate Logto app on port 3002, served under /console.
+	handle /console* {
+		reverse_proxy logto:3002
+	}
+
+	handle {
+		reverse_proxy logto:3001
+	}
 }
 
 platform.{$DOMAIN} {
