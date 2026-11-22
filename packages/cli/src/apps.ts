@@ -11,8 +11,11 @@ import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { authCommands, ssoHeaders, ssoProtocolHttp } from "./auth.ts";
 import { appsFile, readJsonFile, rpcUrl, writeJsonFile } from "./config.ts";
+import { embeddedApis } from "./registry.ts";
 
 const AppEntry = Schema.Struct({
+  // The domain package's published name (must be present in the embedded
+  // registry for this CLI build), for example "@terrarium/template".
   package: Schema.String,
   url: Schema.String,
   api: Schema.optional(Schema.String),
@@ -45,7 +48,7 @@ export const addApp = Command.make(
       Argument.withDescription("Subcommand name, for example tickets"),
     ),
     package: Argument.String("package").pipe(
-      Argument.withDescription("Installed domain package to import"),
+      Argument.withDescription("Domain package name from this build's embedded registry"),
     ),
     url: Argument.String("url").pipe(Argument.withDescription("Deployed app base URL")),
   },
@@ -59,15 +62,27 @@ export const addApp = Command.make(
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return yield* userError("App URL must use HTTP or HTTPS");
     }
+    // A bun-compiled binary has no node_modules and cannot import a bare
+    // specifier at runtime, so domain packages are embedded at build time and
+    // selected here by name. Fail fast on an unknown package.
+    if (!(packageName in embeddedApis)) {
+      const known = Object.keys(embeddedApis).join(", ") || "none";
+      return yield* userError(
+        `${packageName} is not embedded in this CLI build. Available: ${known}`,
+      );
+    }
     const manifest = yield* readManifest;
-    const next = { ...manifest, [name]: { package: packageName, url: parsed.toString().replace(/\/+$/, "") } };
+    const next = {
+      ...manifest,
+      [name]: { package: packageName, url: parsed.toString().replace(/\/+$/, "") },
+    };
     yield* Effect.tryPromise({
       try: () => writeJsonFile(appsFile, next),
       catch: (cause) => userError(`Could not write ${appsFile}: ${String(cause)}`, cause),
     });
     return yield* Console.log(`Added ${name}: ${packageName} at ${next[name].url}`);
   }),
-).pipe(Command.withDescription("Register an installed domain package in apps.json"));
+).pipe(Command.withDescription("Register an embedded domain package in apps.json"));
 
 const isCliable = (value: unknown): value is Cliable => {
   if (
@@ -92,8 +107,17 @@ const isCliable = (value: unknown): value is Cliable => {
   );
 };
 
+/**
+ * The published CLI embeds the platform's domain Apis (see registry.ts)
+ * because a bun-compiled binary cannot import bare package specifiers at
+ * runtime. The manifest selects one by package + Api name.
+ */
 const importApi = async (name: string, entry: AppEntry): Promise<Cliable> => {
-  const module: Record<string, unknown> = await import(entry.package);
+  const module = embeddedApis[entry.package];
+  if (module === undefined) {
+    const known = Object.keys(embeddedApis).join(", ") || "none";
+    throw new Error(`${entry.package} is not embedded in this CLI build. Available: ${known}`);
+  }
   if (entry.api !== undefined) {
     const selected = module[entry.api];
     if (!isCliable(selected)) {

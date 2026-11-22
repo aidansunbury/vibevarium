@@ -15,6 +15,7 @@
     "platform": "node --experimental-strip-types src/main.ts",
     "platform:dynamic": "node --experimental-strip-types src/dynamic.ts",
     "demo": "node --experimental-strip-types scripts/demo.ts",
+    "build": "node --experimental-strip-types scripts/build.ts",
     "typecheck": "tsrs --noEmit -p tsconfig.json"
   },
   "dependencies": {
