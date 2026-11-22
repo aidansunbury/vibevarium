@@ -77,7 +77,7 @@ latest `cli-v*` GitHub Release. The repo is private, so the installer uses the
 `gh` CLI (authenticated) to fetch assets:
 
 ```sh
-gh release download cli-v0.0.1 --repo aidansunbury/terrarium --pattern install.sh
+gh release download cli-v0.0.1 --repo aidansunbury/vibevarium --pattern install.sh
 sh install.sh
 ```
 

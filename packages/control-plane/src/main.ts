@@ -4,6 +4,12 @@ import * as Layer from "effect/Layer";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { controlPlaneServer } from "./server.ts";
+import { loadBootSecrets } from "./secrets/boot.ts";
+
+// SECRETS_PROVIDER=aws: resolve runtime config (GITHUB_APP_*, CLOUDFLARE_API_TOKEN,
+// LOGTO_*) from Secrets Manager into process.env before any config is read.
+// No-op for env mode (default) — local dev is unchanged. See SECRETS-SPIKE.md.
+await loadBootSecrets();
 
 const integerEnv = (name: string, fallback: number) => {
   const value = process.env[name];
@@ -58,7 +64,11 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
       github: process.env.GIT_PROVIDER === "github"
         ? {
             appId: process.env.GITHUB_APP_ID!,
-            privateKeyPath: process.env.GITHUB_APP_PRIVATE_KEY_PATH!,
+            // Secrets mode delivers the PEM inline (GITHUB_APP_PRIVATE_KEY);
+            // env mode points at a file (GITHUB_APP_PRIVATE_KEY_PATH).
+            ...(process.env.GITHUB_APP_PRIVATE_KEY_PATH === undefined
+              ? { privateKey: process.env.GITHUB_APP_PRIVATE_KEY! }
+              : { privateKeyPath: process.env.GITHUB_APP_PRIVATE_KEY_PATH }),
             installationId: Number(process.env.GITHUB_APP_INSTALLATION_ID),
             org: process.env.GITHUB_ORG ?? "terrarium-sandbox",
           }

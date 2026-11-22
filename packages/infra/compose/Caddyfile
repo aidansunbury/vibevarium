@@ -1,15 +1,15 @@
 # Caddy reverse proxy — auto-TLS via Let's Encrypt.
 # DOMAIN is substituted at deploy time (envsubst).
 
+# Logto core OIDC service (port 3001).
 auth.{$DOMAIN} {
-	# Admin console is a separate Logto app on port 3002, served under /console.
-	handle /console* {
-		reverse_proxy logto:3002
-	}
+	reverse_proxy logto:3001
+}
 
-	handle {
-		reverse_proxy logto:3001
-	}
+# Logto admin console (port 3002) on its own origin — the admin app does
+# host-based tenant resolution, so a path prefix on the core origin 404s.
+auth-admin.{$DOMAIN} {
+	reverse_proxy logto:3002
 }
 
 platform.{$DOMAIN} {

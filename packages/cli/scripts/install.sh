@@ -24,7 +24,8 @@ case "${arch}" in
   arm64 | aarch64) target_arch="arm64" ;;
   *) echo "Unsupported architecture: ${arch}" >&2; exit 1 ;;
 esac
-artifact="platform-${target_os}-${target_arch}"
+cli_name="${TERRARIUM_CLI_NAME:-vibevarium}"
+artifact="${cli_name}-${target_os}-${target_arch}"
 
 if ! command -v gh > /dev/null 2>&1; then
   echo "The gh CLI is required to install platform (private repo)." >&2
@@ -52,12 +53,12 @@ if command -v sha256sum > /dev/null 2>&1 && [ -f "${tmp}/${artifact}.sha256" ]; 
   (cd "${tmp}" && sha256sum -c "${artifact}.sha256")
 fi
 
-install -m 0755 "${tmp}/${artifact}" "${bin_dir}/platform"
-echo "Installed platform to ${bin_dir}/platform"
+install -m 0755 "${tmp}/${artifact}" "${bin_dir}/${cli_name}"
+echo "Installed ${cli_name} to ${bin_dir}/${cli_name}"
 
 case ":${PATH}:" in
   *":${bin_dir}:"*) ;;
-  *) echo "NOTE: ${bin_dir} is not on your PATH; add it to run 'platform'." ;;
+  *) echo "NOTE: ${bin_dir} is not on your PATH; add it to run '${cli_name}'." ;;
 esac
 
-"${bin_dir}/platform" --version || true
+"${bin_dir}/${cli_name}" --version || true

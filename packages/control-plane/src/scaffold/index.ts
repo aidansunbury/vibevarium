@@ -47,7 +47,10 @@ export interface ScaffoldOptions {
   } | undefined;
   readonly github?: {
     readonly appId: string;
-    readonly privateKeyPath: string;
+    /** Path to a PEM file on disk (env mode). */
+    readonly privateKeyPath?: string | undefined;
+    /** Inline PEM contents (secrets mode). Exactly one of the two is set. */
+    readonly privateKey?: string | undefined;
     readonly installationId: number;
     readonly org: string;
   } | undefined;

@@ -39,10 +39,24 @@ export const Dns = (options: DnsOptions) =>
       comment: "Terrarium control plane",
     });
 
+    // Logto's admin console wants its own origin (it does host-based tenant
+    // resolution; serving it on a path prefix of the core origin 404s its API).
+    const authAdmin = yield* Cloudflare.DNS.Record("AuthAdminA", {
+      zoneId: options.zoneId,
+      name: `auth-admin.${options.domain}`,
+      type: "A",
+      content: options.ip,
+      proxied: false,
+      ttl: 300,
+      comment: "Terrarium Logto admin console",
+    });
+
     return {
       authRecordId: auth.recordId,
       platformRecordId: platform.recordId,
+      authAdminRecordId: authAdmin.recordId,
       authHostname: `auth.${options.domain}`,
       platformHostname: `platform.${options.domain}`,
+      authAdminHostname: `auth-admin.${options.domain}`,
     };
   });

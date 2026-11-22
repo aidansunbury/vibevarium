@@ -7,6 +7,7 @@ import * as Command from "effect/cli/Command";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
+import { cliName } from "./name.ts";
 import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { authCommands, ssoHeaders, ssoProtocolHttp } from "./auth.ts";
@@ -175,7 +176,7 @@ export const dynamicPlatform = Effect.gen(function* () {
     Command.withSubcommands([addApp]),
     Command.withDescription("Manage the dynamic app manifest"),
   );
-  return Command.make("platform").pipe(
+  return Command.make(cliName).pipe(
     Command.withSubcommands([...authCommands, apps, ...appCommands]),
     Command.withDescription("One SSO login for dynamically imported Terrarium apps"),
   );

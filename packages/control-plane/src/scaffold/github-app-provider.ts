@@ -8,7 +8,10 @@ import { GitProvider, type GitProviderShape } from "./git-provider.ts";
 
 export interface GitHubAppProviderOptions {
   readonly appId: string;
-  readonly privateKeyPath: string;
+  /** Path to a PEM file on disk (env mode). */
+  readonly privateKeyPath?: string | undefined;
+  /** Inline PEM contents (secrets mode). Exactly one of the two is set. */
+  readonly privateKey?: string | undefined;
   readonly installationId: number;
   readonly org: string;
   readonly appsRoot: string;
@@ -24,7 +27,9 @@ const asError = (cause: unknown, status = 502) => new ScaffoldError(
 export const GitHubAppProvider = {
   layer: (options: GitHubAppProviderOptions) =>
     Layer.unwrap(attempt(async () => {
-      const privateKey = await readFile(resolve(options.privateKeyPath), "utf8");
+      const privateKey = options.privateKey !== undefined
+        ? options.privateKey
+        : await readFile(resolve(options.privateKeyPath!), "utf8");
       const octokit = new Octokit({
         authStrategy: createAppAuth,
         auth: {

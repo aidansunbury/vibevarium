@@ -14,6 +14,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { cliName } from "../src/name.ts";
 import { cliVersion } from "../src/version.ts";
 
 const packageDirectory = fileURLToPath(new URL("..", import.meta.url));
@@ -51,7 +52,7 @@ if (version !== cliVersion || version !== packageVersion) {
 // binary; the composed variant stays a workspace dev tool (see SPIKE.md).
 const targets = ["bun-linux-x64", "bun-darwin-arm64", "bun-darwin-x64"] as const;
 
-const artifactName = (target: string) => `platform-${target.replace(/^bun-/, "")}`;
+const artifactName = (target: string) => `${cliName}-${target.replace(/^bun-/, "")}`;
 
 const run = (args: ReadonlyArray<string>) =>
   new Promise<void>((resolve, reject) => {

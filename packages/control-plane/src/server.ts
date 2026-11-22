@@ -21,6 +21,7 @@ import { guiRoutes } from "./gui.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
 import { SecretsProvider } from "./integrations/secrets.ts";
 import { Integrations } from "./integrations/service.ts";
+import { bootSecretsReport } from "./secrets/boot.ts";
 import { RegisterAppInput, Registry } from "./registry/index.ts";
 import { Scaffold, type ScaffoldOptions } from "./scaffold/index.ts";
 import { Database } from "./store/database.ts";
@@ -54,6 +55,15 @@ export const runDiscoveryAndSync = Effect.gen(function*() {
   return results;
 });
 
+const hasAwsCredentialsForCheck = () =>
+  process.env.AWS_ACCESS_KEY_ID !== undefined ||
+  process.env.AWS_PROFILE !== undefined ||
+  process.env.AWS_ROLE_ARN !== undefined ||
+  process.env.AWS_WEB_IDENTITY_TOKEN_FILE !== undefined ||
+  process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI !== undefined ||
+  process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI !== undefined ||
+  process.env.AWS_EC2_METADATA_DISABLED !== "true";
+
 const operationalRoutes = (options: { readonly authEnabled: boolean }) =>
   HttpRouter.use((router) =>
     Effect.gen(function*() {
@@ -80,6 +90,57 @@ const operationalRoutes = (options: { readonly authEnabled: boolean }) =>
           auth: options.authEnabled ? "on" : "off",
         });
       })));
+
+      // Config provenance for ops/debugging — key NAMES and providers only,
+      // never values. Gated like every other ops route (auth-off in local dev
+      // means effectively public there). See SECRETS-SPIKE.md.
+      yield* router.add("GET", "/config-check", gated(Effect.gen(function*() {
+        const keys = [
+          ["TERRARIUM_ISSUER", process.env.TERRARIUM_ISSUER],
+          ["CONTROL_PLANE_ISSUER", process.env.CONTROL_PLANE_ISSUER],
+          ["CONTROL_PLANE_AUDIENCE", process.env.CONTROL_PLANE_AUDIENCE],
+          ["GIT_PROVIDER", process.env.GIT_PROVIDER],
+          ["GITHUB_APP_ID", process.env.GITHUB_APP_ID],
+          ["GITHUB_APP_INSTALLATION_ID", process.env.GITHUB_APP_INSTALLATION_ID],
+          ["GITHUB_APP_PRIVATE_KEY", process.env.GITHUB_APP_PRIVATE_KEY],
+          ["GITHUB_APP_PRIVATE_KEY_PATH", process.env.GITHUB_APP_PRIVATE_KEY_PATH],
+          ["CLOUDFLARE_API_TOKEN", process.env.CLOUDFLARE_API_TOKEN],
+          ["CLOUDFLARE_ACCOUNT_ID", process.env.CLOUDFLARE_ACCOUNT_ID],
+          ["CLOUDFLARE_ZONE_ID", process.env.CLOUDFLARE_ZONE_ID],
+          ["CLOUDFLARE_WORKERS_SUBDOMAIN", process.env.CLOUDFLARE_WORKERS_SUBDOMAIN],
+          ["ROUTER_KV_NAMESPACE_ID", process.env.ROUTER_KV_NAMESPACE_ID],
+          ["LOGTO_M2M_APP_ID", process.env.LOGTO_M2M_APP_ID],
+          ["LOGTO_M2M_APP_SECRET", process.env.LOGTO_M2M_APP_SECRET],
+          ["LOGTO_GUI_APP_ID", process.env.LOGTO_GUI_APP_ID],
+          ["LOGTO_GUI_APP_SECRET", process.env.LOGTO_GUI_APP_SECRET],
+          ["LOGTO_CLI_APP_ID", process.env.LOGTO_CLI_APP_ID],
+          ["LOGTO_MCP_RESOURCE", process.env.LOGTO_MCP_RESOURCE],
+        ] as const;
+        const fromSecrets = new Set(bootSecretsReport.resolved);
+        const config: Record<string, { set: boolean; source: string }> = {};
+        for (const [name, value] of keys) {
+          config[name] = {
+            set: value !== undefined,
+            source: fromSecrets.has(name)
+              ? "aws-secrets-manager"
+              : value !== undefined
+              ? "env"
+              : "unset",
+          };
+        }
+        const body: Record<string, unknown> = {
+          secretsProvider: process.env.SECRETS_PROVIDER === "aws" && hasAwsCredentialsForCheck()
+            ? "aws"
+            : "env",
+          resolvedFromSecrets: bootSecretsReport.resolved,
+          failedFromSecrets: bootSecretsReport.failed,
+          config,
+        };
+        if (bootSecretsReport.prefix !== undefined) {
+          body["secretsPrefix"] = bootSecretsReport.prefix;
+        }
+        return yield* HttpServerResponse.json(body);
+      }))));
 
       yield* router.add("POST", "/apps", gated(Effect.gen(function*() {
         const request = yield* HttpServerRequest.HttpServerRequest;
@@ -152,7 +213,11 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     integrationRoutes({
       authEnabled,
       appSecrets: options.appSecrets ?? {},
-    }).pipe(Layer.provide(Integrations.layer), Layer.provide(SecretsProvider.envLayer)),
+    }).pipe(
+      Layer.provide(Integrations.layer),
+      // SECRETS_PROVIDER=aws|env (default env) — see SECRETS-SPIKE.md
+      Layer.provide(Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv))),
+    ),
     scheduledDiscovery(options.discoveryIntervalMs ?? 30_000),
   ).pipe(
     Layer.provide(McpServer.layerHttp({

@@ -123,6 +123,36 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       tags: { Name: "terrarium-ec2-eip" },
     });
 
+    // --- IAM: EC2 instance role with read access to /terrarium/prod/* ------
+    // The control plane resolves its runtime config from AWS Secrets Manager
+    // (SECRETS_PROVIDER=aws) via the instance profile — no static AWS keys.
+    const instanceRole = yield* AWS.IAM.Role("Ec2Role", {
+      assumeRolePolicyDocument: {
+        Version: "2012-10-17",
+        Statement: [{
+          Effect: "Allow",
+          Principal: { Service: "ec2.amazonaws.com" },
+          Action: ["sts:AssumeRole"],
+        }],
+      },
+      inlinePolicies: {
+        TerrariumSecretsRead: {
+          Version: "2012-10-17",
+          Statement: [{
+            Effect: "Allow",
+            Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+            Resource: ["arn:aws:secretsmanager:us-east-1:412215357683:secret:/terrarium/prod/*"],
+          }],
+        },
+      },
+      tags: { Name: "terrarium-ec2-role" },
+    });
+
+    const instanceProfile = yield* AWS.IAM.InstanceProfile("Ec2Profile", {
+      roleName: instanceRole.roleName,
+      tags: { Name: "terrarium-ec2-profile" },
+    });
+
     // --- EC2 instance ------------------------------------------------------
     const instance = yield* AWS.EC2.Instance("Server", {
       imageId: AWS.EC2.ubuntu2404(),
@@ -130,6 +160,7 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       subnetId: network.publicSubnetIds[0],
       securityGroupIds: [ec2Sg.groupId],
       keyName: keyPair.keyName,
+      instanceProfileName: instanceProfile.instanceProfileName,
       associatePublicIpAddress: true, // ephemeral until EIP is associated
       metadataOptions: {
         httpTokens: "required", // IMDSv2
@@ -148,6 +179,8 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       keyPairName: keyPair.keyName,
       // Redacted PEM — written to .secrets/ by main.ts.
       sshPrivateKey: keyPair.privateKey,
+      ec2RoleArn: instanceRole.roleArn,
+      instanceProfileName: instanceProfile.instanceProfileName,
       instanceId: instance.instanceId,
       instancePublicDns: instance.publicDnsName,
       elasticIp: eip.publicIp,

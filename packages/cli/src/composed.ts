@@ -4,6 +4,7 @@ import { TicketsApi } from "@terrarium/template/TicketsApi.api";
 import * as Command from "effect/cli/Command";
 import { authCommands, ssoHeaders, ssoProtocolHttp } from "./auth.ts";
 import { rpcUrl } from "./config.ts";
+import { cliName } from "./name.ts";
 
 const exposed = [
   "OpenTicket",
@@ -20,7 +21,7 @@ export const tickets = toCli(TicketsApi, {
   headers: ssoHeaders,
 }).pipe(Command.provide(ssoProtocolHttp(rpcUrl(ticketsUrl))));
 
-export const platform = Command.make("platform").pipe(
+export const platform = Command.make(cliName).pipe(
   Command.withSubcommands([...authCommands, tickets]),
   Command.withDescription("One SSO login for every composed Terrarium app"),
 );
