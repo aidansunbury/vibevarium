@@ -3,7 +3,8 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 
-export const AppWorkers: Record<string, ReturnType<typeof Cloudflare.Worker.lookup>> = {};
+export const AppWorkers: Record<string, ReturnType<typeof Cloudflare.Worker.lookup>> = {
+  "APP_showcase2": Cloudflare.Worker.lookup({ name: "showcase2" }),};
 
 export const RouterDirectory = Cloudflare.KV.Namespace("TerrariumApps", {
   title: "terrarium-router-apps",

@@ -1,0 +1,10 @@
+# Caddy reverse proxy — auto-TLS via Let's Encrypt.
+# DOMAIN is substituted at deploy time (envsubst).
+
+auth.{$DOMAIN} {
+	reverse_proxy logto:3001
+}
+
+platform.{$DOMAIN} {
+	reverse_proxy control-plane:4100
+}

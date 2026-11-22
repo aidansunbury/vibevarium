@@ -1,6 +1,7 @@
 # Meta-MCP gateway spike
 
 > See [SCAFFOLD-SPIKE.md](./SCAFFOLD-SPIKE.md) for generated apps, optional template OIDC auth, authenticated discovery, and the end-to-end authenticated gateway proof.
+> See [GUI-SPIKE.md](./GUI-SPIKE.md) for the React control-plane GUI and local dev orchestrator, and [PROXY-SPIKE.md](./PROXY-SPIKE.md) for the integration proxy (grants, env-var secrets, audit).
 
 ## Verdict
 
@@ -39,15 +40,22 @@ Configuration environment variables:
 | `DISCOVERY_INTERVAL_MS` | `30000` | Scheduled discovery interval; `0` disables the schedule |
 | `DISCOVERY_TIMEOUT_MS` | `3000` | Per-app discovery/connect/list deadline |
 | `CALL_TIMEOUT_MS` | `3000` | Per-app connect/call deadline |
+| `CONTROL_PLANE_ISSUER` | unset | OIDC issuer for the control plane's own HTTP surfaces; unset means dev-open |
+| `CONTROL_PLANE_AUDIENCE` | `control.terrarium.local` | Audience expected on control-plane tokens |
+| `APP_SECRETS` | unset | JSON object of pre-M2M app credentials for the integration proxy (or `APP_SECRET_<NAME>` env vars) |
+| `GUI_DIR` | `web/dist` | Built GUI directory served at `/`; missing dir disables the mount |
+| `INTEGRATION_<NAME>_TOKEN` | unset | v1 integration tokens (referenced by `token_env` rows; see PROXY-SPIKE.md) |
 
-Operational endpoints:
+Operational endpoints (bearer-gated when `CONTROL_PLANE_ISSUER` is set):
 
 ```sh
 curl -X POST http://127.0.0.1:4100/apps \
   -H 'content-type: application/json' \
   -d '{"name":"tickets-a","url":"http://127.0.0.1:3000/mcp"}'
+curl http://127.0.0.1:4100/apps
 curl -X POST http://127.0.0.1:4100/discover
 curl http://127.0.0.1:4100/directory
+curl http://127.0.0.1:4100/whoami
 curl http://127.0.0.1:4100/health
 ```
 

@@ -5,6 +5,7 @@
     { "path": "packages/template" },
     { "path": "packages/dev-issuer" },
     { "path": "packages/fake-oauth" },
-    { "path": "packages/cli" }
+    { "path": "packages/cli" },
+    { "path": "packages/infra" }
   ]
 }

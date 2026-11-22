@@ -34,6 +34,35 @@ export class Database extends Context.Service<Database, {
             stale boolean NOT NULL DEFAULT false,
             PRIMARY KEY (app_name, remote_name)
           );
+
+          CREATE TABLE IF NOT EXISTS integrations (
+            name text PRIMARY KEY,
+            base_url text NOT NULL,
+            token_env text NOT NULL,
+            auth_header text NOT NULL DEFAULT 'authorization_bearer',
+            timeout_ms text NOT NULL DEFAULT '10000',
+            created_at timestamptz NOT NULL DEFAULT now()
+          );
+
+          CREATE TABLE IF NOT EXISTS integration_grants (
+            app text NOT NULL,
+            integration text NOT NULL REFERENCES integrations(name) ON DELETE CASCADE,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            PRIMARY KEY (app, integration)
+          );
+
+          CREATE TABLE IF NOT EXISTS proxy_audit (
+            id text PRIMARY KEY,
+            at timestamptz NOT NULL DEFAULT now(),
+            caller_kind text NOT NULL,
+            caller text NOT NULL,
+            app text NOT NULL,
+            integration text NOT NULL,
+            method text NOT NULL,
+            path text NOT NULL,
+            status text NOT NULL,
+            duration_ms text NOT NULL
+          );
         `)
       );
       return Database.of({ db: drizzle({ client, schema }) });

@@ -1,0 +1,73 @@
+# Terrarium auth + control plane stack.
+# DOMAIN is substituted by deploy.sh (envsubst / sed) — nothing hardcodes it.
+# DB credentials are injected at deploy time via .env (see deploy.sh).
+version: "3.9"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN}
+    depends_on:
+      - logto
+      - control-plane
+    networks:
+      - terrarium
+
+  logto:
+    image: ghcr.io/logto-io/logto:latest
+    restart: unless-stopped
+    environment:
+      TRUST_PROXY_HEADER: "1"
+      ENDPOINT: https://auth.${DOMAIN}
+      DB_URL: postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/logto?sslmode=no-verify
+    # First-run seed: idempotent — logto's cli db seed is a no-op when the
+    # schema is already at the current version. Runs on every container start;
+    # safe to leave in place.
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "Waiting for Postgres…"
+        until node -e "const net=require('net');const s=net.connect(${DB_PORT:-5432},'${DB_HOST}',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))" 2>/dev/null; do sleep 2; done
+        echo "Running logto db seed (idempotent)…"
+        npm run cli db seed || true
+        echo "Starting logto…"
+        exec npm start
+    networks:
+      - terrarium
+
+  control-plane:
+    build:
+      context: ./control-plane
+      dockerfile: packages/control-plane/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "4100"
+      HOST: "0.0.0.0"
+      # PGlite persisted to a docker volume for now. The RDS control_plane
+      # database is provisioned and reserved; swapping PGlite → node-pg via
+      # drizzle is a follow-up (see SPIKE.md).
+      DATABASE_PATH: /data/pglite
+      DISCOVERY_INTERVAL_MS: "30000"
+      TERRARIUM_ISSUER: https://auth.${DOMAIN}
+    volumes:
+      - control_plane_data:/data
+    networks:
+      - terrarium
+
+networks:
+  terrarium:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  control_plane_data:

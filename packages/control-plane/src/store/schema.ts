@@ -30,5 +30,41 @@ export const directoryTools = pgTable(
   ],
 );
 
+export const integrations = pgTable("integrations", {
+  name: text("name").primaryKey(),
+  baseUrl: text("base_url").notNull(),
+  tokenEnv: text("token_env").notNull(),
+  // authorization_bearer | authorization | x-api-key | none
+  authHeader: text("auth_header").notNull().default("authorization_bearer"),
+  timeoutMs: text("timeout_ms").notNull().default("10000"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export const integrationGrants = pgTable(
+  "integration_grants",
+  {
+    app: text("app").notNull(),
+    integration: text("integration").notNull().references(() => integrations.name, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.app, table.integration] })],
+);
+
+export const proxyAudit = pgTable("proxy_audit", {
+  id: text("id").primaryKey(),
+  at: timestamp("at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  callerKind: text("caller_kind").notNull(), // user | app
+  caller: text("caller").notNull(),
+  app: text("app").notNull(),
+  integration: text("integration").notNull(),
+  method: text("method").notNull(),
+  path: text("path").notNull(),
+  status: text("status").notNull(),
+  durationMs: text("duration_ms").notNull(),
+});
+
 export type AppRow = typeof apps.$inferSelect;
 export type DirectoryToolRow = typeof directoryTools.$inferSelect;
+export type IntegrationRow = typeof integrations.$inferSelect;
+export type IntegrationGrantRow = typeof integrationGrants.$inferSelect;
+export type ProxyAuditRow = typeof proxyAudit.$inferSelect;

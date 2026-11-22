@@ -1,4 +1,5 @@
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
+import { Auth, CurrentActor, requireAuth } from "@terrarium/auth";
 import { McpProtocol, McpServer } from "effect/ai";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -8,6 +9,7 @@ import * as HttpServer from "effect/http/HttpServer";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
@@ -15,6 +17,10 @@ import { createServer } from "node:http";
 import { Directory, Discovery } from "./discovery/index.ts";
 import { AppProxy } from "./gateway/proxy.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
+import { guiRoutes } from "./gui.ts";
+import { integrationRoutes } from "./integrations/routes.ts";
+import { SecretsProvider } from "./integrations/secrets.ts";
+import { Integrations } from "./integrations/service.ts";
 import { RegisterAppInput, Registry } from "./registry/index.ts";
 import { Scaffold, type ScaffoldOptions } from "./scaffold/index.ts";
 import { Database } from "./store/database.ts";
@@ -29,6 +35,16 @@ export interface ControlPlaneOptions {
   readonly discoveryToken?: string | undefined;
   readonly scaffold?: ScaffoldOptions | undefined;
   readonly fetch?: typeof globalThis.fetch | undefined;
+  /**
+   * AUTH SEAM: OIDC config for the control plane's own HTTP surfaces (ops
+   * routes, scaffold, integration admin, proxy caller auth, whoami). Unset
+   * means unauthenticated local-dev mode.
+   */
+  readonly oidc?: { readonly issuer: string; readonly audience: string } | undefined;
+  /** Pre-M2M app credentials for the integration proxy (app name → shared secret). */
+  readonly appSecrets?: Readonly<Record<string, string>> | undefined;
+  /** Built GUI directory (vite output) served at /. Unset disables the GUI. */
+  readonly guiDir?: string | undefined;
 }
 
 export const runDiscoveryAndSync = Effect.gen(function*() {
@@ -38,46 +54,63 @@ export const runDiscoveryAndSync = Effect.gen(function*() {
   return results;
 });
 
-const operationalRoutes = HttpRouter.use((router) =>
-  Effect.gen(function*() {
-    const registry = yield* Registry;
-    const directory = yield* Directory;
-    const discovery = yield* Discovery;
-    const proxy = yield* AppProxy;
-    const mcpServer = yield* McpServer.McpServer;
-    const context = Context.make(Registry, registry).pipe(
-      Context.add(Directory, directory),
-      Context.add(Discovery, discovery),
-      Context.add(AppProxy, proxy),
-      Context.add(McpServer.McpServer, mcpServer),
-    );
-    const discover = Effect.provideContext(runDiscoveryAndSync, context);
+const operationalRoutes = (options: { readonly authEnabled: boolean }) =>
+  HttpRouter.use((router) =>
+    Effect.gen(function*() {
+      const registry = yield* Registry;
+      const directory = yield* Directory;
+      const discovery = yield* Discovery;
+      const proxy = yield* AppProxy;
+      const mcpServer = yield* McpServer.McpServer;
+      const context = Context.make(Registry, registry).pipe(
+        Context.add(Directory, directory),
+        Context.add(Discovery, discovery),
+        Context.add(AppProxy, proxy),
+        Context.add(McpServer.McpServer, mcpServer),
+      );
+      const discover = Effect.provideContext(runDiscoveryAndSync, context);
+      const gated = options.authEnabled
+        ? requireAuth
+        : <E, R>(handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) => handler;
 
-    yield* router.add("POST", "/apps", Effect.gen(function*() {
-      const request = yield* HttpServerRequest.HttpServerRequest;
-      const body = yield* request.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
-      const decoded = yield* Schema.decodeUnknownEffect(RegisterAppInput)(body).pipe(Effect.result);
-      if (Result.isFailure(decoded)) {
+      yield* router.add("GET", "/whoami", gated(Effect.gen(function*() {
+        const actor = yield* Effect.serviceOption(CurrentActor);
         return yield* HttpServerResponse.json({
-          error: "Invalid app registration; expected a lower-kebab-case name and an http(s) MCP URL",
-          details: decoded.failure.message,
-        }, { status: 400 });
-      }
-      const app = yield* registry.register(decoded.success);
-      return yield* HttpServerResponse.json(app, { status: 201 });
-    }));
+          actor: Option.getOrNull(actor),
+          auth: options.authEnabled ? "on" : "off",
+        });
+      })));
 
-    yield* router.add("GET", "/directory", Effect.gen(function*() {
-      const [apps, tools] = yield* Effect.all([registry.list(), directory.list()]);
-      return yield* HttpServerResponse.json({ apps, tools });
-    }));
+      yield* router.add("POST", "/apps", gated(Effect.gen(function*() {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const body = yield* request.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
+        const decoded = yield* Schema.decodeUnknownEffect(RegisterAppInput)(body).pipe(Effect.result);
+        if (Result.isFailure(decoded)) {
+          return yield* HttpServerResponse.json({
+            error: "Invalid app registration; expected a lower-kebab-case name and an http(s) MCP URL",
+            details: decoded.failure.message,
+          }, { status: 400 });
+        }
+        const app = yield* registry.register(decoded.success);
+        return yield* HttpServerResponse.json(app, { status: 201 });
+      })));
 
-    yield* router.add("POST", "/discover", Effect.gen(function*() {
-      const results = yield* discover;
-      return yield* HttpServerResponse.json({ results });
-    }));
-  })
-);
+      yield* router.add("GET", "/apps", gated(Effect.gen(function*() {
+        const apps = yield* registry.list();
+        return yield* HttpServerResponse.json({ apps });
+      })));
+
+      yield* router.add("GET", "/directory", gated(Effect.gen(function*() {
+        const [apps, tools] = yield* Effect.all([registry.list(), directory.list()]);
+        return yield* HttpServerResponse.json({ apps, tools });
+      })));
+
+      yield* router.add("POST", "/discover", gated(Effect.gen(function*() {
+        const results = yield* discover;
+        return yield* HttpServerResponse.json({ results });
+      })));
+    })
+  );
 
 const scheduledDiscovery = (intervalMs: number) =>
   Layer.effectDiscard(Effect.gen(function*() {
@@ -90,7 +123,8 @@ const scheduledDiscovery = (intervalMs: number) =>
 
 export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const databaseLayer = options.databasePath === undefined ? Database.layer() : Database.layer(options.databasePath);
-  const storeLayer = Layer.mergeAll(Registry.layer, Directory.layer).pipe(Layer.provide(databaseLayer));
+  // provideMerge keeps Database in the output context so Integrations.layer can use it too.
+  const storeLayer = Layer.mergeAll(Registry.layer, Directory.layer).pipe(Layer.provideMerge(databaseLayer));
   const servicesLayer = Layer.mergeAll(
     Discovery.layer({
       timeoutMs: options.discoveryTimeoutMs ?? 3_000,
@@ -109,10 +143,16 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     ),
   );
 
+  const authEnabled = options.oidc !== undefined;
+
   const routes = Layer.mergeAll(
     gatewayRegistrations,
-    operationalRoutes,
-    Scaffold.routes.pipe(Layer.provide(Scaffold.layer(options.scaffold))),
+    operationalRoutes({ authEnabled }),
+    Scaffold.routes({ authEnabled }).pipe(Layer.provide(Scaffold.layer(options.scaffold))),
+    integrationRoutes({
+      authEnabled,
+      appSecrets: options.appSecrets ?? {},
+    }).pipe(Layer.provide(Integrations.layer), Layer.provide(SecretsProvider.envLayer)),
     scheduledDiscovery(options.discoveryIntervalMs ?? 30_000),
   ).pipe(
     Layer.provide(McpServer.layerHttp({
@@ -124,19 +164,35 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     Layer.provide(servicesLayer),
   );
 
+  // The GUI is mounted last: its /* fallback must lose to every API route.
   const allRoutes = Layer.mergeAll(
     routes,
     HttpRouter.add("GET", "/health", HttpServerResponse.text("ok")),
+    guiRoutes(options.guiDir === undefined ? {} : { staticDir: options.guiDir }),
   );
+
+  const authLayer = options.oidc === undefined
+    ? Layer.succeed(Auth, Auth.of({
+        issuer: "auth-disabled",
+        audience: "auth-disabled",
+        verify: () => Effect.die("Authentication is disabled"),
+        refreshJwks: () => Effect.void,
+      }))
+    : Auth.layer(options.oidc);
 
   return Layer.unwrap(
     Effect.map(HttpRouter.toHttpEffect(allRoutes), (app) => HttpServer.serve()(app)),
   ).pipe(
+    Layer.provide(authLayer),
     Layer.provideMerge(NodeHttpServer.layer(createServer, {
       port: options.port ?? 0,
       host: options.host ?? "127.0.0.1",
     })),
-  );
+  ) as Layer.Layer<
+    HttpServer.HttpServer,
+    import("@terrarium/auth").DiscoveryError | import("effect/http/HttpServerError").ServeError,
+    never
+  >;
 };
 
 /** Build the control plane for the caller's Scope, returning its ephemeral or configured address. */

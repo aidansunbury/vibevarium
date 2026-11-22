@@ -8,3 +8,7 @@ export { controlPlaneServer, runDiscoveryAndSync, startControlPlane } from "./se
 export type { ControlPlaneOptions } from "./server.ts";
 export { Database } from "./store/database.ts";
 export type { AppStatus } from "./store/schema.ts";
+export { Integrations, IntegrationError } from "./integrations/service.ts";
+export type { IntegrationView, ProxyResult } from "./integrations/service.ts";
+export { SecretsProvider } from "./integrations/secrets.ts";
+export { integrationRoutes } from "./integrations/routes.ts";

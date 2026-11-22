@@ -1,5 +1,6 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import { requireAuth } from "@terrarium/auth";
 import * as HttpRouter from "effect/http/HttpRouter";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
@@ -94,33 +95,37 @@ const respond = <A>(effect: Effect.Effect<A, ScaffoldError>, successStatus = 200
     onSuccess: (value) => HttpServerResponse.json(value, { status: successStatus }),
   });
 
-const registerGeneratedRoutes = HttpRouter.use((router) =>
-  Effect.gen(function*() {
-    const scaffold = yield* Scaffold;
+const registerGeneratedRoutes = (options: { readonly authEnabled: boolean }) =>
+  HttpRouter.use((router) =>
+    Effect.gen(function*() {
+      const scaffold = yield* Scaffold;
+      const gated = options.authEnabled
+        ? requireAuth
+        : <E, R>(handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) => handler;
 
-    yield* router.add("POST", "/scaffold", Effect.gen(function*() {
-      const request = yield* HttpServerRequest;
-      const body = yield* request.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
-      const decoded = yield* Schema.decodeUnknownEffect(ScaffoldInput)(body).pipe(Effect.result);
-      if (Result.isFailure(decoded)) {
-        return yield* HttpServerResponse.json({
-          error: "Expected { name } with a unique, DNS-label-safe lower-kebab-case name (1-63 characters)",
-          details: decoded.failure.message,
-        }, { status: 400 });
-      }
-      return yield* respond(scaffold.create(decoded.success.name), 201);
-    }));
+      yield* router.add("POST", "/scaffold", gated(Effect.gen(function*() {
+        const request = yield* HttpServerRequest;
+        const body = yield* request.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
+        const decoded = yield* Schema.decodeUnknownEffect(ScaffoldInput)(body).pipe(Effect.result);
+        if (Result.isFailure(decoded)) {
+          return yield* HttpServerResponse.json({
+            error: "Expected { name } with a unique, DNS-label-safe lower-kebab-case name (1-63 characters)",
+            details: decoded.failure.message,
+          }, { status: 400 });
+        }
+        return yield* respond(scaffold.create(decoded.success.name), 201);
+      })));
 
-    yield* router.add("DELETE", "/apps/:name", Effect.gen(function*() {
-      const params = yield* HttpRouter.params;
-      const name = params.name;
-      if (name === undefined || !dnsLabel.test(name)) {
-        return yield* HttpServerResponse.json({ error: "Invalid app name" }, { status: 400 });
-      }
-      return yield* respond(scaffold.remove(name));
-    }));
-  })
-);
+      yield* router.add("DELETE", "/apps/:name", gated(Effect.gen(function*() {
+        const params = yield* HttpRouter.params;
+        const name = params.name;
+        if (name === undefined || !dnsLabel.test(name)) {
+          return yield* HttpServerResponse.json({ error: "Invalid app name" }, { status: 400 });
+        }
+        return yield* respond(scaffold.remove(name));
+      })));
+    })
+  );
 
 export class Scaffold extends Context.Service<Scaffold, {
   readonly create: (name: string) => Effect.Effect<ScaffoldResult, ScaffoldError>;

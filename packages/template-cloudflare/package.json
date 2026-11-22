@@ -5,7 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "deploy": "alchemy deploy",
+    "build": "pnpm --dir web build",
+    "dev": "alchemy dev",
+    "dev:web": "pnpm --dir web dev",
+    "deploy": "pnpm --dir web build && alchemy deploy",
     "destroy": "alchemy destroy",
     "typecheck": "tsrs --noEmit -p tsconfig.json"
   },
@@ -14,7 +17,8 @@
     "@alchemy.run/domain": "2.0.0-beta.87",
     "@effect/platform-node": "^4.1.5",
     "alchemy": "2.0.0-beta.87",
-    "effect": "^4.1.5"
+    "effect": "^4.1.5",
+    "jose": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
