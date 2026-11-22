@@ -42,6 +42,8 @@ export interface ScaffoldOptions {
     readonly accountId: string;
     readonly alchemyHome: string;
     readonly workersSubdomain: string;
+    /** Base domain app hostnames hang off of, e.g. `vibevarium.com`. */
+    readonly domain: string;
     readonly routerNamespaceId: string;
     readonly zoneId: string;
   } | undefined;
@@ -93,10 +95,13 @@ const linkWorkspaceTemplate = (workspaceRoot: string, repo: GitRepo) =>
   });
 
 const respond = <A>(effect: Effect.Effect<A, ScaffoldError>, successStatus = 200) =>
-  Effect.matchEffect(effect, {
-    onFailure: (error) => HttpServerResponse.json({ error: error.message }, { status: error.status }),
-    onSuccess: (value) => HttpServerResponse.json(value, { status: successStatus }),
-  });
+  effect.pipe(
+    Effect.tapDefect((cause) => Effect.logError("scaffold route defect", cause)),
+    Effect.matchEffect({
+      onFailure: (error) => HttpServerResponse.json({ error: error.message }, { status: error.status }),
+      onSuccess: (value) => HttpServerResponse.json(value, { status: successStatus }),
+    }),
+  );
 
 const registerGeneratedRoutes = (options: { readonly authEnabled: boolean }) =>
   HttpRouter.use((router) =>

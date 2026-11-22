@@ -13,6 +13,8 @@ export interface CloudflareDeployerOptions {
   readonly accountId: string;
   readonly alchemyHome: string;
   readonly workersSubdomain: string;
+  /** Base domain app hostnames hang off of, e.g. `vibevarium.com`. */
+  readonly domain: string;
   readonly packageManager?: "pnpm" | "symlink" | undefined;
 }
 
@@ -40,7 +42,7 @@ export class CloudflareDeployer {
       STACK_NAME: `terrarium-${name}`,
       WORKER_NAME: name,
       D1_DATABASE_NAME: `${name}-data`,
-      APP_HOSTNAME: `${name}.gitprops.com`,
+      APP_HOSTNAME: `${name}.${this.#options.domain}`,
     };
   }
 
@@ -84,7 +86,7 @@ export class CloudflareDeployer {
       directory,
       workerName: name,
       workerUrl: `https://${name}.${this.#options.workersSubdomain}.workers.dev`,
-      hostname: `${name}.gitprops.com`,
+      hostname: `${name}.${this.#options.domain}`,
       databaseName: `${name}-data`,
     };
     await this.alchemy("deploy", deployment);
@@ -97,7 +99,7 @@ export class CloudflareDeployer {
       directory,
       workerName: name,
       workerUrl: `https://${name}.${this.#options.workersSubdomain}.workers.dev`,
-      hostname: `${name}.gitprops.com`,
+      hostname: `${name}.${this.#options.domain}`,
       databaseName: `${name}-data`,
     });
   }

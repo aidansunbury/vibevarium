@@ -1,0 +1,4 @@
+/* The Terrarium design system (shadcn/ui + Base UI). Theme variables live in
+ * @terrarium/ui; a fork re-themes by overriding the CSS variables after this
+ * import (see packages/ui/README.md). */
+@import "@terrarium/ui/styles.css";

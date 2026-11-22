@@ -1,21 +1,35 @@
 import { useCallback, useEffect, useState } from "react";
+import { RefreshCwIcon, RadarIcon } from "@terrarium/ui/lib/icons";
 import { api, login, logout, type Actor, type AppRow } from "./api";
 import { AppDetail } from "./AppDetail";
 import { ScaffoldForm } from "./ScaffoldForm";
 import { IntegrationsPanel } from "./IntegrationsPanel";
+import { Badge } from "@terrarium/ui/components/badge";
+import { Button } from "@terrarium/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
+import { Dialog } from "@terrarium/ui/components/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@terrarium/ui/components/dropdown-menu";
+import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } from "@terrarium/ui/layout/shell";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@terrarium/ui/components/table";
+import { Toaster } from "@terrarium/ui/components/sonner";
+import { toast } from "@terrarium/ui/lib/toast";
 
-const styles = {
-  shell: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", margin: "0 auto", maxWidth: 960, padding: "24px 16px", color: "#1c1c1e" } as const,
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #1c1c1e", paddingBottom: 8 } as const,
-  badge: (status: AppRow["status"]) => ({
-    display: "inline-block", padding: "1px 8px", borderRadius: 10, fontSize: 12,
-    background: status === "up" ? "#c8f7c5" : status === "down" ? "#f7c5c5" : "#e2e2e2",
-  }),
-  card: { border: "1px solid #c9c9c9", borderRadius: 8, padding: 16, marginTop: 16 } as const,
-  button: { font: "inherit", padding: "4px 12px", borderRadius: 6, border: "1px solid #1c1c1e", background: "#fff", cursor: "pointer" } as const,
-  row: { display: "flex", gap: 12, alignItems: "center" } as const,
-  muted: { color: "#6b6b6b", fontSize: 13 } as const,
-};
+const statusVariant = (status: AppRow["status"]) =>
+  status === "up" ? "success" : status === "down" ? "destructive" : "secondary";
 
 export const App = () => {
   const [actor, setActor] = useState<Actor | null>(null);
@@ -48,79 +62,146 @@ export const App = () => {
     void refresh();
   }, [refresh, refreshTick]);
 
+  const runDiscovery = async () => {
+    try {
+      await api("/discover", { method: "POST", body: "{}" });
+      setRefreshTick((n) => n + 1);
+      toast.success("Discovery complete");
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
   const signedOut = authOn === true && actor === null;
 
   return (
-    <div style={styles.shell}>
-      <header style={styles.header}>
-        <div>
-          <strong>Terrarium control plane</strong>{" "}
-          <span style={styles.muted}>app gallery</span>
-        </div>
-        <div style={styles.row}>
-          {actor !== null && <span style={styles.muted}>{actor.name ?? actor.sub} ({actor.sub})</span>}
-          {authOn === false && <span style={styles.muted}>auth off</span>}
-          {signedOut
-            ? <button style={styles.button} onClick={() => login()}>Log in</button>
-            : authOn === true && <button style={styles.button} onClick={() => void logout()}>Log out</button>}
-        </div>
-      </header>
+    <Shell>
+      <ShellHeader>
+        <ShellHeaderTitle>
+          <span className="font-semibold">Terrarium</span>
+          <span className="text-muted-foreground">control plane</span>
+        </ShellHeaderTitle>
+        <ShellHeaderActions>
+          {authOn === false && <Badge variant="secondary">auth off</Badge>}
+          {signedOut ? (
+            <Button size="sm" onClick={() => login()}>
+              Log in
+            </Button>
+          ) : (
+            authOn === true &&
+            actor !== null && (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted">
+                  <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                    {(actor.name ?? actor.sub).slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="hidden sm:inline">{actor.name ?? actor.sub}</span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col">
+                      <span className="text-foreground">{actor.name ?? actor.sub}</span>
+                      <span className="text-xs text-muted-foreground">{actor.sub}</span>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => void logout()}>Log out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          )}
+        </ShellHeaderActions>
+      </ShellHeader>
 
-      {error !== null && <div style={{ ...styles.card, borderColor: "#d33" }}>⚠ {error}</div>}
+      <ShellBody>
+        {error !== null && (
+          <Card className="border-destructive/40 ring-destructive/20">
+            <CardContent className="text-destructive">⚠ {error}</CardContent>
+          </Card>
+        )}
 
-      {signedOut
-        ? <div style={styles.card}>This control plane requires sign-in. Use the login button to authenticate with Logto.</div>
-        : (
+        {signedOut ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Sign in required</CardTitle>
+              <CardDescription>
+                This control plane requires sign-in. Use the login button to authenticate with Logto.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => login()}>Log in</Button>
+            </CardContent>
+          </Card>
+        ) : (
           <>
-            <div style={styles.card}>
-              <h3 style={{ marginTop: 0 }}>Registered apps</h3>
-              {apps === null
-                ? <p style={styles.muted}>Loading…</p>
-                : apps.length === 0
-                  ? <p style={styles.muted}>No apps registered. Scaffold one below.</p>
-                  : (
-                    <table cellPadding={6} style={{ borderCollapse: "collapse", width: "100%" }}>
-                      <thead>
-                        <tr style={{ textAlign: "left", borderBottom: "1px solid #c9c9c9" }}>
-                          <th>name</th><th>status</th><th>url</th><th>last seen</th><th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {apps.map((app) => (
-                          <tr key={app.name} style={{ borderBottom: "1px solid #eee" }}>
-                            <td><strong>{app.name}</strong></td>
-                            <td><span style={styles.badge(app.status)}>{app.status}</span></td>
-                            <td style={styles.muted}>{app.url}</td>
-                            <td style={styles.muted}>{app.lastSeenAt ?? "never"}</td>
-                            <td><button style={styles.button} onClick={() => setSelected(app.name)}>details</button></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-              <div style={{ ...styles.row, marginTop: 12 }}>
-                <button style={styles.button} onClick={() => setRefreshTick((n) => n + 1)}>Refresh</button>
-                <button
-                  style={styles.button}
-                  onClick={() => void api("/discover", { method: "POST", body: "{}" }).then(() => setRefreshTick((n) => n + 1))}
-                >
-                  Run discovery
-                </button>
-              </div>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Registered apps</CardTitle>
+                <CardDescription>Apps registered with the gateway, with status and last-seen time.</CardDescription>
+                <div className="col-start-2 row-span-2 row-start-1 flex gap-2 self-start justify-self-end">
+                  <Button variant="outline" size="sm" onClick={() => setRefreshTick((n) => n + 1)}>
+                    <RefreshCwIcon data-icon="inline-start" />
+                    Refresh
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => void runDiscovery()}>
+                    <RadarIcon data-icon="inline-start" />
+                    Run discovery
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {apps === null ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : apps.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No apps registered. Scaffold one below.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>URL</TableHead>
+                        <TableHead>Last seen</TableHead>
+                        <TableHead className="w-0" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {apps.map((app) => (
+                        <TableRow key={app.name} className="cursor-pointer" onClick={() => setSelected(app.name)}>
+                          <TableCell className="font-medium">{app.name}</TableCell>
+                          <TableCell>
+                            <Badge variant={statusVariant(app.status)}>{app.status}</Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{app.url}</TableCell>
+                          <TableCell className="text-muted-foreground">{app.lastSeenAt ?? "never"}</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="sm">
+                              details
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
 
-            {selected !== null && (
-              <AppDetail
-                name={selected}
-                onClose={() => setSelected(null)}
-                onDeleted={() => { setSelected(null); setRefreshTick((n) => n + 1); }}
-              />
-            )}
+            <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
+              {selected !== null && (
+                <AppDetail
+                  name={selected}
+                  onDeleted={() => { setSelected(null); setRefreshTick((n) => n + 1); }}
+                />
+              )}
+            </Dialog>
 
             <ScaffoldForm onScaffolded={() => setRefreshTick((n) => n + 1)} />
             <IntegrationsPanel />
           </>
         )}
-    </div>
+      </ShellBody>
+      <Toaster />
+    </Shell>
   );
 };

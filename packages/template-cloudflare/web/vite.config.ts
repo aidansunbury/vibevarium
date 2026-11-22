@@ -1,4 +1,5 @@
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
 // The built SPA is served by the same Worker that hosts the Api: asset
@@ -23,7 +24,7 @@ const apiPaths = [
 ];
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     proxy: Object.fromEntries(apiPaths.map((path) => [path, apiProxyTarget])),

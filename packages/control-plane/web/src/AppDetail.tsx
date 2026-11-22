@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
+import { Trash2Icon } from "@terrarium/ui/lib/icons";
 import { api, type AppRow, type DirectoryTool } from "./api";
+import { Badge } from "@terrarium/ui/components/badge";
+import { Button } from "@terrarium/ui/components/button";
+import {
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@terrarium/ui/components/dialog";
+import { Separator } from "@terrarium/ui/components/separator";
 
-const styles = {
-  card: { border: "1px solid #c9c9c9", borderRadius: 8, padding: 16, marginTop: 16 } as const,
-  button: { font: "inherit", padding: "4px 12px", borderRadius: 6, border: "1px solid #1c1c1e", background: "#fff", cursor: "pointer" } as const,
-  danger: { font: "inherit", padding: "4px 12px", borderRadius: 6, border: "1px solid #d33", background: "#fff", color: "#d33", cursor: "pointer" } as const,
-  muted: { color: "#6b6b6b", fontSize: 13 } as const,
-  row: { display: "flex", gap: 12, alignItems: "center" } as const,
-};
+const statusVariant = (status: AppRow["status"]) =>
+  status === "up" ? "success" : status === "down" ? "destructive" : "secondary";
 
-export const AppDetail = ({ name, onClose, onDeleted }: {
+export const AppDetail = ({ name, onDeleted }: {
   readonly name: string;
-  readonly onClose: () => void;
   readonly onDeleted: () => void;
 }) => {
   const [app, setApp] = useState<AppRow | null>(null);
@@ -47,36 +51,50 @@ export const AppDetail = ({ name, onClose, onDeleted }: {
   };
 
   return (
-    <div style={styles.card}>
-      <div style={{ ...styles.row, justifyContent: "space-between" }}>
-        <h3 style={{ margin: 0 }}>{name}</h3>
-        <div style={styles.row}>
-          <button style={styles.danger} disabled={deleting} onClick={() => void remove()}>
-            {deleting ? "Deleting…" : "Delete app"}
-          </button>
-          <button style={styles.button} onClick={onClose}>Close</button>
-        </div>
-      </div>
-      {error !== null && <p style={{ color: "#d33" }}>⚠ {error}</p>}
-      {app !== null && (
-        <p style={styles.muted}>
-          status {app.status} · url {app.url} · last seen {app.lastSeenAt ?? "never"}
-          {app.lastError !== null && <> · last error {app.lastError}</>}
-        </p>
-      )}
-      <h4>Tools ({tools.length})</h4>
-      {tools.length === 0
-        ? <p style={styles.muted}>No discovered tools — run discovery.</p>
-        : (
-          <ul>
+    <DialogContent className="sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>{name}</DialogTitle>
+        {app !== null && (
+          <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Badge variant={statusVariant(app.status)}>{app.status}</Badge>
+            <span>{app.url}</span>
+            <span className="text-muted-foreground">· last seen {app.lastSeenAt ?? "never"}</span>
+            {app.lastError !== null && <span className="text-destructive">· last error {app.lastError}</span>}
+          </DialogDescription>
+        )}
+      </DialogHeader>
+
+      {error !== null && <p className="text-sm text-destructive">⚠ {error}</p>}
+
+      <Separator />
+
+      <div className="flex flex-col gap-2">
+        <h4 className="text-sm font-medium">Tools ({tools.length})</h4>
+        {tools.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No discovered tools — run discovery.</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
             {tools.map((tool) => (
               <li key={tool.gatewayName}>
-                <code>{tool.gatewayName}</code>{tool.stale && <span style={styles.muted}> (stale)</span>}
-                {tool.descriptor.description !== undefined && <div style={styles.muted}>{tool.descriptor.description}</div>}
+                <div className="flex items-center gap-2">
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{tool.gatewayName}</code>
+                  {tool.stale && <Badge variant="secondary">stale</Badge>}
+                </div>
+                {tool.descriptor.description !== undefined && (
+                  <div className="mt-0.5 text-sm text-muted-foreground">{tool.descriptor.description}</div>
+                )}
               </li>
             ))}
           </ul>
         )}
-    </div>
+      </div>
+
+      <div className="mt-2 flex justify-end border-t pt-4">
+        <Button variant="destructive" size="sm" disabled={deleting} onClick={() => void remove()}>
+          <Trash2Icon data-icon="inline-start" />
+          {deleting ? "Deleting…" : "Delete app"}
+        </Button>
+      </div>
+    </DialogContent>
   );
 };

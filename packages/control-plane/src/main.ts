@@ -37,12 +37,24 @@ const appSecrets = (): Record<string, string> => {
   return collected;
 };
 
-const oidc = process.env.CONTROL_PLANE_ISSUER === undefined
-  ? undefined
-  : {
+// Ops-route bearer auth. Two configs:
+// - CONTROL_PLANE_ISSUER set: a dedicated ops OIDC (its own audience).
+// - Otherwise, when GUI login is on: reuse the GUI issuer + the platform
+//   audience — one auth server, one token (aud https://mcp.DOMAIN) opens both
+//   the GUI session and bearer-authed ops calls. Without this, guiAuth alone
+//   flips authEnabled on while Auth.layer has no config → defects on every
+//   gated route (the empty-500 bug this fixes).
+const oidc = process.env.CONTROL_PLANE_ISSUER !== undefined
+  ? {
       issuer: process.env.CONTROL_PLANE_ISSUER,
       audience: process.env.CONTROL_PLANE_AUDIENCE ?? "control.terrarium.local",
-    };
+    }
+  : process.env.LOGTO_GUI_APP_SECRET !== undefined
+    ? {
+        issuer: (process.env.LOGTO_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, ""),
+        audience: process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com",
+      }
+    : undefined;
 
 // Real GUI login (Logto auth-code + PKCE). Enabled when the GUI app secret is
 // present. Locally the secret comes from the repo-root .env; in production it
@@ -93,6 +105,7 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
             accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
             alchemyHome: process.env.ALCHEMY_HOME!,
             workersSubdomain: process.env.CLOUDFLARE_WORKERS_SUBDOMAIN!,
+            domain: process.env.TERRARIUM_DOMAIN ?? "vibevarium.com",
             routerNamespaceId: process.env.ROUTER_KV_NAMESPACE_ID!,
             zoneId: process.env.CLOUDFLARE_ZONE_ID!,
           },
