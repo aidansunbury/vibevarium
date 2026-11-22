@@ -240,3 +240,66 @@ Final `tsrs` and type-aware `oxlint` runs both completed with no output/errors. 
 - What is the safe default exposure for an arbitrary Api: all non-streaming calls, only commands plus `.get`, or an explicit manifest list?
 - Will one audience really be accepted by every app, or does SSO need per-resource token exchange/down-scoping?
 - Can published app packages guarantee a pure domain-only entrypoint so CLI installation cannot accidentally pull server/cloud dependencies?
+
+## Publishing (GitHub Releases)
+
+The published artifact is the **dynamic, manifest-driven** variant, shipped as a
+single `platform` binary per OS/arch via GitHub Releases (`.github/workflows/cli-release.yml`).
+The composed variant stays a workspace dev tool: publishing it would bake the
+whole workspace into every release and give no `apps add` flexibility.
+
+### The compiled-binary loading constraint (decided: embedded registry)
+
+The spike's dynamic loader `import()`ed a bare package specifier resolved from
+the workspace `node_modules`. A `bun build --compile` single binary has **no
+`node_modules`** and no runtime module resolution against disk, so that loader
+cannot load an arbitrary npm/tarball package. Three approaches were tried and
+rejected:
+
+1. **Fetch + extract a tarball, then `import()` the extracted `.ts`.** Fails:
+   the extracted package imports `@alchemy.run/domain`/`effect`, and a compiled
+   binary cannot resolve those bare specifiers from disk. Symlinking the
+   binary's embedded `/$bunfs/root/node_modules` does not work — that virtual
+   path is not visible to `node:fs`/`symlink` from inside the binary.
+2. **A `Bun.plugin` runtime resolver** redirecting the package's deps to the
+   embedded modules. `Bun.plugin` exists in compiled binaries, but the hook is
+   applied at build time, not for post-build runtime `import()`, so it cannot
+   cover packages added after the binary was built.
+3. **Publish domain packages to npm and install them.** Same resolution
+   problem as (1) once installed.
+
+The decision is an **embedded Api registry** (`src/registry.ts`): the platform's
+known domain Apis are statically imported at build time (so they and their deps
+are bundled and resolve correctly), and `apps add <name> <package> <url>`
+records which registry key an app uses. The manifest still decides *which* apps
+are exposed and their URLs; the registry decides *which Api code* backs each
+package name. Adding a new app to a release means adding one import + entry to
+`src/registry.ts` and cutting a new CLI release — acceptable because the
+platform controls both.
+
+This is a deliberate simplification of the "no CLI release per app" goal: the
+manifest no longer pulls in arbitrary code, but it still adds/removes apps and
+repoints URLs without touching the CLI's *composition* code. When the app
+registry moves to the control plane, `src/registry.ts` becomes a fetched
+manifest plus lazy per-app bundles instead of a static import list.
+
+### Version stamp
+
+`src/version.ts` (`cliVersion`) is the single source of truth; it must equal
+`package.json`'s `version` and the release tag's version (`cli-v<X>`).
+`scripts/build.ts --version <X>` asserts all three agree before compiling, so a
+published binary's `--version` can never disagree with its tag.
+
+### Cutting a release
+
+```sh
+git tag cli-v0.0.2          # after bumping package.json + src/version.ts
+git push origin cli-v0.0.2  # triggers cli-release.yml
+# or: gh workflow run cli-release.yml -f version=0.0.2
+```
+
+The workflow builds `platform-linux-x64`, `platform-darwin-arm64`,
+`platform-darwin-x64` (+ `.sha256`), substitutes `scripts/install.sh` with the
+repo + version, and attaches everything to a `cli-v<X>` GitHub Release. The
+repo is private, so `install.sh` uses the `gh` CLI to download assets (a plain
+`curl` against the browser download URL returns 404 without auth).

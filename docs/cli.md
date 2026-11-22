@@ -69,3 +69,40 @@ Independent of the platform CLI, every app repo can ship its own
 Standard OIDC for a native app (see [auth.md](./auth.md)): loopback-redirect
 PKCE (open the browser, listen on localhost) or device flow where the provider
 supports it. The token is cached locally and attached via `toCli`'s `headers`.
+
+## Installing the published CLI
+
+Anyone with repo access can install the standalone `platform` binary from the
+latest `cli-v*` GitHub Release. The repo is private, so the installer uses the
+`gh` CLI (authenticated) to fetch assets:
+
+```sh
+gh release download cli-v0.0.1 --repo aidansunbury/terrarium --pattern install.sh
+sh install.sh
+```
+
+`install.sh` detects OS/arch (linux-x64, darwin-arm64, darwin-x64), downloads
+the matching `platform-<target>` binary plus its `.sha256`, verifies the
+checksum, and installs it as `platform` into `/usr/local/bin` (or `~/.local/bin`
+when `/usr/local/bin` is not writable). (See "Releasing" below for the current
+version.) Then:
+
+```sh
+platform login                                    # dev-issuer login in this spike
+platform apps add tickets @terrarium/template http://127.0.0.1:3000
+platform tickets open-ticket --title "…" --reporter ada
+```
+
+The published binary is the **dynamic, manifest-driven** variant. Because a
+compiled single binary has no `node_modules` and cannot `import()` arbitrary
+packages at runtime, the platform's domain Apis are embedded at build time and
+selected by name (see `packages/cli/SPIKE.md` → "Publishing"); `apps add`
+records which embedded package an app uses and where it is deployed.
+
+## Releasing
+
+Releases are cut with a `cli-v<version>` git tag (or `workflow_dispatch`), built
+by `.github/workflows/cli-release.yml`, and published to GitHub Releases. The
+version lives in `packages/cli/src/version.ts` and `packages/cli/package.json`
+and must match the tag; `scripts/build.ts` enforces that agreement. See
+`packages/cli/SPIKE.md` → "Publishing (GitHub Releases)" for the full flow.

@@ -1,12 +1,15 @@
 #!/usr/bin/env sh
 # Install the `platform` CLI from a GitHub Release.
 # @REPO@ and @VERSION@ are substituted by the release workflow.
+#
+# The repo is private, so release-asset downloads need GitHub auth. This script
+# uses the `gh` CLI (authenticated) to fetch assets — the reliable path for a
+# private repo. Install gh and run `gh auth login` first if needed.
 set -eu
 
 REPO="@REPO@"
 VERSION="@VERSION@"
 TAG="cli-v${VERSION}"
-BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
 
 # --- detect OS/arch -------------------------------------------------------
 os="$(uname -s)"
@@ -23,6 +26,12 @@ case "${arch}" in
 esac
 artifact="platform-${target_os}-${target_arch}"
 
+if ! command -v gh > /dev/null 2>&1; then
+  echo "The gh CLI is required to install platform (private repo)." >&2
+  echo "Install it from https://cli.github.com and run 'gh auth login', then retry." >&2
+  exit 1
+fi
+
 # --- pick an install dir ---------------------------------------------------
 if [ -w /usr/local/bin ]; then
   bin_dir="/usr/local/bin"
@@ -35,20 +44,11 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
 
 echo "Downloading ${artifact} (platform v${VERSION})…"
-download() {
-  if command -v curl > /dev/null 2>&1; then
-    curl -fsSL -o "$1" "$2"
-  elif command -v wget > /dev/null 2>&1; then
-    wget -qO "$1" "$2"
-  else
-    echo "Need curl or wget to download" >&2; exit 1
-  fi
-}
-download "${tmp}/${artifact}" "${BASE_URL}/${artifact}"
+gh release download "${TAG}" --repo "${REPO}" \
+  --pattern "${artifact}" --pattern "${artifact}.sha256" --dir "${tmp}" --clobber
 
 # --- verify checksum when sha256sum is available ---------------------------
-if command -v sha256sum > /dev/null 2>&1; then
-  download "${tmp}/${artifact}.sha256" "${BASE_URL}/${artifact}.sha256"
+if command -v sha256sum > /dev/null 2>&1 && [ -f "${tmp}/${artifact}.sha256" ]; then
   (cd "${tmp}" && sha256sum -c "${artifact}.sha256")
 fi
 
