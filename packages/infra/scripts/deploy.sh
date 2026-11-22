@@ -41,7 +41,7 @@ echo
 # ── 1. Deploy the stack ───────────────────────────────────────────────────
 echo ">>> alchemy deploy…"
 cd "$INFRA_DIR"
-pnpm exec alchemy deploy --config ./src/main.ts
+pnpm exec alchemy deploy --config ./src/main.ts --yes
 
 # ── 2. Read stack outputs + extract SSH key ───────────────────────────────
 echo ">>> Reading stack outputs…"
@@ -128,6 +128,7 @@ REMOTE
 
 # ── 7. Push compose + build context ───────────────────────────────────────
 echo ">>> Copying compose files to the box…"
+ssh $SSH_OPTS "$SSH_USER@$EIP" "mkdir -p /opt/terrarium"
 scp $SSH_OPTS -r "$INFRA_DIR/compose/" "$SSH_USER@$EIP:/opt/terrarium/"
 
 # Substitute DOMAIN in compose + Caddyfile, write .env
@@ -159,7 +160,7 @@ tar czf /tmp/terrarium-workspace.tgz \
   --exclude='apps' \
   --exclude='.env' \
   --exclude='.env.*' \
-  package.json pnpm-workspace.yaml pnpm-lock.yaml \
+  package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc \
   packages/
 scp $SSH_OPTS /tmp/terrarium-workspace.tgz "$SSH_USER@$EIP:/tmp/"
 ssh $SSH_OPTS "$SSH_USER@$EIP" bash -s <<'REMOTE'
@@ -190,3 +191,4 @@ echo
 echo "Verify:"
 echo "  curl https://auth.$TERRARIUM_DOMAIN/api/.well-known/openid-configuration"
 echo "  curl https://platform.$TERRARIUM_DOMAIN/health"
+echo "  curl https://platform.$TERRARIUM_DOMAIN/config-check  # which config keys came from AWS SM (names only)"

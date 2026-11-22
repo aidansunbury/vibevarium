@@ -140,6 +140,9 @@ const demo = Effect.gen(function* () {
   const environment = {
     ...process.env,
     TERRARIUM_CONFIG_DIR: configDirectory,
+    // Dev-issuer fallback mode: this demo exercises the CLI against the local
+    // dev issuer. The live Logto flow is proven by scripts/login-demo.ts.
+    PLATFORM_AUTH_MODE: "dev",
     PLATFORM_OIDC_ISSUER: issuer.issuer,
     PLATFORM_OIDC_AUDIENCE: "my-app",
     PLATFORM_TICKETS_URL: proxy.url,

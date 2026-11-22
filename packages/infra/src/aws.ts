@@ -13,6 +13,11 @@ export interface AwsInfraOptions {
   readonly dbInstanceClass?: string;
   /** Postgres master password. If omitted, RDS manages it in Secrets Manager. */
   readonly dbPassword?: Redacted.Redacted<string>;
+  /**
+   * EC2 user-data script (scripts/bootstrap.sh contents). Changes force
+   * instance replacement — EC2 never re-runs user data in place.
+   */
+  readonly userData?: string;
 }
 
 /**
@@ -161,6 +166,7 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       securityGroupIds: [ec2Sg.groupId],
       keyName: keyPair.keyName,
       instanceProfileName: instanceProfile.instanceProfileName,
+      ...(options.userData === undefined ? {} : { userData: options.userData }),
       associatePublicIpAddress: true, // ephemeral until EIP is associated
       metadataOptions: {
         httpTokens: "required", // IMDSv2

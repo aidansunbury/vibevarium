@@ -17,6 +17,7 @@ import { createServer } from "node:http";
 import { Directory, Discovery } from "./discovery/index.ts";
 import { AppProxy } from "./gateway/proxy.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
+import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
 import { SecretsProvider } from "./integrations/secrets.ts";
@@ -46,6 +47,18 @@ export interface ControlPlaneOptions {
   readonly appSecrets?: Readonly<Record<string, string>> | undefined;
   /** Built GUI directory (vite output) served at /. Unset disables the GUI. */
   readonly guiDir?: string | undefined;
+  /**
+   * Real GUI login (Logto auth-code + PKCE, cookie session). When set, the
+   * /auth/* routes are mounted and ops endpoints accept the GUI session cookie
+   * in addition to bearer tokens.
+   */
+  readonly guiAuth?: {
+    readonly issuer: string;
+    readonly clientId: string;
+    readonly clientSecret: string;
+    readonly baseUrl: string;
+    readonly resource: string;
+  } | undefined;
 }
 
 export const runDiscoveryAndSync = Effect.gen(function*() {
@@ -64,7 +77,7 @@ const hasAwsCredentialsForCheck = () =>
   process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI !== undefined ||
   process.env.AWS_EC2_METADATA_DISABLED !== "true";
 
-const operationalRoutes = (options: { readonly authEnabled: boolean }) =>
+const operationalRoutes = (options: { readonly authEnabled: boolean; readonly guiAuthEnabled: boolean }) =>
   HttpRouter.use((router) =>
     Effect.gen(function*() {
       const registry = yield* Registry;
@@ -79,8 +92,29 @@ const operationalRoutes = (options: { readonly authEnabled: boolean }) =>
         Context.add(McpServer.McpServer, mcpServer),
       );
       const discover = Effect.provideContext(runDiscoveryAndSync, context);
+      // Gate: bearer token (CLI / programmatic) OR the GUI session cookie.
       const gated = options.authEnabled
-        ? requireAuth
+        ? <E, R>(
+            handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+          ): Effect.Effect<
+            HttpServerResponse.HttpServerResponse,
+            E,
+            | Auth
+            | HttpServerRequest.HttpServerRequest
+            | Exclude<R, CurrentActor>
+            | GuiAuth
+          > =>
+            Effect.gen(function*() {
+              if (options.guiAuthEnabled) {
+                const session = yield* sessionFromRequest.pipe(Effect.option);
+                if (session._tag === "Some" && session.value !== undefined) {
+                  return yield* handler.pipe(
+                    Effect.provideService(CurrentActor, { sub: session.value.sub, name: session.value.name }),
+                  );
+                }
+              }
+              return yield* requireAuth(handler);
+            })
         : <E, R>(handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) => handler;
 
       yield* router.add("GET", "/whoami", gated(Effect.gen(function*() {
@@ -90,57 +124,6 @@ const operationalRoutes = (options: { readonly authEnabled: boolean }) =>
           auth: options.authEnabled ? "on" : "off",
         });
       })));
-
-      // Config provenance for ops/debugging — key NAMES and providers only,
-      // never values. Gated like every other ops route (auth-off in local dev
-      // means effectively public there). See SECRETS-SPIKE.md.
-      yield* router.add("GET", "/config-check", gated(Effect.gen(function*() {
-        const keys = [
-          ["TERRARIUM_ISSUER", process.env.TERRARIUM_ISSUER],
-          ["CONTROL_PLANE_ISSUER", process.env.CONTROL_PLANE_ISSUER],
-          ["CONTROL_PLANE_AUDIENCE", process.env.CONTROL_PLANE_AUDIENCE],
-          ["GIT_PROVIDER", process.env.GIT_PROVIDER],
-          ["GITHUB_APP_ID", process.env.GITHUB_APP_ID],
-          ["GITHUB_APP_INSTALLATION_ID", process.env.GITHUB_APP_INSTALLATION_ID],
-          ["GITHUB_APP_PRIVATE_KEY", process.env.GITHUB_APP_PRIVATE_KEY],
-          ["GITHUB_APP_PRIVATE_KEY_PATH", process.env.GITHUB_APP_PRIVATE_KEY_PATH],
-          ["CLOUDFLARE_API_TOKEN", process.env.CLOUDFLARE_API_TOKEN],
-          ["CLOUDFLARE_ACCOUNT_ID", process.env.CLOUDFLARE_ACCOUNT_ID],
-          ["CLOUDFLARE_ZONE_ID", process.env.CLOUDFLARE_ZONE_ID],
-          ["CLOUDFLARE_WORKERS_SUBDOMAIN", process.env.CLOUDFLARE_WORKERS_SUBDOMAIN],
-          ["ROUTER_KV_NAMESPACE_ID", process.env.ROUTER_KV_NAMESPACE_ID],
-          ["LOGTO_M2M_APP_ID", process.env.LOGTO_M2M_APP_ID],
-          ["LOGTO_M2M_APP_SECRET", process.env.LOGTO_M2M_APP_SECRET],
-          ["LOGTO_GUI_APP_ID", process.env.LOGTO_GUI_APP_ID],
-          ["LOGTO_GUI_APP_SECRET", process.env.LOGTO_GUI_APP_SECRET],
-          ["LOGTO_CLI_APP_ID", process.env.LOGTO_CLI_APP_ID],
-          ["LOGTO_MCP_RESOURCE", process.env.LOGTO_MCP_RESOURCE],
-        ] as const;
-        const fromSecrets = new Set(bootSecretsReport.resolved);
-        const config: Record<string, { set: boolean; source: string }> = {};
-        for (const [name, value] of keys) {
-          config[name] = {
-            set: value !== undefined,
-            source: fromSecrets.has(name)
-              ? "aws-secrets-manager"
-              : value !== undefined
-              ? "env"
-              : "unset",
-          };
-        }
-        const body: Record<string, unknown> = {
-          secretsProvider: process.env.SECRETS_PROVIDER === "aws" && hasAwsCredentialsForCheck()
-            ? "aws"
-            : "env",
-          resolvedFromSecrets: bootSecretsReport.resolved,
-          failedFromSecrets: bootSecretsReport.failed,
-          config,
-        };
-        if (bootSecretsReport.prefix !== undefined) {
-          body["secretsPrefix"] = bootSecretsReport.prefix;
-        }
-        return yield* HttpServerResponse.json(body);
-      }))));
 
       yield* router.add("POST", "/apps", gated(Effect.gen(function*() {
         const request = yield* HttpServerRequest.HttpServerRequest;
@@ -204,11 +187,25 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     ),
   );
 
-  const authEnabled = options.oidc !== undefined;
+  const authEnabled = options.oidc !== undefined || options.guiAuth !== undefined;
+  const guiAuthEnabled = options.guiAuth !== undefined;
+
+  // When the GUI login flow is off, provide a stub so route types stay uniform.
+  const guiAuthLayer = options.guiAuth === undefined
+    ? Layer.succeed(GuiAuth, GuiAuth.of({
+        options: { issuer: "", clientId: "", clientSecret: "", baseUrl: "", resource: "" },
+        createSession: () => "",
+        getSession: () => undefined,
+        destroySession: () => {},
+        rememberPending: () => {},
+        takePending: () => undefined,
+      }))
+    : GuiAuth.layer(options.guiAuth);
 
   const routes = Layer.mergeAll(
     gatewayRegistrations,
-    operationalRoutes({ authEnabled }),
+    operationalRoutes({ authEnabled, guiAuthEnabled }),
+    authFlowRoutes,
     Scaffold.routes({ authEnabled }).pipe(Layer.provide(Scaffold.layer(options.scaffold))),
     integrationRoutes({
       authEnabled,
@@ -233,6 +230,56 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const allRoutes = Layer.mergeAll(
     routes,
     HttpRouter.add("GET", "/health", HttpServerResponse.text("ok")),
+    // Config provenance for ops/debugging — key NAMES and providers only,
+    // never values. Ungated intentionally (same trust level as /health).
+    // See SECRETS-SPIKE.md.
+    HttpRouter.add("GET", "/config-check", Effect.gen(function*() {
+      const keys = [
+        ["TERRARIUM_ISSUER", process.env.TERRARIUM_ISSUER],
+        ["CONTROL_PLANE_ISSUER", process.env.CONTROL_PLANE_ISSUER],
+        ["CONTROL_PLANE_AUDIENCE", process.env.CONTROL_PLANE_AUDIENCE],
+        ["GIT_PROVIDER", process.env.GIT_PROVIDER],
+        ["GITHUB_APP_ID", process.env.GITHUB_APP_ID],
+        ["GITHUB_APP_INSTALLATION_ID", process.env.GITHUB_APP_INSTALLATION_ID],
+        ["GITHUB_APP_PRIVATE_KEY", process.env.GITHUB_APP_PRIVATE_KEY],
+        ["GITHUB_APP_PRIVATE_KEY_PATH", process.env.GITHUB_APP_PRIVATE_KEY_PATH],
+        ["CLOUDFLARE_API_TOKEN", process.env.CLOUDFLARE_API_TOKEN],
+        ["CLOUDFLARE_ACCOUNT_ID", process.env.CLOUDFLARE_ACCOUNT_ID],
+        ["CLOUDFLARE_ZONE_ID", process.env.CLOUDFLARE_ZONE_ID],
+        ["CLOUDFLARE_WORKERS_SUBDOMAIN", process.env.CLOUDFLARE_WORKERS_SUBDOMAIN],
+        ["ROUTER_KV_NAMESPACE_ID", process.env.ROUTER_KV_NAMESPACE_ID],
+        ["LOGTO_M2M_APP_ID", process.env.LOGTO_M2M_APP_ID],
+        ["LOGTO_M2M_APP_SECRET", process.env.LOGTO_M2M_APP_SECRET],
+        ["LOGTO_GUI_APP_ID", process.env.LOGTO_GUI_APP_ID],
+        ["LOGTO_GUI_APP_SECRET", process.env.LOGTO_GUI_APP_SECRET],
+        ["LOGTO_CLI_APP_ID", process.env.LOGTO_CLI_APP_ID],
+        ["LOGTO_MCP_RESOURCE", process.env.LOGTO_MCP_RESOURCE],
+      ] as const;
+      const fromSecrets = new Set(bootSecretsReport.resolved);
+      const config: Record<string, { set: boolean; source: string }> = {};
+      for (const [name, value] of keys) {
+        config[name] = {
+          set: value !== undefined,
+          source: fromSecrets.has(name)
+            ? "aws-secrets-manager"
+            : value !== undefined
+            ? "env"
+            : "unset",
+        };
+      }
+      const body: Record<string, unknown> = {
+        secretsProvider: process.env.SECRETS_PROVIDER === "aws" && hasAwsCredentialsForCheck()
+          ? "aws"
+          : "env",
+        resolvedFromSecrets: bootSecretsReport.resolved,
+        failedFromSecrets: bootSecretsReport.failed,
+        config,
+      };
+      if (bootSecretsReport.prefix !== undefined) {
+        body["secretsPrefix"] = bootSecretsReport.prefix;
+      }
+      return yield* HttpServerResponse.json(body);
+    })),
     guiRoutes(options.guiDir === undefined ? {} : { staticDir: options.guiDir }),
   );
 
@@ -249,6 +296,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     Effect.map(HttpRouter.toHttpEffect(allRoutes), (app) => HttpServer.serve()(app)),
   ).pipe(
     Layer.provide(authLayer),
+    Layer.provide(guiAuthLayer),
     Layer.provideMerge(NodeHttpServer.layer(createServer, {
       port: options.port ?? 0,
       host: options.host ?? "127.0.0.1",

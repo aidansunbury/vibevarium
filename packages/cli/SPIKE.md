@@ -120,16 +120,17 @@ Per-app URLs work because each `toCli` subtree is wrapped in its own `Command.pr
 6. **Default dynamic exposure relies on runtime helpers.** `operationsOf` / `callName` from `ReadRpcs` derive all non-streaming names. A supported `toCli` default-exposure helper would avoid coupling the manifest loader to that runtime module.
 7. **Domain package entrypoints matter.** The composed CLI imports `@terrarium/template/TicketsApi.api` directly so it does not pull the template's HTTP/MCP server through the root barrel. Published app packages should expose a similarly small, pure domain entrypoint.
 
-## What real OIDC login swaps in
+## Real OIDC login (implemented)
 
-`mintDevSession` in `src/auth.ts` is the seam. Replace its `/dev/token` fetch with standard loopback-redirect authorization-code PKCE:
+`src/auth.ts` now does the real loopback-redirect authorization-code PKCE flow against the hosted Logto tenant (no client secret — the CLI is a native/public app):
 
-1. Read issuer discovery.
-2. Generate state, nonce, and a PKCE verifier/challenge.
-3. Listen on loopback, open the browser at the authorization endpoint, and validate the callback state.
-4. Exchange the code at the token endpoint, validate the ID token, and write the same `CachedSession` shape.
+1. Reads issuer discovery (`https://auth.vibevarium.com/oidc` by default, `PLATFORM_OIDC_ISSUER` overrides).
+2. Generates state and a PKCE S256 verifier/challenge.
+3. Listens on `127.0.0.1:8919`, opens the browser at `/oidc/auth` (scope `openid profile offline_access member admin apps:read apps:write`, RFC 8707 `resource=https://mcp.vibevarium.com`, `prompt=consent` so `offline_access` yields a refresh token), and validates the callback state.
+4. Exchanges the code at `/oidc/token` — repeating the `resource` indicator, which is what makes Logto issue a JWT access token audience-restricted to the platform API — decodes the ID-token claims, and writes `CachedSession` (now v2, with `refreshToken` + `idToken`) to `~/.config/terrarium/auth.json` (0600).
+5. `requireSession` transparently refreshes via the `refresh_token` grant when the access token is expired; `platform logout` revokes the refresh token and clears the cache. `whoami` decodes the cached ID-token claims.
 
-`login`/`whoami`, the cached token format, `toCli` headers, and per-app transport do not need to change. A real implementation should also add refresh-token handling (secure storage and refresh near expiry), rather than today's explicit “run platform login” on expiry. A system keychain may be preferable to a `0600` JSON file outside the spike.
+The dev issuer is kept as an explicit fallback: `PLATFORM_AUTH_MODE=dev` uses the old `/dev/token` grant (the existing `scripts/demo.ts` runs this way). `ssoHeaders`/`ssoProtocolHttp`/per-app transport are unchanged. Proof against the live tenant: `scripts/login-demo.ts` (registers/signs in a test user via Logto's Experience API so no human click is needed).
 
 Missing and expired sessions fail before any network call, for example:
 

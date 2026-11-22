@@ -31,15 +31,23 @@ anyway). With no `web/dist` the mount is inert.
 
 ## Auth seams
 
-- **Now**: "Log in (dev issuer)" hits `${VITE_DEV_ISSUER:-http://127.0.0.1:4010}/dev/token`
-  for `aud=control.terrarium.local` and stores the token in localStorage. The
-  control plane verifies it when `CONTROL_PLANE_ISSUER` is configured
-  (`src/main.ts`); without OIDC config the control plane is dev-open and the
-  header shows "auth off".
-- **Later (Logto hosted)**: swap the login button for an authorization-code +
-  PKCE redirect to the hosted issuer. The seam is one function — `login()` in
-  `web/src/api.ts` — plus the vite env vars. The API client, token storage, and
-  `requireAuth` server gates don't change.
+- **Now (real Logto)**: `Log in` navigates to the server's `GET /auth/login`,
+  which 302s to the hosted Logto `/oidc/auth` (authorization code + PKCE S256,
+  RFC 8707 resource `https://mcp.vibevarium.com`, `prompt=consent` so
+  `offline_access` yields a refresh token). `GET /auth/callback` exchanges the
+  code with the GUI secret, verifies the ID token, and sets an httpOnly
+  SameSite=Lax session cookie (`terrarium_session`, HMAC-signed, server-side
+  in-memory Map). The SPA holds no token — every API call is `credentials:
+  "same-origin"`. `GET /auth/me` returns the actor for the header; `POST
+  /auth/logout` destroys the session and redirects to Logto end-session.
+  Implemented in `src/auth-flow.ts`; wired in `src/server.ts` (ops gates accept
+  the session cookie OR a bearer token) and `src/main.ts` (env:
+  `LOGTO_GUI_APP_ID/SECRET`, `LOGTO_ISSUER`, `CONTROL_PLANE_BASE_URL`). Secret
+  locally from repo-root `.env`; production AWS Secrets Manager
+  `/terrarium/prod/logto-gui-app-secret`. Proof: `scripts/logto-auth-demo.ts`.
+- **Dev fallback**: without `LOGTO_GUI_APP_SECRET` the auth flow is not mounted;
+  the control plane falls back to bearer-token `requireAuth` when
+  `CONTROL_PLANE_ISSUER` is set, else dev-open (header shows "auth off").
 
 ## What the GUI calls
 

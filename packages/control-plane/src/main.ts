@@ -44,6 +44,19 @@ const oidc = process.env.CONTROL_PLANE_ISSUER === undefined
       audience: process.env.CONTROL_PLANE_AUDIENCE ?? "control.terrarium.local",
     };
 
+// Real GUI login (Logto auth-code + PKCE). Enabled when the GUI app secret is
+// present. Locally the secret comes from the repo-root .env; in production it
+// is AWS Secrets Manager /terrarium/prod/logto-gui-app-secret.
+const guiAuth = process.env.LOGTO_GUI_APP_SECRET === undefined
+  ? undefined
+  : {
+      issuer: (process.env.LOGTO_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, ""),
+      clientId: process.env.LOGTO_GUI_APP_ID ?? "s9ne7qecvf20vktab5iwl",
+      clientSecret: process.env.LOGTO_GUI_APP_SECRET,
+      baseUrl: (process.env.CONTROL_PLANE_BASE_URL ?? `http://127.0.0.1:${integerEnv("PORT", 4100)}`).replace(/\/+$/, ""),
+      resource: process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com",
+    };
+
 const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
   Layer.provideMerge(controlPlaneServer({
     port: integerEnv("PORT", 4100),
@@ -54,6 +67,7 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
     callTimeoutMs: integerEnv("CALL_TIMEOUT_MS", 3_000),
     discoveryToken: process.env.DISCOVERY_TOKEN,
     ...(oidc === undefined ? {} : { oidc }),
+    ...(guiAuth === undefined ? {} : { guiAuth }),
     appSecrets: appSecrets(),
     guiDir: process.env.GUI_DIR ?? join(packageRoot, "web", "dist"),
     scaffold: {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, getToken, login, logout, type Actor, type AppRow } from "./api";
+import { api, login, logout, type Actor, type AppRow } from "./api";
 import { AppDetail } from "./AppDetail";
 import { ScaffoldForm } from "./ScaffoldForm";
 import { IntegrationsPanel } from "./IntegrationsPanel";
@@ -27,34 +27,26 @@ export const App = () => {
 
   const refresh = useCallback(async () => {
     try {
-      const [whoami, appsBody] = await Promise.all([
-        api<{ actor: Actor | null; auth: "on" | "off" }>("/whoami"),
-        api<{ apps: Array<AppRow> }>("/apps"),
-      ]);
-      setActor(whoami.actor);
-      setAuthOn(whoami.auth === "on");
+      const me = await api<{ actor: Actor | null; auth: "on" | "off" }>("/auth/me");
+      setActor(me.actor);
+      setAuthOn(me.auth === "on");
+      const appsBody = await api<{ apps: Array<AppRow> }>("/apps");
       setApps(appsBody.apps);
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
       if (cause instanceof Error && "status" in cause && (cause as { status: number }).status === 401) {
         setActor(null);
+        setAuthOn(true);
+        setError(null);
+        return;
       }
+      setError(cause instanceof Error ? cause.message : String(cause));
     }
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh, refreshTick]);
-
-  const doLogin = async () => {
-    try {
-      await login();
-      await refresh();
-    } catch (cause) {
-      setError(`Dev login failed (is the dev issuer on :4010?): ${cause instanceof Error ? cause.message : String(cause)}`);
-    }
-  };
 
   const signedOut = authOn === true && actor === null;
 
@@ -68,16 +60,16 @@ export const App = () => {
         <div style={styles.row}>
           {actor !== null && <span style={styles.muted}>{actor.name ?? actor.sub} ({actor.sub})</span>}
           {authOn === false && <span style={styles.muted}>auth off</span>}
-          {signedOut || (authOn === true && getToken() === null)
-            ? <button style={styles.button} onClick={() => void doLogin()}>Log in (dev issuer)</button>
-            : authOn === true && <button style={styles.button} onClick={() => { logout(); void refresh(); }}>Log out</button>}
+          {signedOut
+            ? <button style={styles.button} onClick={() => login()}>Log in</button>
+            : authOn === true && <button style={styles.button} onClick={() => void logout()}>Log out</button>}
         </div>
       </header>
 
       {error !== null && <div style={{ ...styles.card, borderColor: "#d33" }}>⚠ {error}</div>}
 
       {signedOut
-        ? <div style={styles.card}>This control plane requires a token. Use the login button to mint a dev token.</div>
+        ? <div style={styles.card}>This control plane requires sign-in. Use the login button to authenticate with Logto.</div>
         : (
           <>
             <div style={styles.card}>

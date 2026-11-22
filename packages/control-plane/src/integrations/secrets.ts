@@ -4,6 +4,18 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
+// Static env keys + the IMDS default chain (EC2 instance profile). When none
+// are present the AWS provider degrades to env resolution — local dev without
+// SSO never hard-fails on SECRETS_PROVIDER=aws.
+const hasAwsCredentials = () =>
+  process.env.AWS_ACCESS_KEY_ID !== undefined ||
+  process.env.AWS_PROFILE !== undefined ||
+  process.env.AWS_ROLE_ARN !== undefined ||
+  process.env.AWS_WEB_IDENTITY_TOKEN_FILE !== undefined ||
+  process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI !== undefined ||
+  process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI !== undefined ||
+  process.env.AWS_EC2_METADATA_DISABLED !== "true";
+
 /**
  * SecretsProvider seam (see docs/providers.md): integrations never store token
  * values in the database — only a reference (the env var name). v1 resolves
@@ -36,16 +48,7 @@ export class SecretsProvider extends Context.Service<SecretsProvider, {
     readonly cacheTtlMs?: number | undefined;
   }): Layer.Layer<SecretsProvider> => {
     const ttl = options.cacheTtlMs ?? 60_000;
-    const hasCredentials = () =>
-      process.env.AWS_ACCESS_KEY_ID !== undefined ||
-      process.env.AWS_PROFILE !== undefined ||
-      process.env.AWS_ROLE_ARN !== undefined ||
-      process.env.AWS_WEB_IDENTITY_TOKEN_FILE !== undefined ||
-      process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI !== undefined ||
-      process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI !== undefined ||
-      process.env.AWS_EC2_METADATA_DISABLED !== "true"; // IMDS default chain (EC2 instance profile)
-
-    if (!hasCredentials()) {
+    if (!hasAwsCredentials()) {
       console.warn("[secrets] SECRETS_PROVIDER=aws but no AWS credentials discoverable — falling back to env");
       return SecretsProvider.envLayer;
     }
@@ -56,18 +59,19 @@ export class SecretsProvider extends Context.Service<SecretsProvider, {
       );
       const cache = new Map<string, { readonly value: string; readonly expiresAt: number }>();
 
-      const fetch = (name: string) =>
-        Effect.tryPromise({
-          try: async () => {
+      const fetch = (name: string): Effect.Effect<Option.Option<string>> =>
+        Effect.promise(async () => {
+          try {
             const response = await client.send(
               new GetSecretValueCommand({ SecretId: options.prefix + name }),
             );
-            return response.SecretString;
-          },
-          // ResourceNotFoundException / AccessDeniedException / DecryptionFailure
-          // all degrade to "no secret" — the caller surfaces 502 secret_unavailable.
-          catch: () => undefined,
-        }).pipe(Effect.map(Option.fromUndefinedOr));
+            return Option.fromUndefinedOr(response.SecretString);
+          } catch {
+            // ResourceNotFoundException / AccessDeniedException / DecryptionFailure
+            // all degrade to "no secret" — the caller surfaces 502 secret_unavailable.
+            return Option.none<string>();
+          }
+        });
 
       return SecretsProvider.of({
         resolve: (reference) =>

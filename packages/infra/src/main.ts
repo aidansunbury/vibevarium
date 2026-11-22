@@ -3,6 +3,8 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { AwsInfra } from "./aws.ts";
 import { Dns } from "./dns.ts";
 
@@ -39,11 +41,13 @@ export default Alchemy.Stack(
     const domain = yield* requireEnv("TERRARIUM_DOMAIN");
     const zoneId = yield* requireEnv("CLOUDFLARE_ZONE_ID");
 
-    // 1. AWS infrastructure
+    // 1. AWS infrastructure (bootstrap.sh installs Docker/AWS CLI on the box)
+    const bootstrap = readFileSync(fileURLToPath(new URL("../scripts/bootstrap.sh", import.meta.url)), "utf8");
     const aws = yield* AwsInfra({
       sshCidr: optionalEnv("TERRARIUM_SSH_CIDR", "0.0.0.0/0"),
       instanceType: optionalEnv("TERRARIUM_EC2_TYPE", "t3.small"),
       dbInstanceClass: optionalEnv("TERRARIUM_RDS_TYPE", "db.t4g.micro"),
+      userData: bootstrap,
     });
 
     // 2. DNS records pointing at the Elastic IP

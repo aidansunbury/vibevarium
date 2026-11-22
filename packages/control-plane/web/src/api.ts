@@ -1,4 +1,5 @@
-// API client for the control plane. Every request carries the dev token when set.
+// API client for the control plane. Authentication is a first-party session
+// cookie set by the server's /auth/callback — no token is held in JS.
 
 export interface AppRow {
   name: string;
@@ -48,15 +49,6 @@ export interface AuditRow {
   durationMs: string;
 }
 
-let token: string | null = globalThis.localStorage?.getItem("terrarium.token") ?? null;
-
-export const getToken = () => token;
-export const setToken = (value: string | null) => {
-  token = value;
-  if (value === null) globalThis.localStorage?.removeItem("terrarium.token");
-  else globalThis.localStorage?.setItem("terrarium.token", value);
-};
-
 export class ApiError extends Error {
   constructor(readonly status: number, body: unknown) {
     super(typeof body === "object" && body !== null && "error_description" in body
@@ -67,9 +59,8 @@ export class ApiError extends Error {
 
 export const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) };
-  if (token !== null) headers.authorization = `Bearer ${token}`;
   if (init?.body !== undefined) headers["content-type"] = "application/json";
-  const response = await fetch(path, { ...init, headers });
+  const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
   const text = await response.text();
   let body: unknown = text;
   try {
@@ -81,23 +72,13 @@ export const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return body as T;
 };
 
-const viteEnv = (name: string): string | undefined =>
-  (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.[name];
-
-export const login = async (sub = "user-1", name = "Ada Lovelace") => {
-  // The dev issuer mints tokens for the control plane audience; the control
-  // plane tells us where it expects tokens from via /whoami's 401 (or we just
-  // ask the issuer configured into the page).
-  const issuer = viteEnv("VITE_DEV_ISSUER") ?? "http://127.0.0.1:4010";
-  const audience = viteEnv("VITE_CONTROL_PLANE_AUDIENCE") ?? "control.terrarium.local";
-  const url = new URL("/dev/token", issuer);
-  url.searchParams.set("sub", sub);
-  url.searchParams.set("name", name);
-  url.searchParams.set("aud", audience);
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Dev token failed: ${response.status}`);
-  const body = await response.json() as { access_token: string };
-  setToken(body.access_token);
+/** Start the real Logto login: full-page redirect to /auth/login, which 302s
+ * to the hosted issuer. The callback returns to / with a session cookie. */
+export const login = () => {
+  globalThis.location.assign("/auth/login");
 };
 
-export const logout = () => setToken(null);
+export const logout = async () => {
+  await fetch("/auth/logout", { method: "POST", credentials: "same-origin", redirect: "manual" });
+  globalThis.location.assign("/");
+};

@@ -47,9 +47,9 @@ export interface BootSecretsReport {
   readonly provider: "aws" | "env";
   readonly prefix?: string;
   /** Env var names resolved from the secret store. Never values. */
-  readonly resolved: ReadonlyArray<string>;
+  readonly resolved: Array<string>;
   /** Env var names whose secret fetch failed. Never values. */
-  readonly failed: ReadonlyArray<string>;
+  readonly failed: Array<string>;
 }
 
 /** Resolved-config provenance for the /config-check endpoint (names only). */
@@ -87,12 +87,12 @@ export const loadBootSecrets = async (): Promise<void> => {
         );
         if (response.SecretString !== undefined) {
           process.env[envName] = response.SecretString;
-          (bootSecretsReport.resolved as string[]).push(envName);
+          bootSecretsReport.resolved.push(envName);
         } else {
-          (bootSecretsReport.failed as string[]).push(envName);
+          bootSecretsReport.failed.push(envName);
         }
       } catch {
-        (bootSecretsReport.failed as string[]).push(envName);
+        bootSecretsReport.failed.push(envName);
       }
     }),
   );
