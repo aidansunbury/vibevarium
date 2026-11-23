@@ -1,11 +1,15 @@
 # Deployment Topologies — control plane and apps across AWS and Cloudflare
 
 The control plane runs on **AWS today** and should be deployable to
-**Cloudflare** as a first-class alternative. Apps default to **Cloudflare
-Workers** regardless. This doc is the design for that flexibility — scoped to a
-proof of concept that must *scale to* production, not pay for it now. Builds on
-[provisioning.md](./provisioning.md), [stack.md](./stack.md),
-[providers.md](./providers.md); companion to [planetscale.md](./planetscale.md).
+**Cloudflare** as a first-class alternative. Apps can target either cloud.
+Because the demo runs on **AWS credits**, **AWS is the default topology**;
+the Cloudflare topologies exist to prove the platform is genuinely
+multi-cloud — deployable across AWS and Cloudflare even though most real
+usage would pick Cloudflare for apps. This doc is the design for that
+flexibility — scoped to a proof of concept that must *scale to* production,
+not pay for it now. Builds on [provisioning.md](./provisioning.md),
+[stack.md](./stack.md), [providers.md](./providers.md); companion to
+[planetscale.md](./planetscale.md).
 
 ## 1. Current state (what's actually deployed)
 
@@ -94,39 +98,88 @@ So the two **coherent control-plane topologies** are:
 A Workers + RDS pairing is *possible* but is the awkward middle — don't make it
 a blessed topology for the demo.
 
-## 5. App database and the mixed-target reality
+## 5. Apps target both AWS and Cloudflare
 
-Apps default to Workers + D1. A `planetscale-hyperdrive` app is Workers +
-PlanetScale-through-Hyperdrive ([planetscale.md](./planetscale.md)).
+Apps deploy to **either** cloud. The platform default is AWS (credits); the
+Cloudflare targets prove apps are portable.
 
-For the *theoretical* "AWS app pointing at a configured Postgres database":
-a PlanetScale database is reachable from anywhere over a normal connection
-string, so **an AWS-hosted app can use PlanetScale** — just without Hyperdrive
-(a Lambda uses a standard Postgres client and manages its own connections).
-Hyperdrive is the Cloudflare-specific accelerator, not a hard dependency. This
-keeps the claim honest: "apps can point at any configured Postgres" holds, with
-the caveat that the Hyperdrive binding is Workers-only.
+**Why Lambda for AWS apps, not ECS/Fargate.** The app cost story *is*
+scale-to-zero: most vibe-coded internal apps sit at near-zero traffic, so an
+idle app should cost ~nothing. Fargate is always-on (~$30–40/mo per service
+floor) and kills that story. Lambda + a Function URL gives "idle app costs
+~nothing" and is the honest AWS analog of a Worker. **ECS is a platform
+scale-up path, not an app target** (§3).
 
-## 6. Recommended blessed topologies (demo scope)
+- **AWS app = Lambda + Function URL**, stateless per-request compute with all
+  state externalized — the same shape as the Worker template
+  ([template-cloudflare](../packages/template-cloudflare/alchemy.run.ts)).
+- **AWS app database = RDS.** See §5a.
+- **Cloudflare app = Worker + D1** (default) or **Worker + PlanetScale via
+  Hyperdrive** (Postgres) — see [planetscale.md](./planetscale.md).
+
+**Caveats (honest):** a Lambda app has **no Hyperdrive** (Cloudflare-only), so
+it manages its own Postgres connections — fine at app scale. And cold starts
+matter more for user-facing apps, part of why Workers would be the *usage*
+default even though AWS is the *credits* default.
+
+### 5a. RDS per app (the AWS-Postgres option)
+
+For "this app wants Postgres and wants AWS": provision **one RDS instance per
+app** — deliberately simple, the strongest isolation story, and on credits the
+~$15/mo/instance floor is the *point* (it demos "real AWS" and previews share
+nothing with prod). Database-per-app on a *shared* instance, and
+schema-per-app, are documented **consolidation levers for scale**, not the demo
+path.
+
+- **Per-app isolation on RDS works, but it's plumbing, not a binding.**
+  Postgres roles scope a user to one database fine (`CREATE USER app …;
+  GRANT CONNECT ON DATABASE app …`). The friction is everything around it:
+  the credential must reach the Lambda (per-app Secrets Manager entries + env
+  vars you wire yourself), the Lambda must be VPC-attached to reach RDS
+  (cold-start + NAT/subnet plumbing) or the RDS must be public (don't), and
+  **RDS IAM database authentication is instance-scoped, not database-scoped** —
+  IAM auth removes the stored password but per-database scoping still lives in
+  Postgres grants, not in IAM. Contrast with Cloudflare, where a Hyperdrive
+  config **is** the scoped credential, bound to one Worker and able to reach
+  exactly one database by construction.
+- **Preview = a separate RDS instance** (instance-per-app, so a preview shares
+  no compute/connection-pool/blast-radius with prod). This is the clean-isolation
+  version; it's also why the per-app-instance model costs real money and why
+  consolidation is a scale lever.
+
+### 5b. No cross-cloud database bindings
+
+Each app database is provisioned in the same cloud as the app's compute:
+**AWS app → RDS, Cloudflare app → D1 or PlanetScale.** There is no supported
+cross-cloud database binding (e.g. an AWS app on PlanetScale). Hyperdrive is
+Workers-only, so it never appears on the AWS side at all.
+
+## 6. Blessed topologies (demo scope)
 
 Encode exactly these as the supported combinations — enough to prove
-agnosticism without a combinatorial matrix to maintain:
+agnosticism without a combinatorial matrix to maintain. **#1 is the
+credits-optimized default; #4 is the portability headline.**
 
-| # | Control plane | CP database | App compute | App database | Status |
+| # | Control plane | CP database | App compute | App database | Story |
 | --- | --- | --- | --- | --- | --- |
-| 1 | AWS EC2 | RDS | Workers | D1 | **Current default** |
-| 2 | AWS EC2 | RDS | Workers | PlanetScale via Hyperdrive | Near-term: fill the provisioning stub ([planetscale.md](./planetscale.md) §3) |
-| 3 | Cloudflare Workers | PlanetScale via Hyperdrive | Workers | D1 / PlanetScale | Target: proves control-plane portability |
+| 1 | **AWS EC2** | **RDS** | **Lambda** | **RDS per app** | **Default (credits).** Postgres apps on AWS. |
+| 2 | AWS EC2 | RDS | Workers | D1 | Cheap apps, any app-compute cloud |
+| 3 | AWS EC2 | RDS | Workers | PlanetScale via Hyperdrive | Postgres apps on Cloudflare ([planetscale.md](./planetscale.md)) |
+| 4 | **Workers** | **PlanetScale via Hyperdrive** | Workers | D1 / PlanetScale | **Portability proof** — platform + apps entirely off AWS |
 
-Topology 3 is the one that demonstrates the platform isn't married to AWS.
-Topology 2 is the one that demonstrates Postgres-backed apps. Both are
-follow-ups; neither blocks the other.
+Topology 1 is the default because the demo runs on AWS credits. Topology 4 is
+the headline that the platform isn't married to AWS. Topologies 2–3 show the
+app compute/database layers compose independently of where the control plane
+lives. All four are follow-ups on top of the existing AWS-EC2+RDS platform and
+Workers+D1 app path; none blocks another.
 
 ## 7. What this deliberately does not build
 
-- **No ECS/EKS migration.** EC2 + Docker is fine for a demo and scales far
-  enough. Container orchestration is a production concern, not a PoC one.
-- **No Workers + RDS blessed topology** (the awkward middle).
+- **No ECS/EKS migration for the platform.** EC2 + Docker is fine for a demo
+  and scales far enough. Container orchestration (ECS Fargate) is a platform
+  *scale-up* path, not a PoC need — and it is never an app target (Fargate's
+  always-on floor kills the app cost story).
+- **No shared-RDS / schema-per-app for apps** — consolidation levers, deferred.
 - **No AWS app target with Hyperdrive** (contradiction — Hyperdrive is
   Workers-only).
 - **No control-plane HA / multi-region.** Single control-plane instance is

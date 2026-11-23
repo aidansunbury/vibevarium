@@ -1,10 +1,12 @@
-# PlanetScale — the optional real-Postgres tier for apps
+# PlanetScale — the real-Postgres tier for Cloudflare apps
 
-How PlanetScale fits Terrarium: **not** the default database, but the
-"this app actually needs Postgres" option. Builds on
+How PlanetScale fits Terrarium: the Postgres option for **Cloudflare apps**
+(reached via Hyperdrive). For **AWS apps**, the Postgres option is **RDS per
+app** instead — see
+[deployment-topologies.md](./deployment-topologies.md) §5a. Builds on
 [provisioning.md](./provisioning.md) (capability config), [stack.md](./stack.md)
 (templates encode decisions), and [providers.md](./providers.md) (everything is
-a provider). Companion to [deployment-topologies.md](./deployment-topologies.md).
+a provider).
 
 This doc is deliberately **demo-scoped**: the current build is a proof of
 concept. Every choice here is one that *scales to production* without paying
@@ -144,10 +146,8 @@ This keeps the "if you say it's supported, prove it" rule honest: enabling
 
 - **Shared-DB multi-tenancy** (schemas / prefixes) — cost optimization, scale
   problem, not demo problem.
-- **Non-Cloudflare app targets for Postgres apps** — a PlanetScale database is
-  reachable from anywhere (AWS app + PlanetScale DB works fine over a normal
-  connection string), but the Hyperdrive binding is Cloudflare-specific. See
-  [deployment-topologies.md](./deployment-topologies.md) for the mixed-target
-  story.
+- **AWS apps on PlanetScale** — AWS apps use **RDS per app**, full stop
+  ([deployment-topologies.md](./deployment-topologies.md) §5a). No cross-cloud
+  database bindings; Hyperdrive is Cloudflare-only regardless.
 - **Neki / Vitess** — PlanetScale's sharded offerings. Unnecessary at any
   plausible Terrarium scale.
