@@ -9,9 +9,10 @@ export default Alchemy.Stack(
   process.env.STACK_NAME ?? "TerrariumTicketsCloudflare",
   {
     providers: Layer.mergeAll(Cloudflare.providers(), DomainCloudflare.providers()),
-    state: Cloudflare.state(process.env.CLOUDFLARE_ACCOUNT_ID === undefined
-      ? {}
-      : { accountId: process.env.CLOUDFLARE_ACCOUNT_ID }),
+    // Local file state: per-app stacks keep their state with the deployment
+    // (in the app dir / control-plane data volume), not an account-pinned R2
+    // store — so app deploys need only Workers/D1 perms, not account R2.
+    state: Alchemy.localState(),
   },
   Effect.gen(function*() {
     const worker = yield* TicketsWorker;

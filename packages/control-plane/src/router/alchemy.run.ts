@@ -13,7 +13,7 @@ export default Alchemy.Stack(
   "TerrariumRouter",
   {
     providers: Cloudflare.providers(),
-    state: Cloudflare.state({ accountId: "7bbaa8f97d6ababf1a5e29eb79491ce3" }),
+    state: Alchemy.localState(),
   },
   Effect.gen(function*() {
     const worker = yield* RouterWorker;
