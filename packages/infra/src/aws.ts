@@ -27,7 +27,7 @@ export interface AwsInfraOptions {
  * (the single EC2 lives in a public subnet with an Elastic IP; RDS sits in the
  * private subnets and is only reachable from the EC2 security group).
  *
- * One EC2 (Ubuntu 24.04, t3.small) runs Docker; one RDS Postgres (db.t4g.micro)
+ * One EC2 (Ubuntu 24.04, t3.medium) runs Docker; one RDS Postgres (db.t4g.micro)
  * hosts the `logto` database (initial) and `control_plane` (created by the
  * bootstrap script on the box — RDS only creates one initial database).
  *
@@ -37,7 +37,7 @@ export interface AwsInfraOptions {
 export const AwsInfra = (options: AwsInfraOptions = {}) =>
   Effect.gen(function* () {
     const sshCidr = options.sshCidr ?? "0.0.0.0/0"; // TODO: restrict to your IP
-    const instanceType = options.instanceType ?? "t3.small";
+    const instanceType = options.instanceType ?? "t3.medium";
     const dbInstanceClass = options.dbInstanceClass ?? "db.t4g.micro";
 
     // --- Network -----------------------------------------------------------

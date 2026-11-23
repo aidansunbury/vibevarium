@@ -27,6 +27,9 @@ export class RouterBindings {
       "src/router/alchemy.run.ts",
       "--no-input",
       "--yes",
+      // The router worker pre-exists (REAL-SPIKE); its local state was lost
+      // when the box churned, so adopt it into this stack's fresh state.
+      "--adopt",
       "--include",
       "RouterWorker",
     ], {
