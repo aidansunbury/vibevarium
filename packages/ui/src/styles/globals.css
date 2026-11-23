@@ -3,71 +3,89 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Terrarium design-system theme (shadcn/ui, Base UI primitives).
+ * vibevarium design system — "botanical print".
  *
- * The palette is neutral (zinc). Every color is a CSS variable in oklch so a
- * fork re-themes by overriding variables — no component edits. `--primary`
- * derives from `--brand`, so changing `--brand` alone re-brands both apps.
+ * A field-guide / herbarium aesthetic: serif display type (Fraunces) over a
+ * readable humanist sans (Source Sans 3), squared edges, hairline + double
+ * rules, flat letterpress surfaces, laid-paper grain. Palette is "Vellum"
+ * (near-white cool paper) paired with "Graphite" (neutral charcoal) in dark.
+ *
+ * Every color is a CSS variable in oklch so a fork re-themes by overriding
+ * variables — no component edits. `--primary` derives from `--brand`, so
+ * changing `--brand` alone re-brands the platform.
+ *
+ * Contrast (WCAG 2.x, verified by docs/branding/contrast-audit.mjs):
+ * body text 13.9–14.5:1 (AAA) both modes · muted 6.8–7.5:1 · primary button
+ * 7.6–10.1:1 · hairline borders 3.2–3.6:1 (non-text 3.0 minimum).
  */
+
 :root {
-  --radius: 0.625rem;
+  /* Squared edges: botanical plates are pressed flat, corners cut square. */
+  --radius: 0rem;
 
-  /* Brand hook: re-theme a fork by overriding `--brand` (and, if needed,
-   * `--brand-foreground`). Primary, ring, and focus accents derive from it. */
-  --brand: oklch(0.205 0 0);
-  --brand-foreground: oklch(0.985 0 0);
+  /* Brand hook: deep forest green ink. */
+  --brand: oklch(0.42 0.11 152);
+  --brand-foreground: oklch(0.98 0.008 110);
+  /* Secondary accent: pressed clay / brass — ornaments, second logo leaf. */
+  --brand-secondary: oklch(0.5 0.1 60);
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
+  --background: oklch(0.975 0.008 110);
+  --foreground: oklch(0.27 0.03 130);
+  --card: oklch(0.99 0.006 110);
+  --card-foreground: oklch(0.27 0.03 130);
+  --popover: oklch(0.99 0.006 110);
+  --popover-foreground: oklch(0.27 0.03 130);
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.552 0.016 285.938);
+  --secondary: oklch(0.27 0.03 130 / 7%);
+  --secondary-foreground: oklch(0.27 0.03 130);
+  --muted: oklch(0.27 0.03 130 / 7%);
+  --muted-foreground: oklch(0.44 0.025 125);
+  --accent: oklch(0.27 0.03 130 / 7%);
+  --accent-foreground: oklch(0.27 0.03 130);
+  --destructive: oklch(0.5 0.19 27);
+  --destructive-foreground: oklch(0.98 0.008 110);
+  /* Hairlines are deep enough to satisfy WCAG 1.4.11 non-text contrast (3:1). */
+  --border: oklch(0.27 0.03 130 / 52%);
+  --input: oklch(0.27 0.03 130 / 52%);
+  --ring: oklch(0.42 0.11 152);
+
+  /* Botanical extras: header rule + paper grain. */
+  --rule: 3px double var(--border);
+  --grain: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><filter id="p"><feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="3"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.07"/></feComponentTransfer></filter><rect width="180" height="180" filter="url(%23p)"/></svg>');
 }
 
 .dark {
-  --brand: oklch(0.922 0 0);
-  --brand-foreground: oklch(0.205 0 0);
+  --brand: oklch(0.8 0.12 155);
+  --brand-foreground: oklch(0.2 0.03 160);
+  --brand-secondary: oklch(0.78 0.1 90);
 
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
+  --background: oklch(0.235 0.006 240);
+  --foreground: oklch(0.94 0.008 140);
+  --card: oklch(0.28 0.008 240);
+  --card-foreground: oklch(0.94 0.008 140);
+  --popover: oklch(0.28 0.008 240);
+  --popover-foreground: oklch(0.94 0.008 140);
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.705 0.015 286.067);
+  --secondary: oklch(1 0 0 / 8%);
+  --secondary-foreground: oklch(0.94 0.008 140);
+  --muted: oklch(1 0 0 / 8%);
+  --muted-foreground: oklch(0.76 0.01 180);
+  --accent: oklch(1 0 0 / 8%);
+  --accent-foreground: oklch(0.94 0.008 140);
+  --destructive: oklch(0.68 0.17 25);
+  --destructive-foreground: oklch(0.98 0.008 110);
+  --border: oklch(0.94 0.008 140 / 50%);
+  --input: oklch(0.94 0.008 140 / 50%);
+  --ring: oklch(0.8 0.12 155);
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: var(--radius);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -88,6 +106,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Type system: Fraunces display · Source Sans 3 UI · IBM Plex Mono data.
+   * The webfont <link> tags live in each app's index.html; these are stacks. */
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 @layer base {
@@ -96,9 +120,27 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family:
-      ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-      "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    font-family: var(--font-sans);
+  }
+  /* Laid-paper grain: barely-visible fixed overlay, sits under everything. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--grain);
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+  /* Headings speak in the display serif. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+  /* Data speaks mono. */
+  code, kbd, pre, samp {
+    font-family: var(--font-mono);
   }
   /* Tailwind v4 default button cursor is `default`; restore pointer. */
   button:not(:disabled),

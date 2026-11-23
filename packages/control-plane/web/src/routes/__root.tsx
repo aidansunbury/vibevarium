@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@terrarium/ui/components/dropdown-menu";
 import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } from "@terrarium/ui/layout/shell";
+import { LogoLockup } from "@terrarium/ui/components/logo";
 import { Toaster } from "@terrarium/ui/components/sonner";
 
 export interface RouterContext {
@@ -42,7 +43,7 @@ function RootLayout() {
     <Shell>
       <ShellHeader>
         <ShellHeaderTitle>
-          <span className="font-semibold">Terrarium</span>
+          <LogoLockup />
           <span className="text-muted-foreground">control plane</span>
         </ShellHeaderTitle>
         <nav className="hidden items-center gap-1 sm:flex">
