@@ -59,7 +59,12 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
     main: import.meta.url,
     domain: process.env.APP_HOSTNAME === undefined
       ? null
-      : { name: process.env.APP_HOSTNAME, zoneId: "15d5d22954d28f66f4e141a1668df477" },
+      : {
+          name: process.env.APP_HOSTNAME,
+          // Zone for the hostname's base domain. Defaults to vibevarium.com;
+          // forks override via CLOUDFLARE_ZONE_ID.
+          zoneId: process.env.CLOUDFLARE_ZONE_ID ?? "c6ae3b555628f3c6c0fb3883c479dcc4",
+        },
     // The React SPA, built by vite into web/dist. API paths run worker-first;
     // everything else serves assets, with SPA fallback for client-side routes.
     assets: {
