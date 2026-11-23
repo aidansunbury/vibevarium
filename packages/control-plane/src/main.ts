@@ -7,8 +7,9 @@ import { controlPlaneServer } from "./server.ts";
 import { loadBootSecrets } from "./secrets/boot.ts";
 
 // SECRETS_PROVIDER=aws: resolve runtime config (GITHUB_APP_*, CLOUDFLARE_API_TOKEN,
-// LOGTO_*) from Secrets Manager into process.env before any config is read.
-// No-op for env mode (default) — local dev is unchanged. See SECRETS-SPIKE.md.
+// LOGTO_*, DATABASE_URL) from Secrets Manager into process.env before any config
+// is read. No-op for env mode (default) — local dev is unchanged. See
+// SECRETS-SPIKE.md + DB-SPIKE.md.
 await loadBootSecrets();
 
 const integerEnv = (name: string, fallback: number) => {
@@ -73,6 +74,9 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
   Layer.provideMerge(controlPlaneServer({
     port: integerEnv("PORT", 4100),
     host: process.env.HOST ?? "127.0.0.1",
+    // DATABASE_URL (prod: RDS postgres://…, injected from SM at boot) wins;
+    // DATABASE_PATH remains the PGlite local-dev fallback. See DB-SPIKE.md.
+    databaseUrl: process.env.DATABASE_URL,
     databasePath: process.env.DATABASE_PATH,
     discoveryIntervalMs: integerEnv("DISCOVERY_INTERVAL_MS", 30_000),
     discoveryTimeoutMs: integerEnv("DISCOVERY_TIMEOUT_MS", 3_000),

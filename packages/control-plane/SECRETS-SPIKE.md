@@ -93,6 +93,12 @@ anywhere — the SDK's default chain hits IMDSv2 (enforced on the instance).
 Naming convention: `<vendor>-<purpose>[-<qualifier>]`, lower-kebab-case —
 `logto-m2m-app-secret`, `github-app-private-key`, `cloudflare-api-token`.
 
+Boot config also includes the control-plane database: `/terrarium/prod/
+database-url` is the full `postgres://…` URL for the RDS `control_plane` DB
+(built from the RDS-managed master secret, password URL-encoded), mapped to
+`DATABASE_URL` in `AWS_BOOT_SECRETS`. When unset, the control plane falls back
+to embedded PGlite — local dev is unchanged. See DB-SPIKE.md.
+
 ## Verifying
 
 `GET /config-check` (ungated, same trust level as `/health`) returns — names

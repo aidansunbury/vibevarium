@@ -1,0 +1,23 @@
+/**
+ * The auth gate, used by the root route's `beforeLoad`. Resolves the session
+ * actor from `GET /auth/me` (cookie-first). Unlike the app template (which
+ * hard-bounces on any 401), the control plane shows a sign-in card when auth
+ * is on but there's no session — matching its existing UX — while auth-off
+ * dev mode (`{ auth: "off" }`) renders straight through.
+ */
+import { api, isUnauthenticated } from "./api";
+
+export interface Session {
+  readonly authOn: boolean;
+  readonly actor: { readonly sub: string; readonly name?: string } | null;
+}
+
+export const loadSession = async (): Promise<Session> => {
+  try {
+    const me = await api.me();
+    return { authOn: me.auth === "on", actor: me.actor };
+  } catch (error) {
+    if (isUnauthenticated(error)) return { authOn: true, actor: null };
+    throw error;
+  }
+};

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { api, type AuditRow, type ConnectionView, type GrantView, type ProviderView } from "./api";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, type GrantView } from "../api";
 import { Badge } from "@terrarium/ui/components/badge";
 import { Button } from "@terrarium/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
@@ -14,90 +15,64 @@ import {
 } from "@terrarium/ui/components/table";
 import { toast } from "@terrarium/ui/lib/toast";
 
-const statusVariant = (status: string) =>
-  status === "active" || status === "approved"
-    ? "success" as const
-    : status === "revoked"
-    ? "destructive" as const
-    : "secondary" as const;
+export const Route = createFileRoute("/connections")({ component: ConnectionsPage });
 
-/**
- * Connections panel (docs/connections.md): the user's provider connections,
- * connect buttons per provider, pending grant requests with approve/deny, and
- * an app-centric view of grants.
- */
-export const ConnectionsPanel = () => {
-  const [providers, setProviders] = useState<Array<ProviderView>>([]);
-  const [connections, setConnections] = useState<Array<ConnectionView>>([]);
-  const [grants, setGrants] = useState<Array<GrantView>>([]);
-  const [audit, setAudit] = useState<Array<AuditRow> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+const providersQuery = { queryKey: ["connections", "providers"] as const, queryFn: () => api.providers() };
+const connectionsQuery = { queryKey: ["connections", "list"] as const, queryFn: () => api.connections() };
+const grantsQuery = { queryKey: ["connections", "grants"] as const, queryFn: () => api.grants() };
 
-  const load = useCallback(async () => {
-    try {
-      const [providersBody, connectionsBody, grantsBody] = await Promise.all([
-        api<{ providers: Array<ProviderView> }>("/connections/providers"),
-        api<{ connections: Array<ConnectionView> }>("/connections"),
-        api<{ grants: Array<GrantView> }>("/grants"),
-      ]);
-      setProviders(providersBody.providers);
-      setConnections(connectionsBody.connections);
-      setGrants(grantsBody.grants);
-      setError(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }, []);
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+const statusVariant = (status: string): "success" | "destructive" | "secondary" =>
+  status === "active" || status === "approved" ? "success" : status === "revoked" ? "destructive" : "secondary";
 
-  const connect = async (provider: string) => {
-    try {
-      const started = await api<{ authorization_url: string }>("/connections/start", {
-        method: "POST",
-        body: JSON.stringify({ provider }),
-      });
+function ConnectionsPage() {
+  const queryClient = useQueryClient();
+  const providers = useQuery(providersQuery);
+  const connections = useQuery(connectionsQuery);
+  const grants = useQuery(grantsQuery);
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["connections"] });
+  };
+
+  const connect = useMutation({
+    mutationFn: (provider: string) => api.startConnection(provider),
+    onSuccess: (started) => {
       // Full-page redirect to the provider's authorize URL; the callback
       // returns to the control plane.
       globalThis.location.assign(started.authorization_url);
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : String(cause));
-    }
-  };
+    },
+    onError: (error) => toast.error(message(error)),
+  });
 
-  const revokeConnection = async (connectionId: string) => {
-    try {
-      await api("/connections/revoke", { method: "POST", body: JSON.stringify({ connectionId }) });
-      await load();
+  const revokeConnection = useMutation({
+    mutationFn: (connectionId: string) => api.revokeConnection(connectionId),
+    onSuccess: () => {
+      invalidate();
       toast.success("Connection revoked (all its grants died with it)");
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : String(cause));
-    }
-  };
+    },
+    onError: (error) => toast.error(message(error)),
+  });
 
-  const revokeGrant = async (grantId: string) => {
-    try {
-      await api("/grants/revoke", { method: "POST", body: JSON.stringify({ grantId }) });
-      await load();
+  const revokeGrant = useMutation({
+    mutationFn: (grantId: string) => api.revokeGrant(grantId),
+    onSuccess: () => {
+      invalidate();
       toast.success("Grant revoked");
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : String(cause));
-    }
-  };
+    },
+    onError: (error) => toast.error(message(error)),
+  });
 
-  const showAudit = async (provider: string) => {
-    try {
-      const body = await api<{ audit: Array<AuditRow> }>(`/integrations/${encodeURIComponent(provider)}/audit`);
-      setAudit(body.audit);
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : String(cause));
-    }
-  };
+  const audit = useMutation({
+    mutationFn: (provider: string) => api.integrationAudit(provider),
+    onError: (error) => toast.error(message(error)),
+  });
 
-  const connectionFor = (provider: string) => connections.find((connection) => connection.provider === provider);
-  const grantsByApp = grants.reduce<Record<string, Array<GrantView>>>((acc, grant) => {
+  const connectionRows = connections.data?.connections ?? [];
+  const grantRows = grants.data?.grants ?? [];
+  const connectionFor = (provider: string) => connectionRows.find((c) => c.provider === provider);
+  const grantsByApp = grantRows.reduce<Record<string, Array<GrantView>>>((acc, grant) => {
     (acc[grant.app_id] ??= []).push(grant);
     return acc;
   }, {});
@@ -111,9 +86,10 @@ export const ConnectionsPanel = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {error !== null && <p className="text-sm text-destructive">⚠ {error}</p>}
-
-        {providers.length === 0 ? (
+        {providers.isError && <p className="text-sm text-destructive">⚠ {message(providers.error)}</p>}
+        {providers.isPending ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : providers.data.providers.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No providers registered. Set GITHUB_OAUTH_CLIENT_ID/SECRET (see CONNECTIONS-SPIKE.md) or register a
             fake-oauth provider for local development.
@@ -130,7 +106,7 @@ export const ConnectionsPanel = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {providers.map((provider) => {
+              {providers.data.providers.map((provider) => {
                 const connection = connectionFor(provider.name);
                 return (
                   <TableRow key={provider.name}>
@@ -157,19 +133,19 @@ export const ConnectionsPanel = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              disabled={!provider.configured}
+                              disabled={!provider.configured || connect.isPending}
                               title={provider.configured ? undefined : "Provider OAuth client not configured"}
-                              onClick={() => void connect(provider.name)}
+                              onClick={() => connect.mutate(provider.name)}
                             >
                               Connect
                             </Button>
                           )
                           : (
                             <>
-                              <Button variant="ghost" size="sm" onClick={() => void showAudit(provider.name)}>
+                              <Button variant="ghost" size="sm" onClick={() => audit.mutate(provider.name)}>
                                 audit
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={() => void revokeConnection(connection.connection_id)}>
+                              <Button variant="ghost" size="sm" onClick={() => revokeConnection.mutate(connection.connection_id)}>
                                 revoke
                               </Button>
                             </>
@@ -206,7 +182,7 @@ export const ConnectionsPanel = () => {
                         ))}
                       </span>
                       {grant.status === "approved" && (
-                        <Button variant="ghost" size="sm" onClick={() => void revokeGrant(grant.grant_id)}>
+                        <Button variant="ghost" size="sm" onClick={() => revokeGrant.mutate(grant.grant_id)}>
                           revoke
                         </Button>
                       )}
@@ -218,13 +194,15 @@ export const ConnectionsPanel = () => {
           )}
         </div>
 
-        {audit !== null && (
+        {audit.isSuccess && (
           <div className="grid gap-2">
             <h4 className="text-sm font-medium">Proxy audit</h4>
-            <pre className="max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">{JSON.stringify(audit, null, 2)}</pre>
+            <pre className="max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
+              {JSON.stringify(audit.data.audit, null, 2)}
+            </pre>
           </div>
         )}
       </CardContent>
     </Card>
   );
-};
+}

@@ -53,10 +53,10 @@ services:
     environment:
       PORT: "4100"
       HOST: "0.0.0.0"
-      # PGlite persisted to a docker volume for now. The RDS control_plane
-      # database is provisioned and reserved; swapping PGlite → node-pg via
-      # drizzle is a follow-up (see SPIKE.md).
-      DATABASE_PATH: /data/pglite
+      # Real Postgres on RDS. DATABASE_URL (incl. the password) is injected at
+      # boot from AWS Secrets Manager /terrarium/prod/database-url — see
+      # SECRETS_PROVIDER=aws below + packages/control-plane/DB-SPIKE.md.
+      # (DATABASE_URL is NOT set here; boot.ts fetches it into process.env.)
       DISCOVERY_INTERVAL_MS: "30000"
       TERRARIUM_ISSUER: https://auth.${DOMAIN}/oidc
       LOGTO_ISSUER: https://auth.${DOMAIN}/oidc
@@ -70,8 +70,10 @@ services:
       SECRETS_PROVIDER: aws
       AWS_REGION: us-east-1
       SECRETS_PREFIX: /terrarium/prod/
-    volumes:
-      - control_plane_data:/data
+    # The PGlite volume is gone: state now lives in RDS. The old
+    # control_plane_data volume is kept declared below for one manual backup
+    # of the pre-RDS PGlite dir (docker run --rm -v … tar); it is no longer
+    # mounted anywhere and can be dropped with `docker volume rm`.
     networks:
       - terrarium
 
@@ -82,4 +84,6 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  # Unmounted legacy PGlite volume from the pre-RDS stack — kept only so one
+  # manual backup can still be taken; safe to `docker volume rm` afterwards.
   control_plane_data:

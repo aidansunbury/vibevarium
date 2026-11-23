@@ -1,14 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  api,
-  ApiError,
-  redirectToLogin,
-  redirectToLogout,
-  UnauthenticatedError,
-  type AuthStatus,
-  type Me,
-  type TicketSummary,
-} from "./client";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, isUnauthenticated, redirectToLogin, redirectToLogout } from "../client";
+import { useSession } from "./__root";
 import { Badge } from "@terrarium/ui/components/badge";
 import { Button } from "@terrarium/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
@@ -26,84 +19,43 @@ import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } f
 import { Toaster } from "@terrarium/ui/components/sonner";
 import { toast } from "@terrarium/ui/lib/toast";
 
-type LoadState<T> =
-  | { readonly status: "loading" }
-  | { readonly status: "error"; readonly message: string }
-  | { readonly status: "ready"; readonly value: T };
+export const Route = createFileRoute("/")({
+  component: TicketsPage,
+});
 
-const errorMessage = (error: unknown) =>
-  error instanceof ApiError
-    ? `${error.message}${typeof error.body === "string" ? `: ${error.body}` : ""}`
-    : error instanceof Error
-      ? error.message
-      : String(error);
+/** TanStack Query owns the server state; the Effect client owns the wire. */
+export const ticketsQuery = {
+  queryKey: ["tickets", "list"] as const,
+  queryFn: () => api.tickets.list(),
+};
 
-export const App = () => {
-  const [tickets, setTickets] = useState<LoadState<readonly TicketSummary[]>>({ status: "loading" });
-  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
-  const [me, setMe] = useState<Me | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-  const refresh = useCallback(async () => {
-    setTickets({ status: "loading" });
-    try {
-      const list = await api.listTickets();
-      setTickets({ status: "ready", value: list.tickets });
-    } catch (error) {
-      if (error instanceof UnauthenticatedError) {
-        // No logged-out state: an unauthenticated user goes straight to the
-        // hosted sign-in and lands back here authed.
+/** A mutation is: run the command, read the list back at its version (read-your-write). */
+const useTicketMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (receipt: Awaited<ReturnType<typeof api.tickets.open>>) => {
+      const list = await api.tickets.list({ atLeast: receipt });
+      return list;
+    },
+    onSuccess: (list) => {
+      queryClient.setQueryData(ticketsQuery.queryKey, list);
+    },
+    onError: (error) => {
+      if (isUnauthenticated(error)) {
         redirectToLogin();
         return;
       }
-      setTickets({ status: "error", message: errorMessage(error) });
-    }
-  }, []);
-
-  useEffect(() => {
-    const boot = async () => {
-      let status: AuthStatus;
-      try {
-        status = await api.authStatus();
-      } catch {
-        status = { enabled: false };
-      }
-      setAuthStatus(status);
-      if (status.enabled) {
-        try {
-          setMe(await api.me());
-        } catch {
-          // 401 → no session (or expired): straight to the auth server.
-          redirectToLogin();
-          return;
-        }
-      }
-      void refresh();
-    };
-    void boot();
-  }, [refresh]);
-
-  const runAction = useCallback(
-    async (action: () => Promise<unknown>) => {
-      setBusy(true);
-      setActionError(null);
-      try {
-        await action();
-        await refresh();
-      } catch (error) {
-        if (error instanceof UnauthenticatedError) {
-          redirectToLogin();
-          return;
-        }
-        setActionError(errorMessage(error));
-        toast.error(errorMessage(error));
-      } finally {
-        setBusy(false);
-      }
+      toast.error(errorMessage(error));
     },
-    [refresh],
-  );
+  });
+};
+
+function TicketsPage() {
+  const session = useSession();
+  const tickets = useQuery(ticketsQuery);
+  const mutation = useTicketMutation();
 
   const onOpenTicket = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -114,27 +66,34 @@ export const App = () => {
     };
     const title = field("title");
     const reporter = field("reporter");
-    if (title.length === 0 || reporter.length === 0) return;
+    if (title === "" || reporter === "") return;
     event.currentTarget.reset();
-    void runAction(async () => {
-      const receipt = await api.openTicket({ title, reporter });
-      // Read the list back at the command's version: read-your-write, no sleep.
-      const list = await api.listTicketsAtLeast(receipt);
-      setTickets({ status: "ready", value: list.tickets });
-      toast.success(`Opened “${title}”`);
-    });
+    void (async () => {
+      try {
+        const receipt = await api.tickets.open({ title, reporter });
+        await mutation.mutateAsync(receipt);
+        toast.success(`Opened “${title}”`);
+      } catch (error) {
+        if (isUnauthenticated(error)) redirectToLogin();
+        else toast.error(errorMessage(error));
+      }
+    })();
   };
 
   const onCloseTicket = (id: string) =>
-    void runAction(async () => {
-      const receipt = await api.closeTicket(id);
-      const list = await api.listTicketsAtLeast(receipt);
-      setTickets({ status: "ready", value: list.tickets });
-      toast.success(`Closed ${id}`);
-    });
+    void (async () => {
+      try {
+        const receipt = await api.tickets.close(id);
+        await mutation.mutateAsync(receipt);
+        toast.success(`Closed ${id}`);
+      } catch (error) {
+        if (isUnauthenticated(error)) redirectToLogin();
+        else toast.error(errorMessage(error));
+      }
+    })();
 
-  const actor = me?.actor ?? null;
-  const displayName = actor?.name !== undefined ? actor.name : actor?.sub;
+  const actor = session.actor;
+  const displayName = actor?.name ?? actor?.sub;
 
   return (
     <Shell>
@@ -144,11 +103,11 @@ export const App = () => {
           <span className="text-muted-foreground">a Terrarium app</span>
         </ShellHeaderTitle>
         <ShellHeaderActions>
-          {authStatus !== null && !authStatus.enabled && <Badge variant="secondary">auth off</Badge>}
-          {authStatus?.enabled === true && actor !== null && (
+          {!session.authEnabled && <Badge variant="secondary">auth off</Badge>}
+          {session.authEnabled && actor !== null && (
             <div className="flex items-center gap-2">
               <span className="hidden text-sm text-muted-foreground sm:inline">{displayName}</span>
-              <Button variant="outline" size="sm" disabled={busy} onClick={redirectToLogout}>
+              <Button variant="outline" size="sm" onClick={redirectToLogout}>
                 Log out
               </Button>
             </div>
@@ -157,7 +116,7 @@ export const App = () => {
       </ShellHeader>
 
       <ShellBody className="max-w-3xl">
-        {authStatus?.enabled === true && actor !== null && (
+        {session.authEnabled && actor !== null && (
           <Card>
             <CardHeader>
               <CardTitle>Session</CardTitle>
@@ -182,11 +141,11 @@ export const App = () => {
                 <Label htmlFor="ticket-reporter">Reporter</Label>
                 <Input id="ticket-reporter" name="reporter" placeholder="Reporter" required />
               </div>
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" disabled={mutation.isPending}>
                 Open ticket
               </Button>
             </form>
-            {actionError !== null && <p className="mt-3 text-sm text-destructive">{actionError}</p>}
+            {mutation.isError && <p className="mt-3 text-sm text-destructive">{errorMessage(mutation.error)}</p>}
           </CardContent>
         </Card>
 
@@ -198,12 +157,12 @@ export const App = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {tickets.status === "loading" && <p className="text-sm text-muted-foreground">Loading tickets…</p>}
-            {tickets.status === "error" && (
-              <p className="text-sm text-destructive">Could not load tickets: {tickets.message}</p>
+            {tickets.isPending && <p className="text-sm text-muted-foreground">Loading tickets…</p>}
+            {tickets.isError && (
+              <p className="text-sm text-destructive">Could not load tickets: {errorMessage(tickets.error)}</p>
             )}
-            {tickets.status === "ready" &&
-              (tickets.value.length === 0 ? (
+            {tickets.isSuccess &&
+              (tickets.data.tickets.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No tickets yet.</p>
               ) : (
                 <Table>
@@ -216,7 +175,7 @@ export const App = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tickets.value.map((ticket) => (
+                    {tickets.data.tickets.map((ticket) => (
                       <TableRow key={ticket.id}>
                         <TableCell>
                           <div className="font-medium">{ticket.title}</div>
@@ -228,7 +187,12 @@ export const App = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           {ticket.status === "open" && (
-                            <Button variant="ghost" size="sm" disabled={busy} onClick={() => onCloseTicket(ticket.id)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={mutation.isPending}
+                              onClick={() => onCloseTicket(ticket.id)}
+                            >
                               Close
                             </Button>
                           )}
@@ -244,4 +208,4 @@ export const App = () => {
       <Toaster />
     </Shell>
   );
-};
+}

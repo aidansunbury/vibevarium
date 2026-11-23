@@ -32,6 +32,9 @@ import { Database } from "./store/database.ts";
 export interface ControlPlaneOptions {
   readonly port?: number | undefined;
   readonly host?: string | undefined;
+  /** Full postgres:// URL — when set, the store uses real Postgres (RDS prod). Wins over databasePath. */
+  readonly databaseUrl?: string | undefined;
+  /** PGlite data directory — local-dev fallback when databaseUrl is unset. */
   readonly databasePath?: string | undefined;
   readonly discoveryIntervalMs?: number | undefined;
   readonly discoveryTimeoutMs?: number | undefined;
@@ -204,7 +207,10 @@ const mintClientCredentialsToken = (m2m: NonNullable<ControlPlaneOptions["discov
   }).pipe(Effect.orElseSucceed(() => ""));
 
 export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
-  const databaseLayer = options.databasePath === undefined ? Database.layer() : Database.layer(options.databasePath);
+  const databaseLayer = Database.layerFromEnv({
+    databaseUrl: options.databaseUrl,
+    databasePath: options.databasePath,
+  });
   // provideMerge keeps Database in the output context so Integrations.layer can use it too.
   const storeLayer = Layer.mergeAll(Registry.layer, Directory.layer).pipe(Layer.provideMerge(databaseLayer));
   const servicesLayer = Layer.mergeAll(
@@ -352,6 +358,29 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         failedFromSecrets: bootSecretsReport.failed,
         config,
       };
+      // Database provenance — driver + HOST ONLY, never credentials.
+      const databaseUrl = process.env.DATABASE_URL;
+      if (databaseUrl !== undefined) {
+        try {
+          const parsed = new URL(databaseUrl);
+          body["database"] = {
+            driver: "postgres",
+            host: parsed.host,
+            database: parsed.pathname.replace(/^\//, ""),
+            source: bootSecretsReport.resolved.includes("DATABASE_URL")
+              ? "aws-secrets-manager"
+              : "env",
+          };
+        } catch {
+          body["database"] = { driver: "postgres", host: "unparseable-url", source: "env" };
+        }
+      } else {
+        body["database"] = {
+          driver: "pglite",
+          path: process.env.DATABASE_PATH ?? ":memory:",
+          source: process.env.DATABASE_PATH !== undefined ? "env" : "unset",
+        };
+      }
       if (bootSecretsReport.prefix !== undefined) {
         body["secretsPrefix"] = bootSecretsReport.prefix;
       }

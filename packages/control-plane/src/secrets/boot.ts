@@ -39,6 +39,9 @@ const AWS_BOOT_SECRETS = {
   "github-oauth-client-id": "GITHUB_OAUTH_CLIENT_ID",
   "github-oauth-client-secret": "GITHUB_OAUTH_CLIENT_SECRET",
   "connections-token-encryption-key": "CONNECTIONS_TOKEN_ENCRYPTION_KEY",
+  // Control-plane database (DB-SPIKE.md): the full postgres:// URL for RDS.
+  // When unset the box falls back to embedded PGlite via DATABASE_PATH.
+  "database-url": "DATABASE_URL",
 } as const;
 
 const hasAwsCredentials = () =>

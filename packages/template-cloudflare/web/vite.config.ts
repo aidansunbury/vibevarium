@@ -1,5 +1,6 @@
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig } from "vite";
 
 // The built SPA is served by the same Worker that hosts the Api: asset
@@ -24,7 +25,7 @@ const apiPaths = [
 ];
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
   server: {
     port: 5173,
     proxy: Object.fromEntries(apiPaths.map((path) => [path, apiProxyTarget])),
