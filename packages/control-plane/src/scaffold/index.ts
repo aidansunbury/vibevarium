@@ -31,6 +31,13 @@ const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 export const ScaffoldInput = Schema.Struct({
   name: Schema.String.check(Schema.isPattern(dnsLabel)),
+  /**
+   * Preview lineage (docs/previews-and-acl.md): when set, this app is a PR
+   * preview of the named parent app — its own Worker/D1/hostname/OIDC client,
+   * torn down wholesale on PR close. Cloudflare-only for now.
+   */
+  previewOf: Schema.optional(Schema.String.check(Schema.isPattern(dnsLabel))),
+  previewPr: Schema.optional(Schema.String),
 });
 
 export interface ScaffoldOptions {
@@ -132,7 +139,10 @@ const registerGeneratedRoutes = (options: { readonly authEnabled: boolean }) =>
             details: decoded.failure.message,
           }, { status: 400 });
         }
-        return yield* respond(scaffold.create(decoded.success.name), 201);
+        const preview = decoded.success.previewOf === undefined
+          ? undefined
+          : { previewOf: decoded.success.previewOf, previewPr: decoded.success.previewPr ?? "" };
+        return yield* respond(scaffold.create(decoded.success.name, preview), 201);
       })));
 
       yield* router.add("DELETE", "/apps/:name", gated(Effect.gen(function*() {
@@ -147,7 +157,10 @@ const registerGeneratedRoutes = (options: { readonly authEnabled: boolean }) =>
   );
 
 export class Scaffold extends Context.Service<Scaffold, {
-  readonly create: (name: string) => Effect.Effect<ScaffoldResult, ScaffoldError>;
+  readonly create: (
+    name: string,
+    preview?: { readonly previewOf: string; readonly previewPr: string },
+  ) => Effect.Effect<ScaffoldResult, ScaffoldError>;
   readonly remove: (
     name: string,
   ) => Effect.Effect<{
@@ -190,8 +203,20 @@ export class Scaffold extends Context.Service<Scaffold, {
             zoneId: options.cloudflare.zoneId,
           });
 
-      const register = Effect.fnUntraced(function*(name: string, url: string, oidcClientId?: string) {
-        const app = yield* registry.register({ name, url, ...(oidcClientId === undefined ? {} : { oidcClientId }) });
+      const register = Effect.fnUntraced(function*(
+        name: string,
+        url: string,
+        oidcClientId?: string,
+        preview?: { readonly previewOf: string; readonly previewPr: string },
+      ) {
+        const app = yield* registry.register({
+          name,
+          url,
+          ...(oidcClientId === undefined ? {} : { oidcClientId }),
+          ...(preview === undefined
+            ? {}
+            : { previewOf: preview.previewOf, previewPr: preview.previewPr }),
+        });
         const discovered = yield* discovery.discoverApp(app);
         yield* syncGatewayTools.pipe(
           Effect.provideService(McpServer.McpServer, mcpServer),
@@ -252,12 +277,17 @@ export class Scaffold extends Context.Service<Scaffold, {
         } satisfies ScaffoldResult;
       });
 
-      const createCloudflare = Effect.fnUntraced(function*(name: string) {
+      const createCloudflare = Effect.fnUntraced(function*(
+        name: string,
+        preview?: { readonly previewOf: string; readonly previewPr: string },
+      ) {
         if (deployer === undefined) {
           return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
         }
         const appUrl = `https://${name}.${options.cloudflare!.domain}`;
         // Register the app's own OIDC client so it can run its auth-code flow.
+        // Previews get their OWN client (own redirect URIs) — they never share
+        // the parent app's client.
         const oidcClient = options.logto === undefined
           ? undefined
           : yield* createOidcClient(options.logto, {
@@ -271,8 +301,9 @@ export class Scaffold extends Context.Service<Scaffold, {
         yield* attempt(() => routerBindings!.add(name));
         yield* attempt(() => routerDirectory!.put(name, name));
         // Register the public hostname (not the workers.dev origin) so the
-        // gallery + gateway point at the app's real URL.
-        const directoryEntry = yield* register(name, `${appUrl}/mcp`, oidcClient?.clientId);
+        // gallery + gateway point at the app's real URL. Preview lineage goes
+        // on the row so the dashboard can group previews under their parent.
+        const directoryEntry = yield* register(name, `${appUrl}/mcp`, oidcClient?.clientId, preview);
         return {
           name,
           url: appUrl,
@@ -294,7 +325,10 @@ export class Scaffold extends Context.Service<Scaffold, {
         );
       });
 
-      const create = Effect.fnUntraced(function*(name: string) {
+      const create = Effect.fnUntraced(function*(
+        name: string,
+        preview?: { readonly previewOf: string; readonly previewPr: string },
+      ) {
         if (!dnsLabel.test(name)) {
           return yield* Effect.fail(new ScaffoldError(400, "Invalid DNS-label-safe app name"));
         }
@@ -302,7 +336,18 @@ export class Scaffold extends Context.Service<Scaffold, {
         if (Option.isSome(existing)) {
           return yield* Effect.fail(new ScaffoldError(409, `App ${name} is already registered`));
         }
-        return yield* (mode === "cloudflare" ? createCloudflare(name) : createLocal(name));
+        if (preview !== undefined) {
+          // Previews are Cloudflare-only for now (docs/previews-and-acl.md):
+          // cheap, instant, total teardown. The parent app must exist.
+          if (mode !== "cloudflare") {
+            return yield* Effect.fail(new ScaffoldError(400, "Preview deploys require the Cloudflare target"));
+          }
+          const parent = yield* registry.get(preview.previewOf);
+          if (Option.isNone(parent)) {
+            return yield* Effect.fail(new ScaffoldError(404, `Parent app ${preview.previewOf} is not registered`));
+          }
+        }
+        return yield* (mode === "cloudflare" ? createCloudflare(name, preview) : createLocal(name));
       });
 
       const removeLocal = Effect.fnUntraced(function*(name: string) {

@@ -12,6 +12,10 @@ export const apps = pgTable("registry_apps", {
   lastError: text("last_error"),
   /** The app's Logto OIDC client id (set at scaffold; deleted on teardown). */
   oidcClientId: text("oidc_client_id"),
+  /** Preview lineage: set on preview apps, the parent app name. Null on prod apps. */
+  previewOf: text("preview_of"),
+  /** The PR number this preview tracks (previews only). */
+  previewPr: text("preview_pr"),
 });
 
 export const directoryTools = pgTable(
@@ -145,6 +149,36 @@ export type OAuthProviderRow = typeof oauthProviders.$inferSelect;
 export type ConnectionRow = typeof connections.$inferSelect;
 export type ConnectionGrantRow = typeof connectionGrants.$inferSelect;
 export type OAuthSessionRow = typeof oauthSessions.$inferSelect;
+
+// --- Provisioning jobs (docs/provisioning.md §3) --------------------------
+// A job-based async provision: POST /provisioning returns a job id; the steps
+// (repo → OIDC client → deploy → router → directory → discovery) run in a
+// background fiber and are persisted here so status survives restarts and the
+// wizard can poll/resume.
+
+export type ProvisioningStepState = "pending" | "running" | "done" | "failed";
+export interface ProvisioningStep {
+  readonly id: string;
+  readonly label: string;
+  readonly state: ProvisioningStepState;
+  readonly detail?: string | undefined;
+}
+export type ProvisioningJobStatus = "running" | "succeeded" | "failed";
+
+export const provisioningJobs = pgTable("provisioning_jobs", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** The requested spec: target/database/features (jsonb). */
+  spec: jsonb("spec").$type<Record<string, unknown>>().notNull(),
+  status: text("status").$type<ProvisioningJobStatus>().notNull().default("running"),
+  steps: jsonb("steps").$type<Array<ProvisioningStep>>().notNull(),
+  result: jsonb("result").$type<Record<string, unknown>>(),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export type ProvisioningJobRow = typeof provisioningJobs.$inferSelect;
 
 export type AppRow = typeof apps.$inferSelect;
 export type DirectoryToolRow = typeof directoryTools.$inferSelect;

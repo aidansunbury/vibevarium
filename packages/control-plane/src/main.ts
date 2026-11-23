@@ -1,140 +1,76 @@
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as Effect from "effect/Effect";
 import * as HttpServer from "effect/http/HttpServer";
 import * as Layer from "effect/Layer";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { controlPlaneServer } from "./server.ts";
 import { loadBootSecrets } from "./secrets/boot.ts";
+import { PlatformConfigService } from "./config/index.ts";
 
 // SECRETS_PROVIDER=aws: resolve runtime config (GITHUB_APP_*, CLOUDFLARE_API_TOKEN,
-// LOGTO_*, DATABASE_URL) from Secrets Manager into process.env before any config
-// is read. No-op for env mode (default) — local dev is unchanged. See
-// SECRETS-SPIKE.md + DB-SPIKE.md.
+// LOGTO_*, DATABASE_URL) from Secrets Manager into process.env before the
+// config layer parses it. No-op for env mode (default) — local dev is
+// unchanged. See SECRETS-SPIKE.md + DB-SPIKE.md.
 await loadBootSecrets();
-
-const integerEnv = (name: string, fallback: number) => {
-  const value = process.env[name];
-  return value === undefined ? fallback : Number.parseInt(value, 10);
-};
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 
-/** App M2M placeholder credentials: APP_SECRETS='{"tickets":"s3cret"}' (or APP_SECRET_<name> env vars). */
-const appSecrets = (): Record<string, string> => {
-  const fromJson = process.env.APP_SECRETS;
-  if (fromJson !== undefined) {
-    try {
-      return JSON.parse(fromJson) as Record<string, string>;
-    } catch {
-      throw new Error("APP_SECRETS must be a JSON object mapping app names to shared secrets");
-    }
-  }
-  const collected: Record<string, string> = {};
-  for (const [name, value] of Object.entries(process.env)) {
-    if (name.startsWith("APP_SECRET_") && value !== undefined) {
-      collected[name.slice("APP_SECRET_".length).toLowerCase().replaceAll("_", "-")] = value;
-    }
-  }
-  return collected;
-};
-
-// Ops-route bearer auth. Two configs:
-// - CONTROL_PLANE_ISSUER set: a dedicated ops OIDC (its own audience).
-// - Otherwise, when GUI login is on: reuse the GUI issuer + the platform
-//   audience — one auth server, one token (aud https://mcp.DOMAIN) opens both
-//   the GUI session and bearer-authed ops calls. Without this, guiAuth alone
-//   flips authEnabled on while Auth.layer has no config → defects on every
-//   gated route (the empty-500 bug this fixes).
-const oidc = process.env.CONTROL_PLANE_ISSUER !== undefined
-  ? {
-      issuer: process.env.CONTROL_PLANE_ISSUER,
-      audience: process.env.CONTROL_PLANE_AUDIENCE ?? "control.terrarium.local",
-    }
-  : process.env.LOGTO_GUI_APP_SECRET !== undefined
-    ? {
-        issuer: (process.env.LOGTO_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, ""),
-        audience: process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com",
-      }
-    : undefined;
-
-// Real GUI login (Logto auth-code + PKCE). Enabled when the GUI app secret is
-// present. Locally the secret comes from the repo-root .env; in production it
-// is AWS Secrets Manager /terrarium/prod/logto-gui-app-secret.
-const guiAuth = process.env.LOGTO_GUI_APP_SECRET === undefined
-  ? undefined
-  : {
-      issuer: (process.env.LOGTO_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, ""),
-      clientId: process.env.LOGTO_GUI_APP_ID ?? "s9ne7qecvf20vktab5iwl",
-      clientSecret: process.env.LOGTO_GUI_APP_SECRET,
-      baseUrl: (process.env.CONTROL_PLANE_BASE_URL ?? `http://127.0.0.1:${integerEnv("PORT", 4100)}`).replace(/\/+$/, ""),
-      resource: process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com",
-    };
+// Parse + validate the whole runtime config once (src/config/index.ts): every
+// env var is declared there, typed, defaulted; a bad value fails the boot with
+// one ConfigError instead of a silent undefined deep in a handler.
+import { loadPlatformConfig } from "./config/index.ts";
+const config = await Effect.runPromise(loadPlatformConfig);
 
 const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
   Layer.provideMerge(controlPlaneServer({
-    port: integerEnv("PORT", 4100),
-    host: process.env.HOST ?? "127.0.0.1",
+    port: config.port,
+    host: config.host,
     // DATABASE_URL (prod: RDS postgres://…, injected from SM at boot) wins;
     // DATABASE_PATH remains the PGlite local-dev fallback. See DB-SPIKE.md.
-    databaseUrl: process.env.DATABASE_URL,
-    databasePath: process.env.DATABASE_PATH,
-    discoveryIntervalMs: integerEnv("DISCOVERY_INTERVAL_MS", 30_000),
-    discoveryTimeoutMs: integerEnv("DISCOVERY_TIMEOUT_MS", 3_000),
-    callTimeoutMs: integerEnv("CALL_TIMEOUT_MS", 3_000),
-    discoveryToken: process.env.DISCOVERY_TOKEN,
-    // Gateway → child-app MCP discovery auth. When the M2M discovery client is
-    // configured (production), discovery mints a client-credentials token per
-    // run against the platform audience; otherwise it falls back to the static
-    // DISCOVERY_TOKEN (local-dev placeholder).
-    discoveryM2M: process.env.DISCOVERY_CLIENT_ID === undefined
-      ? undefined
-      : {
-          issuer: (process.env.LOGTO_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, ""),
-          clientId: process.env.DISCOVERY_CLIENT_ID,
-          clientSecret: process.env.DISCOVERY_CLIENT_SECRET!,
-          resource: process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com",
-          scope: process.env.DISCOVERY_SCOPE ?? "member",
-        },
-    ...(oidc === undefined ? {} : { oidc }),
-    ...(guiAuth === undefined ? {} : { guiAuth }),
-    appSecrets: appSecrets(),
-    guiDir: process.env.GUI_DIR ?? join(packageRoot, "web", "dist"),
+    databaseUrl: config.databaseUrl,
+    databasePath: config.databasePath,
+    discoveryIntervalMs: config.discoveryIntervalMs,
+    discoveryTimeoutMs: config.discoveryTimeoutMs,
+    callTimeoutMs: config.callTimeoutMs,
+    discoveryToken: config.discoveryToken,
+    // Gateway → child-app MCP discovery auth (M2M client credentials in prod,
+    // static DISCOVERY_TOKEN placeholder locally).
+    ...(config.discoveryM2M === undefined ? {} : { discoveryM2M: config.discoveryM2M }),
+    ...(config.oidc === undefined ? {} : { oidc: config.oidc }),
+    ...(config.guiAuth === undefined ? {} : { guiAuth: config.guiAuth }),
+    appSecrets: config.appSecrets,
+    guiDir: config.guiDir ?? join(packageRoot, "web", "dist"),
     scaffold: {
-      issuer: process.env.TERRARIUM_ISSUER,
-      appsRoot: process.env.TERRARIUM_APPS_ROOT,
-      startupTimeoutMs: integerEnv("APP_START_TIMEOUT_MS", 20_000),
-      mode: process.env.GIT_PROVIDER === "github" ? "cloudflare" : "local",
-      github: process.env.GIT_PROVIDER === "github"
-        ? {
-            appId: process.env.GITHUB_APP_ID!,
-            // Secrets mode delivers the PEM inline (GITHUB_APP_PRIVATE_KEY);
-            // env mode points at a file (GITHUB_APP_PRIVATE_KEY_PATH).
-            ...(process.env.GITHUB_APP_PRIVATE_KEY_PATH === undefined
-              ? { privateKey: process.env.GITHUB_APP_PRIVATE_KEY! }
-              : { privateKeyPath: process.env.GITHUB_APP_PRIVATE_KEY_PATH }),
-            installationId: Number(process.env.GITHUB_APP_INSTALLATION_ID),
-            org: process.env.GITHUB_ORG ?? "terrarium-sandbox",
-          }
-        : undefined,
-      cloudflare: process.env.CLOUDFLARE_ACCOUNT_ID === undefined
-        ? undefined
+      issuer: config.issuer,
+      appsRoot: config.appsRoot,
+      startupTimeoutMs: config.startupTimeoutMs,
+      mode: config.github !== undefined ? "cloudflare" : "local",
+      ...(config.github === undefined
+        ? {}
         : {
-            accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
-            alchemyHome: process.env.ALCHEMY_HOME!,
-            workersSubdomain: process.env.CLOUDFLARE_WORKERS_SUBDOMAIN!,
-            domain: process.env.TERRARIUM_DOMAIN ?? "vibevarium.com",
-            routerNamespaceId: process.env.ROUTER_KV_NAMESPACE_ID!,
-            zoneId: process.env.CLOUDFLARE_ZONE_ID!,
-          },
-      logto: process.env.LOGTO_M2M_APP_ID === undefined
-        ? undefined
+            github: {
+              appId: config.github.appId,
+              ...(config.github.privateKeyPath === undefined
+                ? { privateKey: config.github.privateKey ?? "" }
+                : { privateKeyPath: config.github.privateKeyPath }),
+              installationId: config.github.installationId,
+              org: config.github.org,
+            },
+          }),
+      ...(config.cloudflare === undefined
+        ? {}
         : {
-            issuer: (process.env.LOGTO_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, ""),
-            clientId: process.env.LOGTO_M2M_APP_ID,
-            clientSecret: process.env.LOGTO_M2M_APP_SECRET!,
-            managementResource: process.env.LOGTO_MANAGEMENT_RESOURCE ?? "https://default.logto.app/api",
-            platformAudience: process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com",
-          },
+            cloudflare: {
+              accountId: config.cloudflare.accountId,
+              alchemyHome: config.cloudflare.alchemyHome,
+              workersSubdomain: config.cloudflare.workersSubdomain,
+              domain: config.domain,
+              routerNamespaceId: config.cloudflare.routerNamespaceId,
+              zoneId: config.cloudflare.zoneId,
+            },
+          }),
+      ...(config.logto === undefined ? {} : { logto: config.logto }),
     },
   })),
 );

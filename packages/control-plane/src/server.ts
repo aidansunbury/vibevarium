@@ -28,6 +28,8 @@ import { bootSecretsReport } from "./secrets/boot.ts";
 import { RegisterAppInput, Registry } from "./registry/index.ts";
 import { Scaffold, type ScaffoldOptions } from "./scaffold/index.ts";
 import { Database } from "./store/database.ts";
+import { PlatformConfigService } from "./config/index.ts";
+import { Provisioning } from "./provisioning/index.ts";
 
 export interface ControlPlaneOptions {
   readonly port?: number | undefined;
@@ -270,11 +272,31 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       }))
     : GuiAuth.layer(options.guiAuth);
 
+  // Provisioning (docs/provisioning.md): the config service + job engine. The
+  // config layer parses env (Effect Config) once; provisioning consumes it,
+  // the store, the scaffold pipeline, and the SecretsProvider for capability
+  // validation. One shared scaffold layer serves both the legacy /scaffold
+  // routes and the new /provisioning routes (Scaffold.layer needs the
+  // registry/directory/discovery/proxy/McpServer services, which the outer
+  // `routes` provideMerge already supplies at runtime).
+  const configLayer = PlatformConfigService.layer;
+  const scaffoldLayer = Scaffold.layer(options.scaffold);
+  const provisioningLayer = Provisioning.layer.pipe(
+    Layer.provide(databaseLayer),
+    Layer.provide(configLayer),
+    Layer.provide(scaffoldLayer),
+    Layer.provide(secretsLayer),
+  );
+
   const routes = Layer.mergeAll(
     gatewayRegistrations,
     operationalRoutes({ authEnabled, guiAuthEnabled }),
     authFlowRoutes,
-    Scaffold.routes({ authEnabled }).pipe(Layer.provide(Scaffold.layer(options.scaffold))),
+    Scaffold.routes({ authEnabled }).pipe(Layer.provide(scaffoldLayer)),
+    Provisioning.routes({ authEnabled }).pipe(
+      Layer.provide(provisioningLayer),
+      Layer.provide(configLayer),
+    ),
     integrationRoutes({
       authEnabled,
       appSecrets: options.appSecrets ?? {},

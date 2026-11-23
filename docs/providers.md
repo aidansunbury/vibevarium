@@ -82,4 +82,9 @@ The platform itself is built on [Alchemy](https://alchemy.run): one stack per
 app gives us deploy + env + destroy per target, and its provider packages
 (`@alchemy.run/cloudflare`, `@alchemy.run/aws`, `@alchemy.run/infisical`,
 `@alchemy.run/github`, …) are ready-made implementations for several of the
-interfaces above.
+interfaces above. Alchemy also ships first-party **GCP** (`alchemy/gcp` —
+Cloud Run/Functions/Storage/…, broad but less battle-tested than Cloudflare);
+there is **no first-party Azure** provider (reachable only via the
+Kubernetes/Docker/Terraform escape hatches). See
+[provisioning.md](./provisioning.md) for how the platform picks and validates a
+deploy target per app.

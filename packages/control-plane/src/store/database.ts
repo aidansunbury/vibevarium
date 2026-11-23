@@ -51,6 +51,10 @@ const BOOT_DDL = `
 
   -- Idempotent column adds for tables created before the column existed.
   ALTER TABLE registry_apps ADD COLUMN IF NOT EXISTS oidc_client_id text;
+  -- Preview lineage (docs/previews-and-acl.md): previews are registry apps too,
+  -- flagged with their parent app + PR.
+  ALTER TABLE registry_apps ADD COLUMN IF NOT EXISTS preview_of text;
+  ALTER TABLE registry_apps ADD COLUMN IF NOT EXISTS preview_pr text;
 
   CREATE TABLE IF NOT EXISTS directory_tools (
     app_name text NOT NULL REFERENCES registry_apps(name) ON DELETE CASCADE,
@@ -149,6 +153,19 @@ const BOOT_DDL = `
     created_at timestamptz NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS oauth_sessions_expiry_idx ON oauth_sessions(expires_at);
+
+  -- Provisioning jobs (docs/provisioning.md §3): durable async app provisions.
+  CREATE TABLE IF NOT EXISTS provisioning_jobs (
+    id text PRIMARY KEY,
+    name text NOT NULL,
+    spec jsonb NOT NULL,
+    status text NOT NULL DEFAULT 'running',
+    steps jsonb NOT NULL,
+    result jsonb,
+    error text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
 `;
 
 export class Database extends Context.Service<Database, {

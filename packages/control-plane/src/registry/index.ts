@@ -14,6 +14,9 @@ export const RegisterAppInput = Schema.Struct({
   name: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]*$/)),
   url: Schema.String.check(Schema.isPattern(/^https?:\/\//)),
   oidcClientId: Schema.optional(Schema.String),
+  /** Preview lineage (docs/previews-and-acl.md) — set by the scaffold on preview apps. */
+  previewOf: Schema.optional(Schema.String),
+  previewPr: Schema.optional(Schema.String),
 });
 export type RegisterAppInput = typeof RegisterAppInput.Type;
 
@@ -33,7 +36,12 @@ export class Registry extends Context.Service<Registry, {
       const rows = yield* Effect.promise(() =>
         db.insert(apps).values(input).onConflictDoUpdate({
           target: apps.name,
-          set: { url: input.url, oidcClientId: input.oidcClientId },
+          set: {
+            url: input.url,
+            oidcClientId: input.oidcClientId,
+            previewOf: input.previewOf ?? null,
+            previewPr: input.previewPr ?? null,
+          },
         }).returning()
       );
       return rows[0];

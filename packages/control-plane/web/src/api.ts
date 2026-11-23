@@ -66,8 +66,19 @@ export const AppRow = Schema.Struct({
   lastSeenAt: Schema.NullOr(Schema.String),
   lastCheckedAt: Schema.NullOr(Schema.String),
   lastError: Schema.NullOr(Schema.String),
+  previewOf: Schema.NullOr(Schema.String),
+  previewPr: Schema.NullOr(Schema.String),
 });
 export type AppRow = typeof AppRow.Type;
+
+export const PreviewRow = Schema.Struct({
+  name: Schema.String,
+  previewOf: Schema.String,
+  previewPr: Schema.NullOr(Schema.String),
+  url: Schema.String,
+  status: Schema.Literals(["unknown", "up", "down"]),
+});
+export type PreviewRow = typeof PreviewRow.Type;
 
 export const DirectoryTool = Schema.Struct({
   appName: Schema.String,
@@ -150,6 +161,57 @@ export const ScaffoldResult = Schema.Struct({
 });
 export type ScaffoldResult = typeof ScaffoldResult.Type;
 
+// --- provisioning (docs/provisioning.md) -------------------------------------
+
+export const CapabilityStatus = Schema.Struct({
+  enabled: Schema.Boolean,
+  credentialsValid: Schema.Boolean,
+  missing: Schema.Array(Schema.String),
+  reason: Schema.optional(Schema.String),
+});
+export type CapabilityStatus = typeof CapabilityStatus.Type;
+
+export const ProvisioningOptions = Schema.Struct({
+  defaultTarget: Schema.Literals(["cloudflare", "aws"]),
+  defaultDatabase: Schema.Literals(["cf-d1", "planetscale-hyperdrive"]),
+  authProvider: Schema.Literals(["logto", "workos"]),
+  deployTargets: Schema.Struct({ cloudflare: CapabilityStatus, aws: CapabilityStatus }),
+  database: Schema.Struct({
+    "cf-d1": CapabilityStatus,
+    "planetscale-hyperdrive": CapabilityStatus,
+  }),
+  features: Schema.Struct({ r2: CapabilityStatus, hyperdrive: CapabilityStatus }),
+  authProviders: Schema.Struct({ logto: CapabilityStatus, workos: CapabilityStatus }),
+});
+export type ProvisioningOptions = typeof ProvisioningOptions.Type;
+
+export const ProvisionSpec = Schema.Struct({
+  name: Schema.String,
+  target: Schema.optional(Schema.Literals(["cloudflare", "aws"])),
+  database: Schema.optional(Schema.Literals(["cf-d1", "planetscale-hyperdrive"])),
+  features: Schema.optional(Schema.Array(Schema.Literals(["r2", "hyperdrive"]))),
+});
+export type ProvisionSpec = typeof ProvisionSpec.Type;
+
+export const ProvisionStep = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  state: Schema.Literals(["pending", "running", "done", "failed"]),
+  detail: Schema.optional(Schema.String),
+});
+export type ProvisionStep = typeof ProvisionStep.Type;
+
+export const ProvisionStatus = Schema.Struct({
+  jobId: Schema.String,
+  name: Schema.String,
+  status: Schema.Literals(["running", "succeeded", "failed"]),
+  steps: Schema.Array(ProvisionStep),
+  result: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  error: Schema.optional(Schema.String),
+  spec: Schema.Record(Schema.String, Schema.Unknown),
+});
+export type ProvisionStatus = typeof ProvisionStatus.Type;
+
 // --- the typed HttpApi surface -------------------------------------------------
 
 const OpsApi = HttpApi.make("ControlPlane")
@@ -170,6 +232,29 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.post("scaffold", "/scaffold", {
         payload: Schema.Struct({ name: Schema.String }),
         success: Schema.Unknown,
+      }))
+      .add(HttpApiEndpoint.get("provisioningOptions", "/provisioning/options", {
+        success: ProvisioningOptions,
+      }))
+      .add(HttpApiEndpoint.post("provision", "/provisioning", {
+        payload: ProvisionSpec,
+        success: Schema.Struct({ jobId: Schema.String }),
+      }))
+      .add(HttpApiEndpoint.get("provisionStatus", "/provisioning/:jobId", {
+        params: { jobId: Schema.String },
+        success: ProvisionStatus,
+      }))
+      .add(HttpApiEndpoint.post("createPreview", "/apps/:name/previews", {
+        params: { name: Schema.String },
+        payload: Schema.Struct({ pr: Schema.String }),
+        success: Schema.Struct({ jobId: Schema.String }),
+      }))
+      .add(HttpApiEndpoint.get("previews", "/previews", {
+        success: Schema.Struct({ previews: Schema.Array(PreviewRow) }),
+      }))
+      .add(HttpApiEndpoint.get("appHistory", "/apps/:name/history", {
+        params: { name: Schema.String },
+        success: Schema.Struct({ history: Schema.Array(ProvisionStatus) }),
       })),
   )
   .add(
@@ -281,6 +366,15 @@ export const api = {
   discover: () => clientPromise.then((client) => run(client.discover())),
   deleteApp: (name: string) => clientPromise.then((client) => run(client.deleteApp({ params: { name } }))),
   scaffold: (name: string) => clientPromise.then((client) => run(client.scaffold({ payload: { name } }))),
+
+  provisioningOptions: () => clientPromise.then((client) => run(client.provisioningOptions())),
+  provision: (spec: ProvisionSpec) => clientPromise.then((client) => run(client.provision({ payload: spec }))),
+  provisionStatus: (jobId: string) =>
+    clientPromise.then((client) => run(client.provisionStatus({ params: { jobId } }))),
+  createPreview: (name: string, pr: string) =>
+    clientPromise.then((client) => run(client.createPreview({ params: { name }, payload: { pr } }))),
+  previews: () => clientPromise.then((client) => run(client.previews())),
+  appHistory: (name: string) => clientPromise.then((client) => run(client.appHistory({ params: { name } }))),
 
   integrations: () => clientPromise.then((client) => run(client.integrations())),
   createIntegration: (input: { name: string; baseUrl: string; tokenEnv: string }) =>
