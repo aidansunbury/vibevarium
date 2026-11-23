@@ -1,15 +1,39 @@
-# Control-plane GUI spike (`web/`)
+# Control-plane GUI (`web/`)
 
 ## Verdict
 
-A React + Vite SPA served by the control plane itself. v1 screens: **app
-gallery** (registered apps with status/URL/last-seen), **app detail**
-(discovered tools, stale markers, delete), **scaffold** (name → `POST
-/scaffold` → repo/app/hostname result), and an **integrations** panel
-(register integrations, grant/revoke app access, view the proxy audit). Auth
-gate: a login button mints a dev-issuer token; every API call carries it;
-`GET /whoami` shows the `CurrentActor`. The actor identity appears in the
-header.
+A React + Vite SPA served by the control plane itself, on the locked frontend
+stack: **TanStack Router** (file routes) + **TanStack Query** (server state) +
+an **Effect-`HttpApiClient` typed client** (no hand-rolled fetch strings).
+Routes: `/` app **gallery** (registered apps with status/URL/last-seen, run
+discovery), `/apps/$name` **app detail** (discovered tools, stale markers,
+delete), `/scaffold` (name → `POST /scaffold` → result), `/integrations`
+(register, grant/revoke app access, proxy audit), `/connections` (providers,
+connect/revoke, grants per app, audit). The root route (`__root`) is the auth
+guard: its `beforeLoad` resolves `GET /auth/me`; auth-on with no session shows
+a sign-in card (matching the existing UX), auth-off dev mode renders straight
+through. The actor identity is in the header.
+
+## The frontend stack
+
+- **Routing: TanStack Router (file routes, `@tanstack/router-plugin`).**
+  `web/src/routes/__root.tsx` holds the shell (header, nav, actor menu) and
+  the auth gate; one file per screen under `web/src/routes/`. The plugin
+  generates `src/routeTree.gen.ts` at dev/build.
+- **Server state: TanStack Query v5.** `useQuery` holds the registry /
+  directory / integrations / connections data; `useMutation` runs scaffold /
+  delete / discovery / grant / revoke with `invalidateQueries` on the affected
+  keys. No `useState`/`useEffect` for server data.
+- **The typed client** (`web/src/api.ts`): the control plane's routes are
+  HAND-WRITTEN (`HttpRouter` in `src/server.ts`, `scaffold/`, `integrations/`,
+  `connections/`), not a domain `HttpApi` — so unlike the app template there's
+  no server declaration to reuse. Instead `api.ts` declares the exact
+  request/response surface as a typed `effect/http-api/HttpApi`
+  (Schema-validated, mirroring the routes one-to-one) and hands it to
+  `effect/http-api/HttpApiClient.make` over a cookie-first `FetchHttpClient`.
+  The endpoints are the typed contract; when a route changes, update its
+  endpoint here (the routes are the source of truth — the control plane has
+  no `/openapi.json`). A 401 maps to `UnauthenticatedError`.
 
 ## Run it
 
@@ -51,12 +75,13 @@ anyway). With no `web/dist` the mount is inert.
 
 ## What the GUI calls
 
-| Screen | Endpoints |
+| Route | Endpoints |
 | --- | --- |
-| App gallery | `GET /whoami`, `GET /apps`, `POST /discover` |
-| App detail | `GET /directory`, `DELETE /apps/:name` |
-| Scaffold | `POST /scaffold` |
-| Integrations | `GET/POST /integrations`, `GET/POST/DELETE .../grants`, `GET .../audit` |
+| `/` gallery | `GET /auth/me`, `GET /apps`, `POST /discover` |
+| `/apps/$name` detail | `GET /directory`, `DELETE /apps/:name` |
+| `/scaffold` | `POST /scaffold` |
+| `/integrations` | `GET/POST /integrations`, `GET/POST/DELETE .../grants`, `GET .../audit` |
+| `/connections` | `GET /connections/providers`, `GET /connections`, `POST /connections/start`, `POST /connections/revoke`, `GET /grants`, `POST /grants/revoke`, `GET /integrations/:provider/audit` |
 
 All of those are gated by `requireAuth` when `CONTROL_PLANE_ISSUER` is set
 (ops routes in `server.ts`, scaffold routes in `scaffold/index.ts`,
@@ -86,7 +111,6 @@ Running `pnpm --filter @terrarium/control-plane dev` and opening
 
 ## v1 boundaries
 
-- No routing library — screens are conditional panels, not URLs.
 - No MCP playground; the gateway is exercised by demos/CLI, not the GUI.
 - The integrations panel is admin-shaped (raw forms), not the consent UX of
   docs/connections.md — that second-order consent screen is a separate product

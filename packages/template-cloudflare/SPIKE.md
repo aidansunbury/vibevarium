@@ -46,9 +46,10 @@ packages/template-cloudflare/
 │   ├── surfaces.ts         # toHttpApi + toMcp over one expose list
 │   └── Ticket/             # aggregate, commands, events, rejections, views
 ├── web/                    # vite + React SPA (own package.json, registry deps only)
-│   ├── src/App.tsx         # tickets UI: list / open / close, session panel
-│   ├── src/client.ts       # tiny typed fetch client + bearer-token handling
-│   └── vite.config.ts      # dev proxy: API paths → localhost:1337 (alchemy dev)
+│   ├── src/routes/         # TanStack Router file routes: __root (auth guard) + index (tickets)
+│   ├── src/api/TicketsApi.ts  # the domain HttpApi surface, vendored (no workspace dep)
+│   ├── src/client.ts       # Effect HttpApiClient over that HttpApi + cookie transport
+│   └── vite.config.ts      # @tanstack/router-plugin + dev proxy → localhost:1337
 ├── migrations/0001_app_metadata.sql
 └── package.json            # no workspace:* deps — materializes standalone
 ```
@@ -73,6 +74,40 @@ deploy, one URL to hand out. The `ASSETS` binding is only needed if the
 Worker wants to serve files itself; we don't — the asset layer serves
 everything not in `runWorkerFirst`, and unmatched paths fall back to
 `index.html`.
+
+## The frontend stack (TanStack Router + Query + an Effect client)
+
+The SPA is the reference implementation every generated app copies. Three
+decisions, all locked:
+
+- **Routing: TanStack Router (file routes, `@tanstack/router-plugin`).**
+  `web/src/routes/__root.tsx` is the auth guard — its `beforeLoad` resolves
+  the session (`/auth/status` → `/auth/me`) and hard-navigates to
+  `/auth/login` on a 401, so no child route ever renders logged-out. This
+  replaces the old boot-`useEffect` bounce. `web/src/routes/index.tsx` is the
+  tickets page. The plugin generates `src/routeTree.gen.ts` at dev/build.
+- **Server state: TanStack Query v5.** `useQuery` holds the ticket list and
+  the session; `useMutation` runs open/close. A mutation is *command →
+  read-your-write*: `api.tickets.open` returns the `CommandReceipt`, then the
+  mutation reads the list back with `{ atLeast: receipt }` (the
+  `?stream&version` query the view needs) and `setQueryData` seeds the list
+  cache. No `useState`/`useEffect` for server data anywhere.
+- **The typed client: Effect-generated, no hand-rolled fetch.** The frontend
+  does NOT hand-write `fetch("/OpenTicket")`. Instead `web/src/api/TicketsApi.ts`
+  declares the domain's HTTP surface as an `effect/http-api/HttpApi` — the
+  same `DomainHttp.toHttpApi(TicketsApi, { expose })` shape the Worker serves,
+  vendored (a generated app has no `workspace:*` deps, so it can't import the
+  server's `src/`). `web/src/client.ts` feeds it to
+  `effect/http-api/HttpApiClient.make` over a cookie-first `FetchHttpClient`
+  (`credentials: "same-origin"`), yielding `client.OpenTicket(...)` /
+  `client["TicketList.get"](...)` with request/response types derived from the
+  RPC schemas. The transport maps a 401 to `UnauthenticatedError`; the router
+  and Query's `retry` both bounce to login on it.
+
+How a generated app gets its client: the scaffold copies `web/` verbatim, so
+the vendored `api/TicketsApi.ts` + `client.ts` come along self-contained. When
+the domain surface changes, mirror it in `api/TicketsApi.ts` — the OpenAPI doc
+at `/openapi.json` is the diff source.
 
 ## How scaffold materializes it
 
@@ -238,7 +273,7 @@ SPA's client turns that into a bounce to `/auth/login`); requests with
 
 - **Page loads**: `GET /` is served by the Cloudflare asset layer and never
   runs the Worker, so the redirect lives client-side by construction: the
-  SPA's first act is `GET /auth/me`; a 401 sets
+  root route's `beforeLoad` calls `GET /auth/me`; a 401 sets
   `window.location = "/auth/login"` which 302s to Logto. There is no login
   button and no logged-out copy — only a loading state.
 - **API surfaces**: 401 + `WWW-Authenticate` (fetch semantics); HTML
@@ -377,7 +412,9 @@ not auth). Identical results on `notes.vibevarium.com`.
 
 - The `runWorkerFirst` list duplicates the surface paths by hand. Domain's
   `toHttpApi` knows its own routes; a future helper could derive the
-  worker-first globs from the Api declaration.
+  worker-first globs from the Api declaration. (Note the parallel with the
+  frontend's vendored `api/TicketsApi.ts` — both hand-mirror the Api surface;
+  the same helper could generate the vendored client declaration too.)
 - First `atLeast` read on a cold view DO is slow (observed ~30s once,
   sub-second thereafter). Worth a Domain-side look at view wake-up.
 - `web/` is excluded from the root `tsrs -b` (own tsconfig, vite checks at

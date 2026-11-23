@@ -33,7 +33,7 @@ function ConnectionsPage() {
   const grants = useQuery(grantsQuery);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["connections"] });
+  void queryClient.invalidateQueries({ queryKey: ["connections"] });
   };
 
   const connect = useMutation({
@@ -89,7 +89,7 @@ function ConnectionsPage() {
         {providers.isError && <p className="text-sm text-destructive">⚠ {message(providers.error)}</p>}
         {providers.isPending ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : providers.data.providers.length === 0 ? (
+        ) : !providers.isSuccess ? null : providers.data.providers.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No providers registered. Set GITHUB_OAUTH_CLIENT_ID/SECRET (see CONNECTIONS-SPIKE.md) or register a
             fake-oauth provider for local development.

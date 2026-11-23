@@ -29,8 +29,8 @@ function AppDetailPage() {
   const remove = useMutation({
     mutationFn: () => api.deleteApp(name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["apps"] });
-      queryClient.invalidateQueries({ queryKey: ["directory"] });
+      void queryClient.invalidateQueries({ queryKey: ["apps"] });
+      void queryClient.invalidateQueries({ queryKey: ["directory"] });
       toast.success(`Deleted ${name}`);
       void navigate({ to: "/" });
     },
@@ -48,9 +48,9 @@ function AppDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/">← Back to apps</Link>
-        </Button>
+        <Link to="/">
+          <Button variant="ghost" size="sm">← Back to apps</Button>
+        </Link>
       </div>
 
       <Card>

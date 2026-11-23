@@ -162,8 +162,8 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.get("directory", "/directory", {
         success: Schema.Struct({ apps: Schema.Array(AppRow), tools: Schema.Array(DirectoryTool) }),
       }))
-      .add(HttpApiEndpoint.post("discover", "/discover", { payload: Schema.Struct({}), success: Schema.Unknown }))
-      .add(HttpApiEndpoint.del("deleteApp", "/apps/:name", {
+      .add(HttpApiEndpoint.post("discover", "/discover", { success: Schema.Unknown }))
+      .add(HttpApiEndpoint["delete"]("deleteApp", "/apps/:name", {
         params: { name: Schema.String },
         success: Schema.Unknown,
       }))
@@ -195,7 +195,7 @@ const OpsApi = HttpApi.make("ControlPlane")
         payload: Schema.Struct({ app: Schema.String }),
         success: Schema.Unknown,
       }))
-      .add(HttpApiEndpoint.del("revokeIntegration", "/integrations/:integration/grants/:app", {
+      .add(HttpApiEndpoint["delete"]("revokeIntegration", "/integrations/:integration/grants/:app", {
         params: { integration: Schema.String, app: Schema.String },
         success: Schema.Unknown,
       }))
@@ -267,7 +267,7 @@ export const api = {
   me: () => clientPromise.then((client) => run(client.me())),
   apps: () => clientPromise.then((client) => run(client.apps())),
   directory: () => clientPromise.then((client) => run(client.directory())),
-  discover: () => clientPromise.then((client) => run(client.discover({ payload: {} }))),
+  discover: () => clientPromise.then((client) => run(client.discover())),
   deleteApp: (name: string) => clientPromise.then((client) => run(client.deleteApp({ params: { name } }))),
   scaffold: (name: string) => clientPromise.then((client) => run(client.scaffold({ payload: { name } }))),
 

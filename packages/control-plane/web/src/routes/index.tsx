@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RadarIcon, RefreshCwIcon } from "@terrarium/ui/lib/icons";
-import { api, isApiError, isUnauthenticated, type AppRow } from "../api";
+import { api, isUnauthenticated, type AppRow } from "../api";
 import { Badge } from "@terrarium/ui/components/badge";
 import { Button } from "@terrarium/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
@@ -33,8 +33,8 @@ function GalleryPage() {
   const discovery = useMutation({
     mutationFn: () => api.discover(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["apps"] });
-      queryClient.invalidateQueries({ queryKey: ["directory"] });
+      void queryClient.invalidateQueries({ queryKey: ["apps"] });
+      void queryClient.invalidateQueries({ queryKey: ["directory"] });
       toast.success("Discovery complete");
     },
     onError: (error) => toast.error(message(error)),
@@ -60,9 +60,7 @@ function GalleryPage() {
         {apps.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
         {apps.isError && (
           <p className="text-sm text-destructive">
-            {isUnauthenticated(apps.error)
-              ? "Session expired — log in again."
-              : `⚠ ${isApiError(apps.error) ? apps.error.message : message(apps.error)}`}
+            {isUnauthenticated(apps.error) ? "Session expired — log in again." : `⚠ ${message(apps.error)}`}
           </p>
         )}
         {apps.isSuccess &&
@@ -95,9 +93,7 @@ function GalleryPage() {
                     <TableCell className="text-muted-foreground">{app.url}</TableCell>
                     <TableCell className="text-muted-foreground">{app.lastSeenAt ?? "never"}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link to="/apps/$name" params={{ name: app.name }}>details</Link>
-                      </Button>
+                      <Link to="/apps/$name" params={{ name: app.name }}><Button variant="ghost" size="sm">details</Button></Link>
                     </TableCell>
                   </TableRow>
                 ))}

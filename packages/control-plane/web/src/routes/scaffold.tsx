@@ -19,8 +19,8 @@ function ScaffoldPage() {
     mutationFn: (appName: string) => api.scaffold(appName),
     onSuccess: (_result, appName) => {
       setName("");
-      queryClient.invalidateQueries({ queryKey: ["apps"] });
-      queryClient.invalidateQueries({ queryKey: ["directory"] });
+      void queryClient.invalidateQueries({ queryKey: ["apps"] });
+      void queryClient.invalidateQueries({ queryKey: ["directory"] });
       toast.success(`Scaffolded ${appName}`);
     },
     onError: (error) => toast.error(message(error)),

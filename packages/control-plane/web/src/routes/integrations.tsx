@@ -33,7 +33,7 @@ function IntegrationsPage() {
   const [grantForm, setGrantForm] = useState({ integration: "", app: "" });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["integrations"] });
+  void queryClient.invalidateQueries({ queryKey: ["integrations"] });
   };
 
   const create = useMutation({
@@ -83,9 +83,9 @@ function IntegrationsPage() {
         {integrations.isError && <p className="text-sm text-destructive">⚠ {message(integrations.error)}</p>}
         {integrations.isPending ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : integrations.data.integrations.length === 0 ? (
+        ) : integrations.isSuccess && integrations.data.integrations.length === 0 ? (
           <p className="text-sm text-muted-foreground">No integrations registered.</p>
-        ) : (
+        ) : !integrations.isSuccess ? null : (
           <Table>
             <TableHeader>
               <TableRow>
