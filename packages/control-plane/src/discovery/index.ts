@@ -40,6 +40,8 @@ export class Discovery extends Context.Service<Discovery, {
   static readonly layer = (options: {
     readonly timeoutMs: number;
     readonly headers?: Readonly<Record<string, string>> | undefined;
+    /** Mint a fresh bearer token per app-discovery run (M2M client credentials). Wins over `headers`. */
+    readonly token?: Effect.Effect<string, never, never> | undefined;
   readonly protocol?: McpProtocol.ProtocolAdapter<"2025-11-25" | "2026-07-28"> | undefined;
   }) =>
     Layer.effect(Discovery)(Effect.gen(function*() {
@@ -48,6 +50,9 @@ export class Discovery extends Context.Service<Discovery, {
       const httpClient = yield* HttpClient.HttpClient;
 
       const discoverApp = Effect.fnUntraced(function*(app: AppRegistration) {
+        const tokenHeaders = options.token === undefined
+          ? undefined
+          : { authorization: `Bearer ${yield* options.token.pipe(Effect.orElseSucceed(() => ""))}` };
         const remote = yield* Effect.gen(function*() {
           const client = yield* McpClient.McpClient;
           const tools = yield* client.listTools({ timeout: options.timeoutMs });
@@ -59,6 +64,7 @@ export class Discovery extends Context.Service<Discovery, {
             url: app.url,
             protocol: options.protocol ?? McpProtocol.v2025_11_25,
             ...options.headers === undefined ? {} : { headers: options.headers },
+            ...tokenHeaders === undefined ? {} : { headers: tokenHeaders },
             timeout: options.timeoutMs,
           })),
           Effect.provideService(HttpClient.HttpClient, httpClient),

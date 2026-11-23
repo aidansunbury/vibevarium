@@ -78,6 +78,19 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
     discoveryTimeoutMs: integerEnv("DISCOVERY_TIMEOUT_MS", 3_000),
     callTimeoutMs: integerEnv("CALL_TIMEOUT_MS", 3_000),
     discoveryToken: process.env.DISCOVERY_TOKEN,
+    // Gateway → child-app MCP discovery auth. When the M2M discovery client is
+    // configured (production), discovery mints a client-credentials token per
+    // run against the platform audience; otherwise it falls back to the static
+    // DISCOVERY_TOKEN (local-dev placeholder).
+    discoveryM2M: process.env.DISCOVERY_CLIENT_ID === undefined
+      ? undefined
+      : {
+          issuer: (process.env.LOGTO_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, ""),
+          clientId: process.env.DISCOVERY_CLIENT_ID,
+          clientSecret: process.env.DISCOVERY_CLIENT_SECRET!,
+          resource: process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com",
+          scope: process.env.DISCOVERY_SCOPE ?? "member",
+        },
     ...(oidc === undefined ? {} : { oidc }),
     ...(guiAuth === undefined ? {} : { guiAuth }),
     appSecrets: appSecrets(),

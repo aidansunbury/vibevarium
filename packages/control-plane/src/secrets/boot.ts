@@ -32,6 +32,8 @@ const AWS_BOOT_SECRETS = {
   "logto-gui-app-secret": "LOGTO_GUI_APP_SECRET",
   "logto-cli-app-id": "LOGTO_CLI_APP_ID",
   "logto-mcp-resource": "LOGTO_MCP_RESOURCE",
+  "discovery-client-id": "DISCOVERY_CLIENT_ID",
+  "discovery-client-secret": "DISCOVERY_CLIENT_SECRET",
 } as const;
 
 const hasAwsCredentials = () =>

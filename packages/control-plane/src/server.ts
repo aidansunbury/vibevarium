@@ -35,6 +35,14 @@ export interface ControlPlaneOptions {
   readonly discoveryTimeoutMs?: number | undefined;
   readonly callTimeoutMs?: number | undefined;
   readonly discoveryToken?: string | undefined;
+  /** Gateway → child-app discovery auth via an M2M client credential. */
+  readonly discoveryM2M?: {
+    readonly issuer: string;
+    readonly clientId: string;
+    readonly clientSecret: string;
+    readonly resource: string;
+    readonly scope: string;
+  } | undefined;
   readonly scaffold?: ScaffoldOptions | undefined;
   readonly fetch?: typeof globalThis.fetch | undefined;
   /**
@@ -165,6 +173,27 @@ const scheduledDiscovery = (intervalMs: number) =>
     );
   }));
 
+/** Mint a client-credentials access token for gateway→child-app discovery. */
+const mintClientCredentialsToken = (m2m: NonNullable<ControlPlaneOptions["discoveryM2M"]>) =>
+  Effect.gen(function*() {
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetch(`${m2m.issuer}/oidc/token`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: m2m.clientId,
+            client_secret: m2m.clientSecret,
+            resource: m2m.resource,
+            scope: m2m.scope,
+          }),
+        }).then((r) => r.json() as Promise<{ access_token?: string }>),
+      catch: () => new Error("discovery token mint failed"),
+    }).pipe(Effect.orElseSucceed(() => ({} as { access_token?: string })));
+    return response.access_token ?? "";
+  }).pipe(Effect.orElseSucceed(() => ""));
+
 export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const databaseLayer = options.databasePath === undefined ? Database.layer() : Database.layer(options.databasePath);
   // provideMerge keeps Database in the output context so Integrations.layer can use it too.
@@ -173,9 +202,11 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     Discovery.layer({
       timeoutMs: options.discoveryTimeoutMs ?? 3_000,
       protocol: options.scaffold?.mode === "cloudflare" ? McpProtocol.v2026_07_28 : McpProtocol.v2025_11_25,
-      ...options.discoveryToken === undefined
-        ? {}
-        : { headers: { authorization: `Bearer ${options.discoveryToken}` } },
+      ...options.discoveryM2M !== undefined
+        ? { token: mintClientCredentialsToken(options.discoveryM2M) }
+        : options.discoveryToken === undefined
+          ? {}
+          : { headers: { authorization: `Bearer ${options.discoveryToken}` } },
     }),
     AppProxy.layer({ timeoutMs: options.callTimeoutMs ?? 3_000 }),
   ).pipe(
