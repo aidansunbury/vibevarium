@@ -5,7 +5,7 @@
  * is on but there's no session — matching its existing UX — while auth-off
  * dev mode (`{ auth: "off" }`) renders straight through.
  */
-import { api, isUnauthenticated } from "./api";
+import { api, isUnauthenticated, isSessionExpired } from "./api";
 
 export interface Session {
   readonly authOn: boolean;
@@ -17,7 +17,7 @@ export const loadSession = async (): Promise<Session> => {
     const me = await api.me();
     return { authOn: me.auth === "on", actor: me.actor };
   } catch (error) {
-    if (isUnauthenticated(error)) return { authOn: true, actor: null };
+    if (isUnauthenticated(error) || isSessionExpired(error)) return { authOn: true, actor: null };
     throw error;
   }
 };
