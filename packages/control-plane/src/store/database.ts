@@ -25,6 +25,9 @@ export class Database extends Context.Service<Database, {
             last_error text
           );
 
+          -- Idempotent column adds for tables created before the column existed.
+          ALTER TABLE registry_apps ADD COLUMN IF NOT EXISTS oidc_client_id text;
+
           CREATE TABLE IF NOT EXISTS directory_tools (
             app_name text NOT NULL REFERENCES registry_apps(name) ON DELETE CASCADE,
             remote_name text NOT NULL,
