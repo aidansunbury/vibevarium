@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@vibevarium/ui/components/table";
 import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } from "@vibevarium/ui/layout/shell";
+import { Logo } from "@vibevarium/ui/components/logo";
 import { Toaster } from "@vibevarium/ui/components/sonner";
 import { toast } from "@vibevarium/ui/lib/toast";
 
@@ -99,8 +100,9 @@ function TicketsPage() {
     <Shell>
       <ShellHeader>
         <ShellHeaderTitle>
-          <span className="font-semibold">Tickets</span>
-          <span className="text-muted-foreground">a Vibevarium app</span>
+          <Logo className="size-5" />
+          <span className="font-semibold" style={{ fontFamily: "var(--font-display)" }}>Tickets</span>
+          <span className="text-muted-foreground">a vibevarium app</span>
         </ShellHeaderTitle>
         <ShellHeaderActions>
           {!session.authEnabled && <Badge variant="secondary">auth off</Badge>}
