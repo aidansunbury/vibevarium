@@ -1,7 +1,12 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
-const skipped = new Set(["node_modules", ".alchemy", ".git", "dist", ".real-test"]);
+// node_modules/.alchemy/.git/.tsbuildinfo are never shipped. `dist` dirs are
+// skipped EXCEPT the built SPA (web/dist): the worker's assets.directory
+// points at ./web/dist, so a generated app must carry its built frontend. The
+// deploy rebuilds the worker's own dist, so that stays skipped.
+const ALWAYS_SKIPPED = new Set(["node_modules", ".alchemy", ".git", ".real-test"]);
+const SPA_DIST_SUFFIX = join("web", "dist");
 
 /** The deployable source, not a workspace wrapper, is committed to each app repo. */
 export const materializeCloudflareTemplate = async (
@@ -11,8 +16,10 @@ export const materializeCloudflareTemplate = async (
   const files: Record<string, string> = {};
   const visit = async (directory: string): Promise<void> => {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
-      if (skipped.has(entry.name) || entry.name.endsWith(".tsbuildinfo")) continue;
+      if (ALWAYS_SKIPPED.has(entry.name) || entry.name.endsWith(".tsbuildinfo")) continue;
       const source = join(directory, entry.name);
+      // Skip `dist` dirs unless this one IS the built SPA.
+      if (entry.name === "dist" && !source.endsWith(SPA_DIST_SUFFIX)) continue;
       if (entry.isDirectory()) {
         await visit(source);
         continue;
