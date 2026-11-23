@@ -251,7 +251,9 @@ export class Scaffold extends Context.Service<Scaffold, {
         yield* attempt(() => routerBindings!.add(name));
         yield* attempt(() => routerDirectory!.put(name, name));
         const appUrl = `https://${deployment.hostname}`;
-        const directoryEntry = yield* register(name, `${deployment.workerUrl}/mcp`);
+        // Register the public hostname (not the workers.dev origin) so the
+        // gallery + gateway point at the app's real URL.
+        const directoryEntry = yield* register(name, `${appUrl}/mcp`);
         return {
           name,
           url: appUrl,
