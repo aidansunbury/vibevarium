@@ -122,6 +122,15 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
             routerNamespaceId: process.env.ROUTER_KV_NAMESPACE_ID!,
             zoneId: process.env.CLOUDFLARE_ZONE_ID!,
           },
+      logto: process.env.LOGTO_M2M_APP_ID === undefined
+        ? undefined
+        : {
+            issuer: (process.env.LOGTO_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, ""),
+            clientId: process.env.LOGTO_M2M_APP_ID,
+            clientSecret: process.env.LOGTO_M2M_APP_SECRET!,
+            managementResource: process.env.LOGTO_MANAGEMENT_RESOURCE ?? "https://default.logto.app/api",
+            platformAudience: process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com",
+          },
     },
   })),
 );

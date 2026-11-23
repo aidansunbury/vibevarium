@@ -17,6 +17,7 @@ import { AppProxy } from "../gateway/proxy.ts";
 import { syncGatewayTools } from "../gateway/tools.ts";
 import { Registry, type AppRegistration } from "../registry/index.ts";
 import { attempt, asScaffoldError, ScaffoldError } from "./errors.ts";
+import { createOidcClient, deleteOidcClient } from "./logto.ts";
 import { GitProvider, LocalGitProvider, type GitRepo } from "./git-provider.ts";
 import { GitHubAppProvider } from "./github-app-provider.ts";
 import { CloudflareDeployer, type CloudflareDeployment } from "./cloudflare-deployer.ts";
@@ -46,6 +47,16 @@ export interface ScaffoldOptions {
     readonly domain: string;
     readonly routerNamespaceId: string;
     readonly zoneId: string;
+  } | undefined;
+  /** Logto M2M credentials for auto-registering each app's OIDC client. */
+  readonly logto?: {
+    readonly issuer: string;
+    readonly clientId: string;
+    readonly clientSecret: string;
+    /** The Logto Management API resource indicator, e.g. https://default.logto.app/api. */
+    readonly managementResource: string;
+    /** The platform audience every app also accepts (Option B′). */
+    readonly platformAudience: string;
   } | undefined;
   readonly github?: {
     readonly appId: string;
@@ -179,8 +190,8 @@ export class Scaffold extends Context.Service<Scaffold, {
             zoneId: options.cloudflare.zoneId,
           });
 
-      const register = Effect.fnUntraced(function*(name: string, url: string) {
-        const app = yield* registry.register({ name, url });
+      const register = Effect.fnUntraced(function*(name: string, url: string, oidcClientId?: string) {
+        const app = yield* registry.register({ name, url, ...(oidcClientId === undefined ? {} : { oidcClientId }) });
         const discovered = yield* discovery.discoverApp(app);
         yield* syncGatewayTools.pipe(
           Effect.provideService(McpServer.McpServer, mcpServer),
@@ -245,15 +256,23 @@ export class Scaffold extends Context.Service<Scaffold, {
         if (deployer === undefined) {
           return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
         }
+        const appUrl = `https://${name}.${options.cloudflare!.domain}`;
+        // Register the app's own OIDC client so it can run its auth-code flow.
+        const oidcClient = options.logto === undefined
+          ? undefined
+          : yield* createOidcClient(options.logto, {
+              name: `${name}.vibevarium`,
+              callbackUrl: `${appUrl}/auth/callback`,
+              logoutUrl: `${appUrl}/`,
+            });
         const files = yield* attempt(() => materializeCloudflareTemplate(templateRoot, name));
         const repo = yield* git.createRepo(name, files);
-        const deployment = yield* attempt(() => deployer.deploy(name, repo.directory));
+        const deployment = yield* attempt(() => deployer.deploy(name, repo.directory, oidcClient));
         yield* attempt(() => routerBindings!.add(name));
         yield* attempt(() => routerDirectory!.put(name, name));
-        const appUrl = `https://${deployment.hostname}`;
         // Register the public hostname (not the workers.dev origin) so the
         // gallery + gateway point at the app's real URL.
-        const directoryEntry = yield* register(name, `${appUrl}/mcp`);
+        const directoryEntry = yield* register(name, `${appUrl}/mcp`, oidcClient?.clientId);
         return {
           name,
           url: appUrl,
@@ -301,6 +320,14 @@ export class Scaffold extends Context.Service<Scaffold, {
           return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
         }
         const appDirectory = join(appsRoot, name);
+        // Delete the app's OIDC client before the registry row goes.
+        const existing = yield* registry.get(name);
+        if (options.logto !== undefined && Option.isSome(existing) && existing.value.oidcClientId !== null) {
+          yield* deleteOidcClient(options.logto, existing.value.oidcClientId).pipe(
+            Effect.tapError(() => Effect.logWarning(`Failed to delete OIDC client for ${name}`)),
+            Effect.ignore,
+          );
+        }
         // Worker.lookup cannot resolve a deleted worker during the router redeploy.
         yield* attempt(() => routerBindings!.remove(name));
         yield* attempt(() => deployer.destroy(name, appDirectory));

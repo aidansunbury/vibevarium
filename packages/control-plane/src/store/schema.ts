@@ -10,6 +10,8 @@ export const apps = pgTable("registry_apps", {
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "string" }),
   lastCheckedAt: timestamp("last_checked_at", { withTimezone: true, mode: "string" }),
   lastError: text("last_error"),
+  /** The app's Logto OIDC client id (set at scaffold; deleted on teardown). */
+  oidcClientId: text("oidc_client_id"),
 });
 
 export const directoryTools = pgTable(

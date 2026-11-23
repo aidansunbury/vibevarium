@@ -20,6 +20,7 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { RemoteJWKSet } from "jose";
+import { AuthFlow, sessionFromCookie } from "./auth-flow.ts";
 
 export const Actor = Schema.Struct({
   sub: Schema.String,
@@ -137,26 +138,72 @@ const unauthorized = (description: string) =>
     },
   );
 
-/** Verify the request's bearer token and provide CurrentActor to the handler. */
+const wantsHtml = (request: HttpServerRequest) => {
+  const accept = request.headers.accept;
+  return typeof accept === "string" && accept.includes("text/html");
+};
+
+/**
+ * Verify the request and provide CurrentActor to the handler. Credentials,
+ * in precedence order:
+ *
+ *  1. `Authorization: Bearer` — verified against the issuer JWKS with the
+ *     accepted audiences (own + platform, Option B′). This is how the
+ *     meta-MCP and CLI call the app.
+ *  2. The signed session cookie from the auth-code + PKCE flow
+ *     (`/auth/login` → `/auth/callback`) — its embedded platform-audience
+ *     access token is verified exactly like a bearer token. This is how the
+ *     first-party SPA calls the API.
+ *
+ * No valid credential: API-style requests get a 401 with WWW-Authenticate;
+ * browser page loads (Accept: text/html) get a 302 to /auth/login — there is
+ * no logged-out UI state, unauthenticated users go straight to the provider.
+ */
 export const requireAuth = <E, R>(
   handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
 ): Effect.Effect<
   HttpServerResponse.HttpServerResponse,
   E,
-  Auth | HttpServerRequest | Exclude<R, CurrentActor>
+  Auth | AuthFlow | HttpServerRequest | Exclude<R, CurrentActor>
 > =>
   Effect.gen(function*() {
     const request = yield* HttpServerRequest;
-    const match = request.headers.authorization?.match(/^Bearer\s+(\S+)$/i);
-    if (!match) {
-      return unauthorized("Expected an Authorization: Bearer token");
-    }
     const auth = yield* Auth;
-    return yield* auth.verify(match[1]).pipe(
-      Effect.matchEffect({
-        onFailure: (error) =>
-          Effect.succeed(unauthorized(error instanceof Error ? error.message : "Token verification failed")),
-        onSuccess: (actor) => handler.pipe(Effect.provideService(CurrentActor, actor)),
-      }),
-    );
+
+    // 1. Bearer token (meta-MCP, CLI, scripts).
+    const match = request.headers.authorization?.match(/^Bearer\s+(\S+)$/i);
+    if (match) {
+      return yield* auth.verify(match[1]).pipe(
+        Effect.matchEffect({
+          onFailure: (error) =>
+            Effect.succeed(unauthorized(error instanceof Error ? error.message : "Token verification failed")),
+          onSuccess: (actor) => handler.pipe(Effect.provideService(CurrentActor, actor)),
+        }),
+      );
+    }
+
+    // 2. Signed session cookie (first-party SPA via /auth/login).
+    const flowOption = yield* Effect.serviceOption(AuthFlow);
+    if (flowOption._tag === "Some") {
+      const session = yield* Effect.promise(() =>
+        sessionFromCookie(flowOption.value, request.cookies.terrarium_session)
+      );
+      if (session !== undefined) {
+        const verified = yield* Effect.result(auth.verify(session.accessToken));
+        if (verified._tag === "Success") {
+          return yield* handler.pipe(
+            Effect.provideService(CurrentActor, { sub: session.sub, name: session.name }),
+          );
+        }
+        // Session token no longer verifies (rotated keys, audience change) —
+        // fall through to unauthenticated handling.
+      }
+    }
+
+    if (wantsHtml(request)) {
+      return HttpServerResponse.redirect("/auth/login", {
+        headers: { "cache-control": "no-store" },
+      });
+    }
+    return unauthorized("Expected an Authorization: Bearer token or a session cookie");
   });

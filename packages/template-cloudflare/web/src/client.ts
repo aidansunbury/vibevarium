@@ -1,8 +1,11 @@
 /**
  * A tiny typed client for the Tickets Api. The Worker serves this SPA and
- * the Api on one origin, so every call is a same-origin fetch. When the
- * auth seam is on, a bearer token (held in memory + sessionStorage) is
- * attached to every request.
+ * the Api on one origin, so every call is a same-origin fetch. When auth is
+ * on, the browser never holds a token: the Worker's auth-code + PKCE flow
+ * (/auth/login → /auth/callback) sets an httpOnly session cookie and the API
+ * accepts it first-party. Any 401 with a WWW-Authenticate header means the
+ * session is missing or expired — the caller bounces to /auth/login, which
+ * 302s straight to the hosted sign-in. There is no logged-out UI state.
  */
 
 export interface TicketSummary {
@@ -23,24 +26,17 @@ export interface WhoAmI {
   readonly auth: "on" | "off";
 }
 
-/** The deployed runtime's auth mode, so the UI knows whether to offer login. */
+/** The deployed runtime's auth mode, so the UI knows whether login applies. */
 export interface AuthStatus {
   readonly enabled: boolean;
   readonly issuer?: string;
 }
 
-let bearerToken: string | null = sessionStorage.getItem("tickets.token");
-
-export const getToken = () => bearerToken;
-
-export const setToken = (token: string | null) => {
-  bearerToken = token;
-  if (token === null) {
-    sessionStorage.removeItem("tickets.token");
-  } else {
-    sessionStorage.setItem("tickets.token", token);
-  }
-};
+/** The session's actor, from GET /auth/me (cookie-authenticated). */
+export interface Me {
+  readonly actor: { readonly sub: string; readonly name?: string } | null;
+  readonly auth: "on" | "off";
+}
 
 export class ApiError extends Error {
   constructor(
@@ -50,6 +46,14 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+/** The request was rejected as unauthenticated; the App bounces to /auth/login. */
+export class UnauthenticatedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnauthenticatedError";
   }
 }
 
@@ -63,6 +67,9 @@ const parseBody = async (response: Response): Promise<unknown> => {
   }
 };
 
+const isUnauthenticated = (response: Response) =>
+  response.status === 401 || response.headers.get("www-authenticate") !== null;
+
 // Response bodies are trusted to match the worker's Api routes (they are
 // generated from the same declaration), so the client casts per route.
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
@@ -70,11 +77,11 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   if (init?.body !== undefined && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
-  if (bearerToken !== null) {
-    headers.set("authorization", `Bearer ${bearerToken}`);
-  }
-  const response = await fetch(path, { ...init, headers });
+  const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
   const body = await parseBody(response);
+  if (isUnauthenticated(response)) {
+    throw new UnauthenticatedError(`${init?.method ?? "GET"} ${path} requires a session`);
+  }
   if (!response.ok) {
     throw new ApiError(response.status, body, `${init?.method ?? "GET"} ${path} failed with ${response.status}`);
   }
@@ -89,6 +96,9 @@ export const api = {
   authStatus: () => request<AuthStatus>("/auth/status"),
 
   whoami: () => request<WhoAmI>("/whoami"),
+
+  /** The session actor (httpOnly cookie). 401 → UnauthenticatedError → bounce to login. */
+  me: () => request<Me>("/auth/me"),
 
   // A view that no event has reached yet answers null; the UI treats it as empty.
   listTickets: async () => (await request<{ readonly tickets: readonly TicketSummary[] } | null>("/TicketList/all")) ?? { tickets: [] },
@@ -109,34 +119,14 @@ export const api = {
   listTicketsAtLeast: async (receipt: CommandReceipt) =>
     (await request<{ readonly tickets: readonly TicketSummary[] } | null>(`/TicketList/all${encodeStream(receipt)}`)) ??
       { tickets: [] },
+};
 
-  /**
-   * Dev-only login: the dev-issuer mints a token directly (no redirect).
-   * When the real hosted OIDC provider is live, this becomes a redirect to
-   * its hosted login page with an authorization-code + PKCE return — the
-   * token handling below (memory + bearer on API calls) stays identical.
-   */
-  devLogin: async (
-    issuer: string,
-    input: { readonly sub: string; readonly name: string; readonly audience: string },
-  ) => {
-    const url = new URL("/dev/token", issuer);
-    url.searchParams.set("sub", input.sub);
-    url.searchParams.set("name", input.name);
-    url.searchParams.set("aud", input.audience);
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new ApiError(response.status, null, `dev-issuer token request failed with ${response.status}`);
-    }
-    const body: unknown = await response.json();
-    if (typeof body !== "object" || body === null || !("access_token" in body)) {
-      throw new ApiError(response.status, body, "dev-issuer returned an invalid token response");
-    }
-    const token = (body as Record<"access_token", unknown>).access_token;
-    if (typeof token !== "string") {
-      throw new ApiError(response.status, body, "dev-issuer returned an invalid token response");
-    }
-    setToken(token);
-    return token;
-  },
+/** Hard navigation to the login flow; the Worker 302s to the hosted sign-in. */
+export const redirectToLogin = () => {
+  window.location.assign("/auth/login");
+};
+
+/** Hard navigation to logout; the Worker clears the cookie and ends the provider session. */
+export const redirectToLogout = () => {
+  window.location.assign("/auth/logout");
 };

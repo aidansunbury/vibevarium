@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, getToken, setToken, type AuthStatus, type TicketSummary, type WhoAmI } from "./client";
+import {
+  api,
+  ApiError,
+  redirectToLogin,
+  redirectToLogout,
+  UnauthenticatedError,
+  type AuthStatus,
+  type Me,
+  type TicketSummary,
+} from "./client";
 import { Badge } from "@terrarium/ui/components/badge";
 import { Button } from "@terrarium/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
@@ -32,7 +41,7 @@ const errorMessage = (error: unknown) =>
 export const App = () => {
   const [tickets, setTickets] = useState<LoadState<readonly TicketSummary[]>>({ status: "loading" });
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
-  const [whoami, setWhoami] = useState<WhoAmI | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -42,23 +51,38 @@ export const App = () => {
       const list = await api.listTickets();
       setTickets({ status: "ready", value: list.tickets });
     } catch (error) {
+      if (error instanceof UnauthenticatedError) {
+        // No logged-out state: an unauthenticated user goes straight to the
+        // hosted sign-in and lands back here authed.
+        redirectToLogin();
+        return;
+      }
       setTickets({ status: "error", message: errorMessage(error) });
     }
   }, []);
 
-  const refreshWhoami = useCallback(async () => {
-    try {
-      setWhoami(await api.whoami());
-    } catch {
-      setWhoami(null);
-    }
-  }, []);
-
   useEffect(() => {
-    api.authStatus().then(setAuthStatus, () => setAuthStatus({ enabled: false }));
-    void refresh();
-    void refreshWhoami();
-  }, [refresh, refreshWhoami]);
+    const boot = async () => {
+      let status: AuthStatus;
+      try {
+        status = await api.authStatus();
+      } catch {
+        status = { enabled: false };
+      }
+      setAuthStatus(status);
+      if (status.enabled) {
+        try {
+          setMe(await api.me());
+        } catch {
+          // 401 → no session (or expired): straight to the auth server.
+          redirectToLogin();
+          return;
+        }
+      }
+      void refresh();
+    };
+    void boot();
+  }, [refresh]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>) => {
@@ -67,15 +91,18 @@ export const App = () => {
       try {
         await action();
         await refresh();
-        await refreshWhoami();
       } catch (error) {
+        if (error instanceof UnauthenticatedError) {
+          redirectToLogin();
+          return;
+        }
         setActionError(errorMessage(error));
         toast.error(errorMessage(error));
       } finally {
         setBusy(false);
       }
     },
-    [refresh, refreshWhoami],
+    [refresh],
   );
 
   const onOpenTicket = (event: React.FormEvent<HTMLFormElement>) => {
@@ -106,24 +133,8 @@ export const App = () => {
       toast.success(`Closed ${id}`);
     });
 
-  const onDevLogin = () =>
-    void runAction(async () => {
-      if (authStatus?.issuer === undefined) {
-        throw new Error("The worker did not report an issuer");
-      }
-      await api.devLogin(authStatus.issuer, {
-        sub: "user-ada",
-        name: "Ada",
-        audience: `${window.location.hostname}.terrarium.local`,
-      });
-    });
-
-  const onLogout = () =>
-    void runAction(async () => {
-      setToken(null);
-    });
-
-  const loggedIn = getToken() !== null;
+  const actor = me?.actor ?? null;
+  const displayName = actor?.name !== undefined ? actor.name : actor?.sub;
 
   return (
     <Shell>
@@ -134,47 +145,28 @@ export const App = () => {
         </ShellHeaderTitle>
         <ShellHeaderActions>
           {authStatus !== null && !authStatus.enabled && <Badge variant="secondary">auth off</Badge>}
-          {authStatus?.enabled === true && (
-            loggedIn ? (
-              <div className="flex items-center gap-2">
-                {whoami?.actor != null && (
-                  <span className="hidden text-sm text-muted-foreground sm:inline">
-                    {whoami.actor.name !== undefined ? whoami.actor.name : whoami.actor.sub}
-                  </span>
-                )}
-                <Button variant="outline" size="sm" disabled={busy} onClick={onLogout}>
-                  Log out
-                </Button>
-              </div>
-            ) : (
-              <Button size="sm" disabled={busy} onClick={onDevLogin}>
-                Log in (dev)
+          {authStatus?.enabled === true && actor !== null && (
+            <div className="flex items-center gap-2">
+              <span className="hidden text-sm text-muted-foreground sm:inline">{displayName}</span>
+              <Button variant="outline" size="sm" disabled={busy} onClick={redirectToLogout}>
+                Log out
               </Button>
-            )
+            </div>
           )}
         </ShellHeaderActions>
       </ShellHeader>
 
       <ShellBody className="max-w-3xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>Session</CardTitle>
-            <CardDescription>
-              {authStatus === null
-                ? "Checking auth…"
-                : authStatus.enabled
-                  ? loggedIn
-                    ? `Signed in${whoami?.actor?.name !== undefined ? ` as ${whoami.actor.name}` : ""}${whoami?.actor != null ? ` (${whoami.actor.sub})` : ""}`
-                    : "Sign in to call the API with your identity."
-                  : "Auth is off (no TERRARIUM_ISSUER configured)."}
-            </CardDescription>
-          </CardHeader>
-          {whoami !== null && authStatus?.enabled === true && (
-            <CardContent>
-              <pre className="max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs">{JSON.stringify(whoami, null, 2)}</pre>
-            </CardContent>
-          )}
-        </Card>
+        {authStatus?.enabled === true && actor !== null && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Session</CardTitle>
+              <CardDescription>
+                Signed in{displayName !== undefined ? ` as ${displayName}` : ""} ({actor.sub})
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

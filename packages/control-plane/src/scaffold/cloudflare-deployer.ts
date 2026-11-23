@@ -34,7 +34,7 @@ export class CloudflareDeployer {
     this.#options = options;
   }
 
-  private env(name: string) {
+  private env(name: string, oidcClient?: { readonly clientId: string; readonly clientSecret: string }) {
     return {
       ...process.env,
       // Containers have no interactive alchemy profile; CI=1 makes alchemy
@@ -49,14 +49,22 @@ export class CloudflareDeployer {
       // Option B′: the app's own audience + the platform audience it also accepts.
       TERRARIUM_AUDIENCE: `${name}.${this.#options.domain}`,
       TERRARIUM_PLATFORM_AUDIENCE: `https://mcp.${this.#options.domain}`,
+      ...(oidcClient === undefined ? {} : {
+        TERRARIUM_CLIENT_ID: oidcClient.clientId,
+        TERRARIUM_CLIENT_SECRET: oidcClient.clientSecret,
+      }),
     };
   }
 
-  private async alchemy(command: "deploy" | "destroy", deployment: CloudflareDeployment) {
+  private async alchemy(
+    command: "deploy" | "destroy",
+    deployment: CloudflareDeployment,
+    oidcClient?: { readonly clientId: string; readonly clientSecret: string },
+  ) {
     if (this.#options.packageManager === "pnpm") {
       await execFileAsync("pnpm", ["install", "--frozen-lockfile=false"], {
         cwd: deployment.directory,
-        env: this.env(deployment.name),
+        env: this.env(deployment.name, oidcClient),
         timeout: 3 * 60_000,
         maxBuffer: 4 * 1024 * 1024,
       });
@@ -72,7 +80,7 @@ export class CloudflareDeployer {
       try {
         return await execFileAsync(process.execPath, [alchemyCli, command, "--no-input", "--yes"], {
           cwd: deployment.directory,
-          env: this.env(deployment.name),
+          env: this.env(deployment.name, oidcClient),
           timeout: 5 * 60_000,
           maxBuffer: 4 * 1024 * 1024,
         });
@@ -86,7 +94,11 @@ export class CloudflareDeployer {
     throw new ScaffoldError(502, `Alchemy ${command} failed for ${deployment.name}:\n${lastOutput}`);
   }
 
-  async deploy(name: string, directory: string): Promise<CloudflareDeployment> {
+  async deploy(
+    name: string,
+    directory: string,
+    oidcClient?: { readonly clientId: string; readonly clientSecret: string },
+  ): Promise<CloudflareDeployment> {
     const deployment = {
       name,
       directory,
@@ -95,7 +107,7 @@ export class CloudflareDeployer {
       hostname: `${name}.${this.#options.domain}`,
       databaseName: `${name}-data`,
     };
-    await this.alchemy("deploy", deployment);
+    await this.alchemy("deploy", deployment, oidcClient);
     return deployment;
   }
 

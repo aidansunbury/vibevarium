@@ -12,6 +12,14 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import { Auth, authConfigFromEnv, CurrentActor, requireAuth } from "./auth.ts";
+import {
+  AuthFlow,
+  authFlowConfigFromEnv,
+  callbackRoute,
+  loginRoute,
+  logoutRoute,
+  meRoute,
+} from "./auth-flow.ts";
 import { TicketsApi } from "./TicketsApi.api.ts";
 import { TicketsModel } from "./Tickets.model.ts";
 import { TicketsHttp, TicketsMcp } from "./surfaces.ts";
@@ -31,9 +39,12 @@ const TicketsLive = TicketsModel.layer(Layer.empty).pipe(
 );
 
 // AUTH SEAM: off by default. Deploy with TERRARIUM_ISSUER set (and optionally
-// TERRARIUM_AUDIENCE) to require a bearer token on every API surface. The SPA
-// discovers the mode from the public /auth/status route. When Logto is live,
-// only the two env values change.
+// TERRARIUM_AUDIENCE / TERRARIUM_PLATFORM_AUDIENCE) to require a credential on
+// every API surface — a platform/own-audience bearer, or the session cookie
+// from the auth-code + PKCE flow (src/auth-flow.ts, on when
+// TERRARIUM_CLIENT_ID/SECRET are set). Unauthenticated: API requests get 401
+// + WWW-Authenticate, HTML requests get 302 → /auth/login. The SPA discovers
+// the mode from the public /auth/status route.
 const issuer = process.env.TERRARIUM_ISSUER;
 const audience = process.env.TERRARIUM_AUDIENCE;
 const platformAudience = process.env.TERRARIUM_PLATFORM_AUDIENCE;
@@ -68,6 +79,11 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
         },
     // The React SPA, built by vite into web/dist. API paths run worker-first;
     // everything else serves assets, with SPA fallback for client-side routes.
+    // NOTE: page loads (`GET /`) are served by the asset layer and never run
+    // this Worker, so the no-logged-out-state guarantee is enforced
+    // client-side: the SPA's first act is `/auth/me`, which 401s without a
+    // session and bounces the browser to `/auth/login` (302 to the provider).
+    // Worker-first API routes additionally 302 HTML requests to /auth/login.
     assets: {
       directory: "./web/dist",
       runWorkerFirst: workerFirstPaths,
@@ -79,6 +95,17 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
         TERRARIUM_ISSUER: issuer,
         ...(audience === undefined ? {} : { TERRARIUM_AUDIENCE: audience }),
         ...(platformAudience === undefined ? {} : { TERRARIUM_PLATFORM_AUDIENCE: platformAudience }),
+        // The per-app OIDC client (Traditional web) that powers the SPA's
+        // auth-code + PKCE login. The scaffold's Logto auto-registration
+        // provides these (id via deployer env, secret as a worker secret —
+        // never in source). Unset → the session flow is off and only bearer
+        // auth applies.
+        ...(process.env.TERRARIUM_CLIENT_ID === undefined
+          ? {}
+          : { TERRARIUM_CLIENT_ID: process.env.TERRARIUM_CLIENT_ID }),
+        ...(process.env.TERRARIUM_CLIENT_SECRET === undefined
+          ? {}
+          : { TERRARIUM_CLIENT_SECRET: process.env.TERRARIUM_CLIENT_SECRET }),
       },
   },
   Effect.gen(function*() {
@@ -107,18 +134,31 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
       ? undefined
       : Context.make(Auth, Context.get(yield* Layer.build(Auth.layer(authConfig)), Auth));
 
+    // The session login flow (auth-code + PKCE, signed-cookie sessions) is on
+    // only when the per-app OIDC client is configured alongside the issuer.
+    const flowConfig = authFlowConfigFromEnv(env as Record<string, unknown>);
+    const flowService = flowConfig === undefined ? undefined : AuthFlow.make(flowConfig);
+
     /**
-     * Wrap an API surface with auth when it is on. requireAuth needs Auth in
-     * the environment; the pre-built context provides it per request without
-     * re-fetching discovery. The surfaces only require what the worker
-     * request scope already provides (HttpServerRequest, Scope).
+     * Wrap an API surface with auth when it is on. requireAuth needs Auth (and
+     * optionally AuthFlow for session-cookie support) in the environment; the
+     * pre-built context provides them per request without re-fetching
+     * discovery. The surfaces only require what the worker request scope
+     * already provides (HttpServerRequest, Scope).
      */
-    const protect = <E, R>(
-      surface: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
-    ) =>
-      authContext === undefined
-        ? surface
-        : requireAuth(surface).pipe(Effect.provide(authContext));
+    const protect = <E, R, EX = never>(
+      surface: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R | EX>,
+    ): Effect.Effect<HttpServerResponse.HttpServerResponse, E, Exclude<R, CurrentActor> | EX> => {
+      if (authContext === undefined) return surface as Effect.Effect<HttpServerResponse.HttpServerResponse, E, Exclude<R, CurrentActor> | EX>;
+      const authed = requireAuth(surface);
+      const provided = flowService === undefined
+        ? authed.pipe(Effect.provide(authContext))
+        : authed.pipe(
+          Effect.provideService(AuthFlow, flowService),
+          Effect.provide(authContext),
+        );
+      return provided as Effect.Effect<HttpServerResponse.HttpServerResponse, E, Exclude<R, CurrentActor> | EX>;
+    };
 
     const whoami = Effect.gen(function*() {
       const actor = yield* Effect.serviceOption(CurrentActor);
@@ -146,6 +186,21 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
             "SELECT value FROM app_metadata WHERE key = 'surface'",
           ).all<{ value: string }>();
           return yield* HttpServerResponse.json({ d1: "bound", rows: row.results });
+        }
+
+        // Session login flow (auth-code + PKCE). Public by design: these
+        // routes ARE the way a user authenticates. Never wrapped by
+        // requireAuth — that would be a redirect loop. AuthFlow is fully
+        // provided here, so the routes' declared requirement is satisfied.
+        if (flowService !== undefined) {
+          if (path === "/auth/login") return yield* loginRoute.pipe(Effect.provideService(AuthFlow, flowService), Effect.orDie);
+          if (path === "/auth/callback") {
+            return yield* callbackRoute.pipe(Effect.provideService(AuthFlow, flowService), Effect.orDie);
+          }
+          if (path === "/auth/logout") {
+            return yield* logoutRoute.pipe(Effect.provideService(AuthFlow, flowService), Effect.orDie);
+          }
+          if (path === "/auth/me") return yield* meRoute.pipe(Effect.provideService(AuthFlow, flowService), Effect.orDie);
         }
 
         if (path === "/whoami") return yield* protect(Effect.orDie(whoami));
