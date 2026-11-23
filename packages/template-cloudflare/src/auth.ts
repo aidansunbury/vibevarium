@@ -41,7 +41,8 @@ export class AuthError extends Schema.TaggedError<AuthError>()("AuthError", {
 
 export interface AuthConfig {
   readonly issuer: string;
-  readonly audience: string;
+  /** Accepted audiences: the app's own + the platform's (Option B′ — one platform token opens every app). */
+  readonly audience: string | ReadonlyArray<string>;
 }
 
 const DiscoveryDocument = Schema.Struct({
@@ -54,7 +55,7 @@ const errorMessage = (cause: unknown) => (cause instanceof Error ? cause.message
 
 export class Auth extends Context.Service<Auth, {
   readonly issuer: string;
-  readonly audience: string;
+  readonly audience: string | ReadonlyArray<string>;
   readonly verify: (token: string) => Effect.Effect<Actor, AuthError>;
 }>()("app/auth/Auth") {
   static readonly layer = (config: AuthConfig): Layer.Layer<Auth, DiscoveryError> =>
@@ -95,7 +96,7 @@ const makeAuth = (config: AuthConfig) =>
         try: () =>
           jwtVerify(token, jwks, {
             issuer,
-            audience: config.audience,
+            audience: config.audience as string | string[],
             requiredClaims: ["sub", "exp"],
           }),
         catch: (cause) => new AuthError({ message: errorMessage(cause), cause }),
@@ -105,17 +106,23 @@ const makeAuth = (config: AuthConfig) =>
       );
     });
 
-    return Auth.of({ issuer, audience: config.audience, verify });
+    return Auth.of({ issuer, audience: config.audience as string | string[], verify });
   });
 
 /** Read the auth config from the worker environment; undefined means auth is off. */
 export const authConfigFromEnv = (env: Record<string, unknown>): AuthConfig | undefined => {
   const issuer = env.TERRARIUM_ISSUER;
   if (typeof issuer !== "string" || issuer.length === 0) return undefined;
-  const audience = typeof env.TERRARIUM_AUDIENCE === "string" && env.TERRARIUM_AUDIENCE.length > 0
+  const own = typeof env.TERRARIUM_AUDIENCE === "string" && env.TERRARIUM_AUDIENCE.length > 0
     ? env.TERRARIUM_AUDIENCE
     : "app.terrarium.local";
-  return { issuer, audience };
+  // The platform audience (Option B′): one platform token opens every app. Apps
+  // accept both their own audience and the platform's. TERRARIUM_PLATFORM_AUDIENCE
+  // defaults to the platform MCP resource on the base domain.
+  const platform = typeof env.TERRARIUM_PLATFORM_AUDIENCE === "string" && env.TERRARIUM_PLATFORM_AUDIENCE.length > 0
+    ? env.TERRARIUM_PLATFORM_AUDIENCE
+    : undefined;
+  return { issuer, audience: platform === undefined ? [own] : [own, platform] };
 };
 
 const unauthorized = (description: string) =>

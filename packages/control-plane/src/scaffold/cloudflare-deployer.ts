@@ -46,6 +46,9 @@ export class CloudflareDeployer {
       WORKER_NAME: name,
       D1_DATABASE_NAME: `${name}-data`,
       APP_HOSTNAME: `${name}.${this.#options.domain}`,
+      // Option B′: the app's own audience + the platform audience it also accepts.
+      TERRARIUM_AUDIENCE: `${name}.${this.#options.domain}`,
+      TERRARIUM_PLATFORM_AUDIENCE: `https://mcp.${this.#options.domain}`,
     };
   }
 

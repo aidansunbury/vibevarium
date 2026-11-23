@@ -36,6 +36,7 @@ const TicketsLive = TicketsModel.layer(Layer.empty).pipe(
 // only the two env values change.
 const issuer = process.env.TERRARIUM_ISSUER;
 const audience = process.env.TERRARIUM_AUDIENCE;
+const platformAudience = process.env.TERRARIUM_PLATFORM_AUDIENCE;
 
 /** Paths that always run through the Worker instead of the asset layer. */
 const workerFirstPaths = [
@@ -77,6 +78,7 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
       : {
         TERRARIUM_ISSUER: issuer,
         ...(audience === undefined ? {} : { TERRARIUM_AUDIENCE: audience }),
+        ...(platformAudience === undefined ? {} : { TERRARIUM_PLATFORM_AUDIENCE: platformAudience }),
       },
   },
   Effect.gen(function*() {
