@@ -57,7 +57,7 @@ offers choices the platform can actually fulfill. See
 | Option | Values | Default | Requires (validated) |
 | --- | --- | --- | --- |
 | Deploy target | `cloudflare`, `aws` | `cloudflare` | CF: `CLOUDFLARE_ACCOUNT_ID/ZONE_ID/WORKERS_SUBDOMAIN/ROUTER_KV_NAMESPACE_ID` + API token. AWS: AWS creds. |
-| Storage / DB | `cf-d1`, `planetscale-hyperdrive` | `cf-d1` | hyperdrive: `CLOUDFLARE_HYPERDRIVE_ID` + `PLANETSCALE_HOST/USERNAME/PASSWORD/DATABASE` |
+| Storage / DB | `cf-d1`, `planetscale-hyperdrive` | `cf-d1` | hyperdrive: org-level provisioning creds — `PLANETSCALE_SERVICE_TOKEN_ID/PLANETSCALE_SERVICE_TOKEN` + `PLANETSCALE_ORG_NAME` + `CLOUDFLARE_ACCOUNT_ID/API_TOKEN` (per-app database + Hyperdrive config are provisioned, not pointed at a shared host). See [planetscale.md](./planetscale.md) §3/§6. |
 | Features | `r2`, `hyperdrive` | none | feature-specific |
 | Auth server | `logto`, `workos` | `logto` | logto: `LOGTO_M2M_APP_ID/SECRET`. workos: `WORKOS_CLIENT_ID/API_KEY` |
 
@@ -174,3 +174,16 @@ would drive it.
 - ⬜ **Granular in-pipeline step reporting** — the job currently reports coarse
   steps around the `Scaffold.create` pipeline; threading per-step progress
   through the pipeline itself sharpens the stepper.
+- ⬜ **Real per-app PlanetScale provisioning** — replace the stubbed
+  `Attach PlanetScale Hyperdrive` step with actual database creation +
+  Hyperdrive config + migrations ([planetscale.md](./planetscale.md) §3).
+- ⬜ **Cloudflare control-plane topology** — the AWS EC2+RDS topology is the
+  default; the Workers+PlanetScale topology is the portability proof
+  ([deployment-topologies.md](./deployment-topologies.md) §6).
+
+## 7. Related design docs
+
+- [planetscale.md](./planetscale.md) — the optional real-Postgres tier for apps
+  (database-per-app, preview data modes, Hyperdrive).
+- [deployment-topologies.md](./deployment-topologies.md) — control plane on
+  AWS vs Cloudflare, and how control-plane/app/database targets compose.
