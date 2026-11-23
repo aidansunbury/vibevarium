@@ -37,6 +37,9 @@ export class CloudflareDeployer {
   private env(name: string) {
     return {
       ...process.env,
+      // Containers have no interactive alchemy profile; CI=1 makes alchemy
+      // resolve credentials from environment variables (CLOUDFLARE_API_TOKEN).
+      CI: "1",
       ALCHEMY_HOME: this.#options.alchemyHome,
       CLOUDFLARE_ACCOUNT_ID: this.#options.accountId,
       STACK_NAME: `terrarium-${name}`,
