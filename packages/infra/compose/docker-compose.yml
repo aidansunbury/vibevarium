@@ -65,11 +65,24 @@ services:
       CONTROL_PLANE_BASE_URL: https://platform.${DOMAIN}
       PLATFORM_OIDC_AUDIENCE: https://mcp.${DOMAIN}
       GUI_DIR: /app/packages/control-plane/web/dist
+      # Scaffold in real cloudflare mode: GitHub App + Cloudflare account.
+      # Secrets (github key, cf token) resolve from AWS Secrets Manager.
+      GIT_PROVIDER: github
+      GITHUB_APP_INSTALLATION_ID: "184285119"
+      GITHUB_ORG: terrarium-sandbox
+      CLOUDFLARE_ACCOUNT_ID: 7bbaa8f97d6ababf1a5e29eb79491ce3
+      CLOUDFLARE_WORKERS_SUBDOMAIN: modal-opencode-test
+      CLOUDFLARE_ZONE_ID: c6ae3b555628f3c6c0fb3883c479dcc4
+      ROUTER_KV_NAMESPACE_ID: 7953882922294f5b84298ba7d8794fe4
+      ALCHEMY_HOME: /data/alchemy-home
+      TERRARIUM_DOMAIN: ${DOMAIN}
       # Secrets come from AWS Secrets Manager via the EC2 instance profile —
       # no secret env vars here. Key NAMES are mapped in src/secrets/boot.ts.
       SECRETS_PROVIDER: aws
       AWS_REGION: us-east-1
       SECRETS_PREFIX: /terrarium/prod/
+    volumes:
+      - alchemy_home:/data
     # The PGlite volume is gone: state now lives in RDS. The old
     # control_plane_data volume is kept declared below for one manual backup
     # of the pre-RDS PGlite dir (docker run --rm -v … tar); it is no longer
@@ -84,6 +97,8 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  # Alchemy home (app deploy profiles/state) persists across container restarts.
+  alchemy_home:
   # Unmounted legacy PGlite volume from the pre-RDS stack — kept only so one
   # manual backup can still be taken; safe to `docker volume rm` afterwards.
   control_plane_data:
