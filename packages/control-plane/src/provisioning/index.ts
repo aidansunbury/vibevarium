@@ -21,6 +21,7 @@ import { eq } from "drizzle-orm";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import { randomBytes } from "node:crypto";
@@ -31,13 +32,21 @@ import { PlatformConfigService, validateCapabilities, type CapabilityReport } fr
 import { Scaffold } from "../scaffold/index.ts";
 import { ScaffoldError } from "../scaffold/errors.ts";
 import { SecretsProvider } from "../integrations/secrets.ts";
-import { requireAuth } from "@terrarium/auth";
+import { CurrentActor, requireAuth } from "@terrarium/auth";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import { isReservedAppName, RESERVED_APP_NAME } from "../reserved.ts";
 
 const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
+/** `control` is the platform's reserved control-surface alias — never an app name. */
+const notReserved = Schema.makeFilter((name: string) =>
+  isReservedAppName(name)
+    ? `"${RESERVED_APP_NAME}" is reserved for the platform control surface and cannot be an app name`
+    : undefined
+);
+
 export const ProvisionSpec = Schema.Struct({
-  name: Schema.String.check(Schema.isPattern(dnsLabel)),
+  name: Schema.String.check(Schema.isPattern(dnsLabel), notReserved),
   target: Schema.optional(Schema.Literals(["cloudflare", "aws"])),
   database: Schema.optional(Schema.Literals(["cf-d1", "planetscale-hyperdrive"])),
   features: Schema.optional(Schema.Array(Schema.Literals(["r2", "hyperdrive"]))),
@@ -99,7 +108,7 @@ const planSteps = (spec: ProvisionSpec & { readonly target: string; readonly dat
 };
 
 export class Provisioning extends Context.Service<Provisioning, {
-  readonly start: (spec: ProvisionSpec) => Effect.Effect<ProvisionStart, ScaffoldError>;
+  readonly start: (spec: ProvisionSpec, actorSub?: string) => Effect.Effect<ProvisionStart, ScaffoldError>;
   readonly get: (jobId: string) => Effect.Effect<ProvisionStatus, ScaffoldError>;
   readonly options: () => Effect.Effect<CapabilityReport>;
   /** Deploy history: all provision jobs for an app (previews included), newest first. */
@@ -144,6 +153,7 @@ export class Provisioning extends Context.Service<Provisioning, {
         jobId: string,
         spec: ProvisionSpec & { readonly target: string; readonly database: string; readonly features: ReadonlyArray<string> },
         initialSteps: Array<ProvisioningStep>,
+        actorSub?: string,
       ) =>
         Effect.gen(function*() {
           let steps: ReadonlyArray<ProvisioningStep> = initialSteps;
@@ -182,6 +192,7 @@ export class Provisioning extends Context.Service<Provisioning, {
             spec.previewOf === undefined
               ? undefined
               : { previewOf: spec.previewOf, previewPr: spec.previewPr ?? "" },
+            actorSub,
           ).pipe(
             Effect.tap(() => done("repo")),
             Effect.tap(() => done("oidc")),
@@ -215,7 +226,7 @@ export class Provisioning extends Context.Service<Provisioning, {
           ),
         );
 
-      const start = Effect.fnUntraced(function*(rawSpec: ProvisionSpec) {
+      const start = Effect.fnUntraced(function*(rawSpec: ProvisionSpec, actorSub?: string) {
         const target = rawSpec.target ?? config.defaultDeployTarget;
         const database = rawSpec.database ?? config.database;
         const features = rawSpec.features ?? [];
@@ -276,8 +287,10 @@ export class Provisioning extends Context.Service<Provisioning, {
             updatedAt: createdAt,
           }),
         );
-        // Fire-and-forget background fiber; status is read from the row.
-        yield* Effect.forkDetach(runJob(jobId, spec, steps));
+        // Fire-and-forget background fiber; status is read from the row. The
+        // creator sub travels as a plain value (CurrentActor is request-scoped
+        // and the fiber doesn't inherit the request context).
+        yield* Effect.forkDetach(runJob(jobId, spec, steps, actorSub));
         return { jobId } satisfies ProvisionStart;
       });
 
@@ -349,7 +362,9 @@ export class Provisioning extends Context.Service<Provisioning, {
               { status: 400 },
             );
           }
-          const started = yield* provisioning.start(decoded.success).pipe(Effect.result);
+          const actor = yield* Effect.serviceOption(CurrentActor);
+          const actorSub = Option.isSome(actor) ? actor.value.sub : undefined;
+          const started = yield* provisioning.start(decoded.success, actorSub).pipe(Effect.result);
           return Result.isFailure(started)
             ? yield* HttpServerResponse.json(
                 { error: started.failure.message },
@@ -388,12 +403,14 @@ export class Provisioning extends Context.Service<Provisioning, {
           if (pr === undefined || pr === "") {
             return yield* HttpServerResponse.json({ error: "Expected { pr } (number or string)" }, { status: 400 });
           }
+          const actor = yield* Effect.serviceOption(CurrentActor);
+          const actorSub = Option.isSome(actor) ? actor.value.sub : undefined;
           const started = yield* provisioning.start({
             name: `${parent}-pr-${pr}`,
             target: "cloudflare",
             previewOf: parent,
             previewPr: pr,
-          }).pipe(Effect.result);
+          }, actorSub).pipe(Effect.result);
           return Result.isFailure(started)
             ? yield* HttpServerResponse.json(
                 { error: started.failure.message },

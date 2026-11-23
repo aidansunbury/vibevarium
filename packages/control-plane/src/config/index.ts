@@ -439,8 +439,22 @@ export interface CapabilityReport {
  *  service interface from a class-style service key. */
 type Secrets = ContextT.Service.Shape<typeof SecretsProvider>;
 
+/**
+ * A reference is "resolvable" if EITHER the boot-injected env var is set
+ * (config-check's provenance — works in both env and aws modes, since
+ * loadBootSecrets injects SM values into process.env at boot) OR the
+ * SecretsProvider resolves it. The SecretsProvider alone is not sufficient:
+ * in aws mode it looks up SM by the reference name, but our env-style names
+ * (CLOUDFLARE_API_TOKEN) are not valid SM secret names (cloudflare-api-token
+ * is) — so an env var name would always miss in aws mode. Checking the env
+ * first makes the validator provenance-correct in both modes.
+ */
 const resolveMissing = (secrets: Secrets, refs: ReadonlyArray<string>) =>
-  Effect.forEach(refs, (ref) => secrets.resolve(ref)).pipe(
+  Effect.forEach(refs, (ref) =>
+    Effect.flatMap(Effect.sync(() => Option.fromUndefinedOr(process.env[ref])), (fromEnv) =>
+      Option.isSome(fromEnv) ? Effect.succeed(fromEnv) : secrets.resolve(ref),
+    ),
+  ).pipe(
     Effect.map((results) => refs.filter((_, index) => !Option.isSome(results[index]!))),
   );
 

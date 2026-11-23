@@ -16,6 +16,7 @@ import * as Schema from "effect/Schema";
 import { createServer } from "node:http";
 import { Directory, Discovery } from "./discovery/index.ts";
 import { AppProxy } from "./gateway/proxy.ts";
+import { controlToolsRegistration } from "./gateway/control-tools.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
 import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
@@ -26,6 +27,8 @@ import { SecretsProvider } from "./integrations/secrets.ts";
 import { Integrations } from "./integrations/service.ts";
 import { bootSecretsReport } from "./secrets/boot.ts";
 import { RegisterAppInput, Registry } from "./registry/index.ts";
+import { Acl } from "./acl/index.ts";
+import { aclRoutes } from "./acl/routes.ts";
 import { Scaffold, type ScaffoldOptions } from "./scaffold/index.ts";
 import { Database } from "./store/database.ts";
 import { PlatformConfigService } from "./config/index.ts";
@@ -94,6 +97,35 @@ const hasAwsCredentialsForCheck = () =>
   process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI !== undefined ||
   process.env.AWS_EC2_METADATA_DISABLED !== "true";
 
+/**
+ * The ops gate: bearer token (CLI / programmatic) OR the GUI session cookie.
+ * Provides CurrentActor on the request context for the wrapped handler.
+ */
+const makeGated = (options: { readonly authEnabled: boolean; readonly guiAuthEnabled: boolean }) =>
+  options.authEnabled
+    ? <E, R>(
+        handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+      ): Effect.Effect<
+        HttpServerResponse.HttpServerResponse,
+        E,
+        | Auth
+        | HttpServerRequest.HttpServerRequest
+        | Exclude<R, CurrentActor>
+        | GuiAuth
+      > =>
+        Effect.gen(function*() {
+          if (options.guiAuthEnabled) {
+            const session = yield* sessionFromRequest.pipe(Effect.option);
+            if (session._tag === "Some" && session.value !== undefined) {
+              return yield* handler.pipe(
+                Effect.provideService(CurrentActor, { sub: session.value.sub, name: session.value.name }),
+              );
+            }
+          }
+          return yield* requireAuth(handler);
+        })
+    : <E, R>(handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) => handler;
+
 const operationalRoutes = (options: { readonly authEnabled: boolean; readonly guiAuthEnabled: boolean }) =>
   HttpRouter.use((router) =>
     Effect.gen(function*() {
@@ -109,30 +141,7 @@ const operationalRoutes = (options: { readonly authEnabled: boolean; readonly gu
         Context.add(McpServer.McpServer, mcpServer),
       );
       const discover = Effect.provideContext(runDiscoveryAndSync, context);
-      // Gate: bearer token (CLI / programmatic) OR the GUI session cookie.
-      const gated = options.authEnabled
-        ? <E, R>(
-            handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
-          ): Effect.Effect<
-            HttpServerResponse.HttpServerResponse,
-            E,
-            | Auth
-            | HttpServerRequest.HttpServerRequest
-            | Exclude<R, CurrentActor>
-            | GuiAuth
-          > =>
-            Effect.gen(function*() {
-              if (options.guiAuthEnabled) {
-                const session = yield* sessionFromRequest.pipe(Effect.option);
-                if (session._tag === "Some" && session.value !== undefined) {
-                  return yield* handler.pipe(
-                    Effect.provideService(CurrentActor, { sub: session.value.sub, name: session.value.name }),
-                  );
-                }
-              }
-              return yield* requireAuth(handler);
-            })
-        : <E, R>(handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) => handler;
+      const gated = makeGated(options);
 
       yield* router.add("GET", "/whoami", gated(Effect.gen(function*() {
         const actor = yield* Effect.serviceOption(CurrentActor);
@@ -280,7 +289,16 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   // registry/directory/discovery/proxy/McpServer services, which the outer
   // `routes` provideMerge already supplies at runtime).
   const configLayer = PlatformConfigService.layer;
-  const scaffoldLayer = Scaffold.layer(options.scaffold);
+  // ACL (docs/previews-and-acl.md Part 2): the control plane owns the policy.
+  // TERRARIUM_SUPERADMINS seeds the env-based superadmin list; the
+  // platform_roles table holds runtime grants. Both are checked.
+  const aclLayer = Acl.layer({
+    superadmins: (process.env.TERRARIUM_SUPERADMINS ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0),
+  }).pipe(Layer.provide(databaseLayer));
+  const scaffoldLayer = Scaffold.layer(options.scaffold).pipe(Layer.provide(aclLayer));
   const provisioningLayer = Provisioning.layer.pipe(
     Layer.provide(databaseLayer),
     Layer.provide(configLayer),
@@ -290,6 +308,15 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
 
   const routes = Layer.mergeAll(
     gatewayRegistrations,
+    // Control-plane MCP tools (control_*): the platform's own control surface,
+    // agent-callable under the reserved `control` alias. Needs Registry +
+    // Provisioning (+ Acl for control_get_acl) in context — same bearer/M2M
+    // auth as the rest of /mcp.
+    controlToolsRegistration.pipe(
+      Layer.provide(provisioningLayer),
+      Layer.provide(configLayer),
+      Layer.provide(aclLayer),
+    ),
     operationalRoutes({ authEnabled, guiAuthEnabled }),
     authFlowRoutes,
     Scaffold.routes({ authEnabled }).pipe(Layer.provide(scaffoldLayer)),
@@ -297,6 +324,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       Layer.provide(provisioningLayer),
       Layer.provide(configLayer),
     ),
+    aclRoutes(makeGated({ authEnabled, guiAuthEnabled })).pipe(Layer.provide(aclLayer)),
     integrationRoutes({
       authEnabled,
       appSecrets: options.appSecrets ?? {},

@@ -151,6 +151,30 @@ export const GrantView = Schema.Struct({
 });
 export type GrantView = typeof GrantView.Type;
 
+// --- App ACLs (docs/previews-and-acl.md Part 2) -------------------------------
+
+export const AclMember = Schema.Struct({
+  app: Schema.String,
+  userSub: Schema.String,
+  role: Schema.Literals(["admin", "member"]),
+  source: Schema.Literals(["local", "external"]),
+  createdAt: Schema.String,
+});
+export type AclMember = typeof AclMember.Type;
+
+export const AppAcl = Schema.Struct({
+  app: Schema.String,
+  visibility: Schema.Literals(["internal", "restricted"]),
+  createdBy: Schema.NullOr(Schema.String),
+  members: Schema.Array(AclMember),
+  caller: Schema.Struct({
+    sub: Schema.NullOr(Schema.String),
+    isAdmin: Schema.Boolean,
+    isSuperadmin: Schema.Boolean,
+  }),
+});
+export type AppAcl = typeof AppAcl.Type;
+
 // The scaffold result has optional/loose fields; keep it typed but permissive.
 export const ScaffoldResult = Schema.Struct({
   name: Schema.String,
@@ -255,6 +279,24 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.get("appHistory", "/apps/:name/history", {
         params: { name: Schema.String },
         success: Schema.Struct({ history: Schema.Array(ProvisionStatus) }),
+      }))
+      .add(HttpApiEndpoint.get("appAcl", "/apps/:name/acl", {
+        params: { name: Schema.String },
+        success: AppAcl,
+      }))
+      .add(HttpApiEndpoint.put("setVisibility", "/apps/:name/acl/visibility", {
+        params: { name: Schema.String },
+        payload: Schema.Struct({ visibility: Schema.Literals(["internal", "restricted"]) }),
+        success: Schema.Unknown,
+      }))
+      .add(HttpApiEndpoint.post("addAclMember", "/apps/:name/acl/members", {
+        params: { name: Schema.String },
+        payload: Schema.Struct({ sub: Schema.String, role: Schema.Literals(["admin", "member"]) }),
+        success: Schema.Unknown,
+      }))
+      .add(HttpApiEndpoint["delete"]("removeAclMember", "/apps/:name/acl/members/:sub", {
+        params: { name: Schema.String, sub: Schema.String },
+        success: Schema.Unknown,
       })),
   )
   .add(
@@ -375,6 +417,14 @@ export const api = {
     clientPromise.then((client) => run(client.createPreview({ params: { name }, payload: { pr } }))),
   previews: () => clientPromise.then((client) => run(client.previews())),
   appHistory: (name: string) => clientPromise.then((client) => run(client.appHistory({ params: { name } }))),
+
+  appAcl: (name: string) => clientPromise.then((client) => run(client.appAcl({ params: { name } }))),
+  setVisibility: (name: string, visibility: "internal" | "restricted") =>
+    clientPromise.then((client) => run(client.setVisibility({ params: { name }, payload: { visibility } }))),
+  addAclMember: (name: string, sub: string, role: "admin" | "member") =>
+    clientPromise.then((client) => run(client.addAclMember({ params: { name }, payload: { sub, role } }))),
+  removeAclMember: (name: string, sub: string) =>
+    clientPromise.then((client) => run(client.removeAclMember({ params: { name, sub } }))),
 
   integrations: () => clientPromise.then((client) => run(client.integrations())),
   createIntegration: (input: { name: string; baseUrl: string; tokenEnv: string }) =>

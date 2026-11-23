@@ -166,6 +166,32 @@ const BOOT_DDL = `
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+
+  -- App ACLs (docs/previews-and-acl.md Part 2): the control plane owns the
+  -- policy; enforcement lives at the app/router/gateway at request time.
+  CREATE TABLE IF NOT EXISTS app_acl (
+    app text PRIMARY KEY REFERENCES registry_apps(name) ON DELETE CASCADE,
+    visibility text NOT NULL DEFAULT 'internal',
+    created_by text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+
+  CREATE TABLE IF NOT EXISTS app_acl_members (
+    app text NOT NULL REFERENCES registry_apps(name) ON DELETE CASCADE,
+    user_sub text NOT NULL,
+    role text NOT NULL,
+    source text NOT NULL DEFAULT 'local',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (app, user_sub)
+  );
+
+  -- Platform-wide roles: 'superadmin' bypasses every per-app ACL check.
+  CREATE TABLE IF NOT EXISTS platform_roles (
+    user_sub text PRIMARY KEY,
+    role text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  );
 `;
 
 export class Database extends Context.Service<Database, {

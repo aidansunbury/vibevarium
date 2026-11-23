@@ -7,11 +7,19 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { Database } from "../store/database.ts";
 import { apps, type AppRow, type AppStatus } from "../store/schema.ts";
+import { isReservedAppName, RESERVED_APP_NAME } from "../reserved.ts";
 
 export type AppRegistration = AppRow;
 
+/** `control` is the platform's reserved control-surface alias — never an app name. */
+const notReserved = Schema.makeFilter((name: string) =>
+  isReservedAppName(name)
+    ? `"${RESERVED_APP_NAME}" is reserved for the platform control surface and cannot be an app name`
+    : undefined
+);
+
 export const RegisterAppInput = Schema.Struct({
-  name: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]*$/)),
+  name: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]*$/), notReserved),
   url: Schema.String.check(Schema.isPattern(/^https?:\/\//)),
   oidcClientId: Schema.optional(Schema.String),
   /** Preview lineage (docs/previews-and-acl.md) — set by the scaffold on preview apps. */

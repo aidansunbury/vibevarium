@@ -1,6 +1,6 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import { requireAuth } from "@terrarium/auth";
+import { CurrentActor, requireAuth } from "@terrarium/auth";
 import * as HttpRouter from "effect/http/HttpRouter";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
@@ -12,6 +12,7 @@ import { McpServer } from "effect/ai";
 import { mkdir, symlink } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { Acl } from "../acl/index.ts";
 import { Directory, Discovery, type DirectoryTool } from "../discovery/index.ts";
 import { AppProxy } from "../gateway/proxy.ts";
 import { syncGatewayTools } from "../gateway/tools.ts";
@@ -25,12 +26,20 @@ import { materializeCloudflareTemplate } from "./template.ts";
 import { RouterDirectory } from "./router-directory.ts";
 import { loadRouterBindings } from "./router-bindings.ts";
 import { allocatePort, AppProcesses, waitForHealth } from "./processes.ts";
+import { isReservedAppName, RESERVED_APP_NAME } from "../reserved.ts";
 
 const defaultWorkspaceRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
+/** `control` is the platform's reserved control-surface alias — never an app name. */
+const notReserved = Schema.makeFilter((name: string) =>
+  isReservedAppName(name)
+    ? `"${RESERVED_APP_NAME}" is reserved for the platform control surface and cannot be an app name`
+    : undefined
+);
+
 export const ScaffoldInput = Schema.Struct({
-  name: Schema.String.check(Schema.isPattern(dnsLabel)),
+  name: Schema.String.check(Schema.isPattern(dnsLabel), notReserved),
   /**
    * Preview lineage (docs/previews-and-acl.md): when set, this app is a PR
    * preview of the named parent app — its own Worker/D1/hostname/OIDC client,
@@ -142,7 +151,9 @@ const registerGeneratedRoutes = (options: { readonly authEnabled: boolean }) =>
         const preview = decoded.success.previewOf === undefined
           ? undefined
           : { previewOf: decoded.success.previewOf, previewPr: decoded.success.previewPr ?? "" };
-        return yield* respond(scaffold.create(decoded.success.name, preview), 201);
+        const actor = yield* Effect.serviceOption(CurrentActor);
+        const actorSub = Option.isSome(actor) ? actor.value.sub : undefined;
+        return yield* respond(scaffold.create(decoded.success.name, preview, actorSub), 201);
       })));
 
       yield* router.add("DELETE", "/apps/:name", gated(Effect.gen(function*() {
@@ -160,6 +171,8 @@ export class Scaffold extends Context.Service<Scaffold, {
   readonly create: (
     name: string,
     preview?: { readonly previewOf: string; readonly previewPr: string },
+    /** The creator's sub (from CurrentActor at the gated route) — seeded as the app's ACL admin. */
+    actorSub?: string,
   ) => Effect.Effect<ScaffoldResult, ScaffoldError>;
   readonly remove: (
     name: string,
@@ -175,6 +188,7 @@ export class Scaffold extends Context.Service<Scaffold, {
   static readonly layer = (options: ScaffoldOptions = {}) =>
     Layer.effect(Scaffold)(Effect.gen(function*() {
       const registry = yield* Registry;
+      const acl = yield* Acl;
       const directory = yield* Directory;
       const discovery = yield* Discovery;
       const proxy = yield* AppProxy;
@@ -208,6 +222,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         url: string,
         oidcClientId?: string,
         preview?: { readonly previewOf: string; readonly previewPr: string },
+        actorSub?: string,
       ) {
         const app = yield* registry.register({
           name,
@@ -217,6 +232,11 @@ export class Scaffold extends Context.Service<Scaffold, {
             ? {}
             : { previewOf: preview.previewOf, previewPr: preview.previewPr }),
         });
+        // Seed the creator as the app's ACL admin (docs/previews-and-acl.md
+        // Part 2). Previews inherit the parent's ACL instead (no new rows).
+        if (actorSub !== undefined && preview === undefined) {
+          yield* acl.seedCreator(name, actorSub);
+        }
         const discovered = yield* discovery.discoverApp(app);
         yield* syncGatewayTools.pipe(
           Effect.provideService(McpServer.McpServer, mcpServer),
@@ -234,7 +254,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         };
       });
 
-      const createLocal = Effect.fnUntraced(function*(name: string) {
+      const createLocal = Effect.fnUntraced(function*(name: string, actorSub?: string) {
         if (options.issuer === undefined || options.issuer.length === 0) {
           return yield* Effect.fail(new ScaffoldError(
             503,
@@ -260,7 +280,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         yield* attempt(() => waitForHealth(running, startupTimeoutMs)).pipe(
           Effect.tapError(() => attempt(() => processes.stop(name))),
         );
-        const directoryEntry = yield* register(name, `${running.url}/mcp`);
+        const directoryEntry = yield* register(name, `${running.url}/mcp`, undefined, undefined, actorSub);
         if (directoryEntry.discoveryWarning !== undefined) {
           return yield* Effect.fail(new ScaffoldError(
             502,
@@ -280,6 +300,7 @@ export class Scaffold extends Context.Service<Scaffold, {
       const createCloudflare = Effect.fnUntraced(function*(
         name: string,
         preview?: { readonly previewOf: string; readonly previewPr: string },
+        actorSub?: string,
       ) {
         if (deployer === undefined) {
           return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
@@ -303,7 +324,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         // Register the public hostname (not the workers.dev origin) so the
         // gallery + gateway point at the app's real URL. Preview lineage goes
         // on the row so the dashboard can group previews under their parent.
-        const directoryEntry = yield* register(name, `${appUrl}/mcp`, oidcClient?.clientId, preview);
+        const directoryEntry = yield* register(name, `${appUrl}/mcp`, oidcClient?.clientId, preview, actorSub);
         return {
           name,
           url: appUrl,
@@ -328,6 +349,7 @@ export class Scaffold extends Context.Service<Scaffold, {
       const create = Effect.fnUntraced(function*(
         name: string,
         preview?: { readonly previewOf: string; readonly previewPr: string },
+        actorSub?: string,
       ) {
         if (!dnsLabel.test(name)) {
           return yield* Effect.fail(new ScaffoldError(400, "Invalid DNS-label-safe app name"));
@@ -347,7 +369,7 @@ export class Scaffold extends Context.Service<Scaffold, {
             return yield* Effect.fail(new ScaffoldError(404, `Parent app ${preview.previewOf} is not registered`));
           }
         }
-        return yield* (mode === "cloudflare" ? createCloudflare(name, preview) : createLocal(name));
+        return yield* (mode === "cloudflare" ? createCloudflare(name, preview, actorSub) : createLocal(name, actorSub));
       });
 
       const removeLocal = Effect.fnUntraced(function*(name: string) {

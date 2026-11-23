@@ -2,12 +2,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Trash2Icon } from "@terrarium/ui/lib/icons";
-import { api, type AppRow } from "../api";
+import { api, type AppRow, type AppAcl } from "../api";
 import { Badge } from "@terrarium/ui/components/badge";
 import { Button } from "@terrarium/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
 import { Input } from "@terrarium/ui/components/input";
 import { Label } from "@terrarium/ui/components/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@terrarium/ui/components/select";
 import { Separator } from "@terrarium/ui/components/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@terrarium/ui/components/tabs";
 import { toast } from "@terrarium/ui/lib/toast";
@@ -39,6 +40,10 @@ function AppDetailPage() {
     queryKey: ["history", name] as const,
     queryFn: () => api.appHistory(name),
   });
+  const acl = useQuery({
+    queryKey: ["acl", name] as const,
+    queryFn: () => api.appAcl(name),
+  });
 
   const remove = useMutation({
     mutationFn: () => api.deleteApp(name),
@@ -57,6 +62,35 @@ function AppDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ["previews", name] });
       void queryClient.invalidateQueries({ queryKey: ["history", name] });
       toast.success(`Preview for PR ${pr} provisioning`);
+    },
+    onError: (error) => toast.error(message(error)),
+  });
+
+  const invalidateAcl = () => queryClient.invalidateQueries({ queryKey: ["acl", name] });
+
+  const setVisibility = useMutation({
+    mutationFn: (visibility: "internal" | "restricted") => api.setVisibility(name, visibility),
+    onSuccess: (_result, visibility) => {
+      void invalidateAcl();
+      toast.success(`${name} is now ${visibility}`);
+    },
+    onError: (error) => toast.error(message(error)),
+  });
+
+  const addMember = useMutation({
+    mutationFn: ({ sub, role }: { sub: string; role: "admin" | "member" }) => api.addAclMember(name, sub, role),
+    onSuccess: (_result, { sub, role }) => {
+      void invalidateAcl();
+      toast.success(`Added ${sub} as ${role}`);
+    },
+    onError: (error) => toast.error(message(error)),
+  });
+
+  const removeMember = useMutation({
+    mutationFn: (sub: string) => api.removeAclMember(name, sub),
+    onSuccess: (_result, sub) => {
+      void invalidateAcl();
+      toast.success(`Removed ${sub}`);
     },
     onError: (error) => toast.error(message(error)),
   });
@@ -98,6 +132,7 @@ function AppDetailPage() {
               <TabsTrigger value="tools">Tools ({tools.length})</TabsTrigger>
               <TabsTrigger value="previews">Previews ({previews.data?.length ?? 0})</TabsTrigger>
               <TabsTrigger value="history">Deploy history</TabsTrigger>
+              <TabsTrigger value="access">Access</TabsTrigger>
             </TabsList>
 
             <TabsContent value="tools" className="flex flex-col gap-4 pt-4">
@@ -215,6 +250,23 @@ function AppDetailPage() {
                 </ul>
               )}
             </TabsContent>
+
+            <TabsContent value="access" className="flex flex-col gap-4 pt-4">
+              {acl.isPending && <p className="text-sm text-muted-foreground">Loading access…</p>}
+              {acl.isError && <p className="text-sm text-destructive">⚠ {message(acl.error)}</p>}
+              {acl.data !== undefined && (
+                <AccessPanel
+                  acl={acl.data}
+                  isAdmin={acl.data.caller.isAdmin}
+                  onSetVisibility={(visibility) => setVisibility.mutate(visibility)}
+                  visibilityPending={setVisibility.isPending}
+                  onAddMember={(sub, role) => addMember.mutate({ sub, role })}
+                  addMemberPending={addMember.isPending}
+                  onRemoveMember={(sub) => removeMember.mutate(sub)}
+                  removeMemberPending={removeMember.isPending}
+                />
+              )}
+            </TabsContent>
           </Tabs>
 
           <div className="mt-4 flex justify-end border-t pt-4">
@@ -225,6 +277,145 @@ function AppDetailPage() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function AccessPanel({
+  acl,
+  isAdmin,
+  onSetVisibility,
+  visibilityPending,
+  onAddMember,
+  addMemberPending,
+  onRemoveMember,
+  removeMemberPending,
+}: {
+  acl: AppAcl;
+  isAdmin: boolean;
+  onSetVisibility: (visibility: "internal" | "restricted") => void;
+  visibilityPending: boolean;
+  onAddMember: (sub: string, role: "admin" | "member") => void;
+  addMemberPending: boolean;
+  onRemoveMember: (sub: string) => void;
+  removeMemberPending: boolean;
+}) {
+  return (
+    <>
+      <div className="flex flex-col gap-2">
+        <Label>Visibility</Label>
+        <div className="flex items-center gap-3">
+          <Select
+            value={acl.visibility}
+            onValueChange={(value) => onSetVisibility(value as "internal" | "restricted")}
+            disabled={!isAdmin || visibilityPending}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="internal">internal</SelectItem>
+              <SelectItem value="restricted">restricted</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-sm text-muted-foreground">
+            {acl.visibility === "internal"
+              ? "Any authenticated platform user can access this app."
+              : "Only named members can access this app."}
+          </p>
+        </div>
+        {acl.createdBy !== null && (
+          <p className="text-xs text-muted-foreground">
+            Created by <code className="rounded bg-muted px-1 py-0.5">{acl.createdBy}</code>
+          </p>
+        )}
+      </div>
+
+      <Separator />
+
+      <div className="flex flex-col gap-3">
+        <Label>Members</Label>
+        {acl.members.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No members yet. Admins can manage members and visibility; members can access a restricted app.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {acl.members.map((member) => (
+              <li
+                key={member.userSub}
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{member.userSub}</code>
+                  <Badge variant={member.role === "admin" ? "default" : "secondary"}>{member.role}</Badge>
+                  {member.source === "external" && <Badge variant="secondary">synced</Badge>}
+                </span>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={removeMemberPending}
+                    onClick={() => onRemoveMember(member.userSub)}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {isAdmin && (
+        <>
+          <Separator />
+          <AddMemberForm isPending={addMemberPending} onSubmit={onAddMember} />
+        </>
+      )}
+    </>
+  );
+}
+
+function AddMemberForm({
+  isPending,
+  onSubmit,
+}: {
+  isPending: boolean;
+  onSubmit: (sub: string, role: "admin" | "member") => void;
+}) {
+  const [sub, setSub] = useState("");
+  const [role, setRole] = useState<"admin" | "member">("member");
+  const trimmed = sub.trim();
+  const submit = () => {
+    if (trimmed === "" || isPending) return;
+    onSubmit(trimmed, role);
+    setSub("");
+  };
+  return (
+    <div className="flex items-end gap-2">
+      <div className="grid flex-1 gap-1.5">
+        <Label htmlFor="member-sub">Add member</Label>
+        <Input
+          id="member-sub"
+          placeholder="User sub (from the identity provider)"
+          value={sub}
+          onChange={(event) => setSub(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && submit()}
+        />
+      </div>
+      <Select value={role} onValueChange={(value) => setRole(value as "admin" | "member")}>
+        <SelectTrigger className="w-32">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="member">member</SelectItem>
+          <SelectItem value="admin">admin</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button disabled={isPending || trimmed === ""} onClick={submit}>
+        {isPending ? "Adding…" : "Add"}
+      </Button>
     </div>
   );
 }

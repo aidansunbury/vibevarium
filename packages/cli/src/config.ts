@@ -28,3 +28,12 @@ export const writeJsonFile = async (path: string, value: unknown) => {
 };
 
 export const rpcUrl = (appUrl: string) => `${appUrl.replace(/\/+$/, "")}/rpc`;
+
+/**
+ * The control plane base URL the `control` CLI subtree talks to. Defaults to
+ * the production platform; override with PLATFORM_CONTROL_PLANE_URL for local
+ * development (e.g. http://127.0.0.1:4100).
+ */
+export const controlPlaneUrl = (
+  process.env.PLATFORM_CONTROL_PLANE_URL ?? "https://platform.vibevarium.com"
+).replace(/\/+$/, "");

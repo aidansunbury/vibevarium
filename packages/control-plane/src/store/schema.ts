@@ -180,6 +180,52 @@ export const provisioningJobs = pgTable("provisioning_jobs", {
 
 export type ProvisioningJobRow = typeof provisioningJobs.$inferSelect;
 
+// --- App ACLs (docs/previews-and-acl.md Part 2) ----------------------------
+// The control plane OWNS the ACL policy as Tier 1/2 facts keyed by `sub`;
+// enforcement at request time belongs to the app/router/gateway (each block
+// authorizes itself). `source` makes the model sync-ready: a future external
+// directory (Okta groups/SCIM) writes source='external' rows and never fights
+// manual 'local' grants.
+
+export type AppVisibility = "internal" | "restricted";
+export type AclRole = "admin" | "member";
+export type AclSource = "local" | "external";
+
+export const appAcl = pgTable("app_acl", {
+  app: text("app").primaryKey().references(() => apps.name, { onDelete: "cascade" }),
+  visibility: text("visibility").$type<AppVisibility>().notNull().default("internal"),
+  /** The creator's sub — the immutable admin seed from provision time. */
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export const appAclMembers = pgTable(
+  "app_acl_members",
+  {
+    app: text("app")
+      .notNull()
+      .references(() => apps.name, { onDelete: "cascade" }),
+    userSub: text("user_sub").notNull(),
+    role: text("role").$type<AclRole>().notNull(),
+    /** 'local' = manual grant via the GUI/API; 'external' = synced from a directory (Okta/SCIM later). */
+    source: text("source").$type<AclSource>().notNull().default("local"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.app, table.userSub] })],
+);
+
+export const platformRoles = pgTable("platform_roles", {
+  userSub: text("user_sub").primaryKey(),
+  /** Platform-wide role. 'superadmin' bypasses every ACL check + gates sensitive platform ops. */
+  role: text("role").$type<"superadmin">().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export type AppAclRow = typeof appAcl.$inferSelect;
+export type AppAclMemberRow = typeof appAclMembers.$inferSelect;
+export type PlatformRoleRow = typeof platformRoles.$inferSelect;
+
 export type AppRow = typeof apps.$inferSelect;
 export type DirectoryToolRow = typeof directoryTools.$inferSelect;
 export type IntegrationRow = typeof integrations.$inferSelect;

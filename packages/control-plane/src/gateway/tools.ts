@@ -15,6 +15,14 @@ export const DIRECTORY_LIST_APPS = "directory_list_apps";
 export const DIRECTORY_SEARCH_TOOLS = "directory_search_tools";
 const directoryToolNames = new Set([DIRECTORY_LIST_APPS, DIRECTORY_SEARCH_TOOLS]);
 
+/**
+ * Reserved control-plane tools (`control_*`) — the platform's own control
+ * surface exposed to agents. Registered in control-tools.ts alongside the
+ * directory tools; listed here so the visibility middleware keeps them
+ * always-visible (they are not per-app directory rows).
+ */
+export const CONTROL_TOOL_PREFIX = "control_";
+
 export const namespaceTool = (record: DirectoryTool) =>
   new McpSchema.Tool({
     ...toolFields(record.descriptor),
@@ -117,7 +125,9 @@ export const directoryVisibility = McpServer.visibility(
   Effect.gen(function*() {
     const directory = yield* Directory;
     return ({ target }: McpServer.MiddlewareOptions) =>
-      directoryToolNames.has(target) ? Effect.succeed(true) : directory.contains(target);
+      directoryToolNames.has(target) || target.startsWith(CONTROL_TOOL_PREFIX)
+        ? Effect.succeed(true)
+        : directory.contains(target);
   }),
   { global: true },
 );

@@ -1,8 +1,9 @@
 # Previews + App ACLs — working doc
 
 Two workstreams. **Previews** is being built now (Cloudflare-only first pass).
-**ACLs** is investigation-only — this doc captures the design space so the
-implementation pass doesn't start from zero.
+**ACLs** Part 2 is built: the control plane owns the policy (store, service,
+gated routes, GUI Access tab); enforcement at the app/router/gateway remains
+the open decision.
 
 ---
 
@@ -72,80 +73,128 @@ overrides the deployer already sets.
 
 ---
 
-## Part 2 — App ACLs (investigation, not built)
+## Part 2 — App ACLs (built)
 
 ### Requirements (from the ask)
 
-1. App creator is an **admin** of that app.
+1. App creator is an **admin** of that app. ✅ Seeded at provision time.
 2. App visibility is a setting: **internal** (any platform user can access) or
-   **restricted** (only named people).
+   **restricted** (only named people). ✅ Per-app setting.
 3. A **superadmin** tier: sensitive platform operations + default access to
-   everything.
+   everything. ✅ Env seed + table, bypasses every ACL check.
 
 ### Where this lands in the doctrine
 
 Identity tiers (docs/identity.md): token claims (Tier 0) → domain facts keyed
 by `sub` (Tier 1) → rebuildable projection (Tier 2). **Permissions never on the
-user row.** ACLs are Tier 1/2 material: the control plane owns them as facts,
-projects them into tokens or checks them at the edge.
+user row.** ACLs are Tier 1/2 material: the control plane owns them as facts.
 
 Key existing fact: **each block authorizes itself** — apps verify and authorize
 via their own middleware; no central point decides per-app permissions. ACLs
-must not break that: the control plane *stores* the policy, but enforcement
-belongs to the app/router/gateway at request time.
+hold that line: the control plane *stores* the policy and enforces it on its
+own GUI/API surface, but per-request enforcement at the app/router/gateway is
+a separate, still-open decision (see "Still open" below).
 
-### The model (sketch)
+### The model (as built — `packages/control-plane/src/store/schema.ts`)
 
 ```
-app_acl:
-  app        text        -- app name
-  visibility text        -- 'internal' | 'restricted'
-  created_by text        -- sub of the creator (immutable admin seed)
-
-app_acl_members:
-  app        text
-  user_sub   text
-  role       text        -- 'admin' | 'member'
+app_acl:        app (pk → registry_apps), visibility ('internal'|'restricted'),
+                created_by (sub, immutable creator seed), created_at, updated_at
+app_acl_members: app (→ registry_apps), user_sub, role ('admin'|'member'),
+                source ('local'|'external'), created_at, pk(app, user_sub)
+platform_roles: user_sub (pk), role ('superadmin'), created_at
 ```
 
-- Creator → `admin` row at provision time (the scaffold already knows the
-  actor from the session).
-- `internal` = any authenticated platform user passes. `restricted` = member
-  list check.
-- Admin capabilities (per app): manage members, change visibility, teardown,
-  manage preview grants. Member: access.
-- **Superadmin**: a platform-level role (not per-app) — bypasses every ACL
-  check + gates sensitive platform ops (config changes, superuser-y routes).
+All three follow the store's idempotent `CREATE TABLE IF NOT EXISTS` boot-DDL
+pattern (PGlite local dev, RDS prod) and cascade on app delete.
 
-### Open design questions to resolve before building
+**The `source` column makes the model sync-ready.** Manual grants via the
+GUI/API write `source='local'`. A future external directory sync (Okta groups
+over SCIM) writes `source='external'` rows for the same (app, sub) pairs and
+owns their lifecycle: the delete route refuses to remove `external` rows
+(409 — "remove the grant at the source"), so a sync job never fights manual
+local grants and vice versa. Okta itself is untested — the point is the rows
+don't need to change when a sync lands.
 
-1. **Where does enforcement happen?** Options:
-   - (a) **Gateway/proxy-level** — the gateway checks the ACL before proxying
-     `tools/call` or proxy requests. Centralizes enforcement for
-     machine-access, but not browser access.
-   - (b) **App-level** — apps fetch/cache the ACL and enforce in their own
-     middleware (true to "each block authorizes itself"). Needs a control-plane
-     read API for ACLs.
-   - (c) **Token claims** — platform issues tokens carrying an app-access
-     claim; apps just check the claim. Simplest enforcement, but claims go
-     stale on revocation (needs short TTLs or introspection).
-   - Likely: (c) for coarse gating + (b) as the check of record, with (a) for
-     proxy calls. This is the biggest decision.
-2. **Superadmin storage** — env list of subs? A `platform_roles` table? Logto
-   role claim mirrored? (Env seed + table override is the pragmatic spike.)
-3. **Does the router worker need to know?** The wildcard router could 403
-   restricted apps before the request even reaches the app Worker — nice
-   defense-in-depth, optional.
-4. **Preview ACLs** — inherit parent app's ACL (proposed default). Admin of
-   parent = admin of previews.
-5. **GUI** — an "Access" tab per app (visibility toggle, member list,
-   add/remove) + a superadmin settings surface.
+### The service (`packages/control-plane/src/acl/index.ts`)
 
-### What "looking at it" produced (this doc)
+`Acl` — an Effect service over drizzle:
 
-- The data model above fits cleanly into the existing store (two tables,
-  mirrors integrations/grants shape).
-- Enforcement question (Q1) is the real fork; the rest is plumbing.
-- Superadmin is small: a role source + a check at sensitive routes + ACL bypass.
-- Previews inherit parent ACL — no new model needed.
-- Provision-time seeding: creator → admin row in the scaffold pipeline.
+- `getAcl(app)` / `setVisibility(app, visibility)` / `listMembers(app)`
+- `addMember(app, sub, role)` / `removeMember(app, sub)`
+- `canAccess(app, sub)` — superadmin OR internal-visibility OR a member row.
+  **Apps with no ACL row (legacy, pre-ACL registrations) default to
+  internal** — any platform user passes; the row materializes on first
+  mutation.
+- `isAdmin(app, sub)` — superadmin OR an admin member row (the creator seed
+  is an admin row).
+- `isSuperadmin(sub)` — **two sources, either suffices**: the
+  `TERRARIUM_SUPERADMINS` env var (comma-separated subs) and the
+  `platform_roles` table (runtime grants via `grantSuperadmin`).
+- `seedCreator(app, sub)` — idempotent: creates the ACL row (`created_by`
+  set) and upserts the creator's admin member row. Called from the scaffold
+  pipeline.
+
+### Seeding the creator
+
+The creator's `sub` comes from `CurrentActor`, provided on every gated route
+(server.ts's gate: GUI session cookie OR bearer token). It travels as a plain
+value, never through fiber boundaries implicitly:
+
+- `POST /scaffold` route reads `CurrentActor` → `scaffold.create(name, preview, actorSub)`.
+- `POST /provisioning` + `POST /apps/:name/previews` read `CurrentActor` →
+  `provisioning.start(spec, actorSub)` → the background job fiber passes it to
+  `scaffold.create` (the fiber doesn't inherit request context, hence the
+  explicit parameter).
+- `scaffold.create` → `register(...)` calls `acl.seedCreator(name, actorSub)`
+  for prod apps. **Previews get no ACL rows — they inherit the parent app's
+  ACL** (admin of parent = admin of previews), per the design question below.
+
+### Routes (gated, `packages/control-plane/src/acl/routes.ts`)
+
+Mounted under the same GUI-session-or-bearer gate as the ops routes
+(`makeGated` in server.ts), so the TanStack GUI drives them with the cookie.
+
+| Route | Gate |
+| --- | --- |
+| `GET /apps/:name/acl` | `canAccess(app, actor)` — 403 for non-members on restricted apps |
+| `PUT /apps/:name/acl/visibility` | `isAdmin(app, actor)` |
+| `POST /apps/:name/acl/members` | `isAdmin(app, actor)` |
+| `DELETE /apps/:name/acl/members/:sub` | `isAdmin(app, actor)`; 409 on `source='external'` rows |
+| `POST /platform/superadmins {sub}` | `isSuperadmin(actor)` — superadmins bootstrap superadmins |
+
+When auth is disabled (local dev), there's no actor and every gate is open —
+same posture as the rest of the control plane.
+
+**Superadmin gate choices:** only `/platform/superadmins` is gated by
+superadmin *directly* — it's the one truly platform-sensitive op here (it
+grants the keys to everything). Per-app mutations are admin-gated, and
+superadmins pass those checks through the bypass, which keeps "sensitive
+platform ops" and "app administration" as distinct tiers. The MCP
+`control_get_acl` tool (gateway/control-tools.ts) reads the same store.
+
+### GUI
+
+The app detail page (`/apps/:name`) has an **Access** tab: visibility toggle
+(internal/restricted), member list with role + sync badges, add/remove member
+(admin-only controls). Typed `api.ts` endpoints mirror the routes.
+
+### Still open
+
+- **Enforcement at the gateway/app (the real fork, unchanged from
+  investigation).** This pass stores policy and enforces it on the control
+  plane's own surface only. Per-request enforcement options remain: (a)
+  gateway/proxy checks before forwarding `tools/call`, (b) apps fetch/cache
+  the ACL and enforce in their own middleware (the read API for that is now
+  `GET /apps/:name/acl`), (c) access claims in per-audience tokens. Likely (c)
+  coarse + (b) of record + (a) for proxy calls. The router worker 403-ing
+  restricted apps is optional defense-in-depth on top.
+- **Okta/SCIM sync** — no sync job exists; the `source` column is the seam it
+  writes through.
+- **Directory-list filtering** — `GET /apps` / `GET /directory` still list
+  every app to every platform user; hiding restricted apps from non-members
+  in list views is a follow-up.
+- **Teardown / preview-grant gating by app admin** — `DELETE /apps/:name` and
+  preview creation are currently any-platform-user gated, not per-app-admin
+  gated.
+- **Superadmin GUI surface** — grants are API-only for now.

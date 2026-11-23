@@ -12,6 +12,7 @@ import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { authCommands, ssoHeaders, ssoProtocolHttp } from "./auth.ts";
 import { appsFile, readJsonFile, rpcUrl, writeJsonFile } from "./config.ts";
+import { control } from "./control.ts";
 import { embeddedApis } from "./registry.ts";
 
 const AppEntry = Schema.Struct({
@@ -45,8 +46,18 @@ export const addApp = Command.make(
   "add",
   {
     name: Argument.String("name").pipe(
-      Argument.withSchema(Schema.String.check(Schema.isPattern(/^[a-z][a-z0-9-]*$/))),
-      Argument.withDescription("Subcommand name, for example tickets"),
+      Argument.withSchema(
+        Schema.String.check(
+          Schema.isPattern(/^[a-z][a-z0-9-]*$/),
+          // `control` is the platform's reserved control-surface alias.
+          Schema.makeFilter((name: string) =>
+            name === "control"
+              ? `"control" is reserved for the platform control surface (the \`control\` subtree)`
+              : undefined
+          ),
+        ),
+      ),
+      Argument.withDescription("Subcommand name, for example tickets (`control` is reserved)"),
     ),
     package: Argument.String("package").pipe(
       Argument.withDescription("Domain package name from this build's embedded registry"),
@@ -177,7 +188,7 @@ export const dynamicPlatform = Effect.gen(function* () {
     Command.withDescription("Manage the dynamic app manifest"),
   );
   return Command.make(cliName).pipe(
-    Command.withSubcommands([...authCommands, apps, ...appCommands]),
+    Command.withSubcommands([...authCommands, apps, control, ...appCommands]),
     Command.withDescription("One SSO login for dynamically imported Terrarium apps"),
   );
 });
