@@ -231,10 +231,20 @@ const OpsApi = HttpApi.make("ControlPlane")
 
 // --- the client ---------------------------------------------------------------
 
-const isSessionExpired = (error: unknown): error is { _tag: string; response: { status: number } } =>
-  typeof error === "object" && error !== null &&
-  (error as { _tag?: string })._tag === "ResponseError" &&
-  (error as { response?: { status?: number } }).response?.status === 401;
+// Effect 4.1.5's HttpApiClient fails an undeclared 401 with an
+// HttpClientError whose `reason` is a DecodeError carrying the response — the
+// status lives at `error.reason.response.status`, not `error.response.status`.
+const isSessionExpired = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as {
+    _tag?: string;
+    reason?: { _tag?: string; response?: { status?: number } };
+    response?: { status?: number };
+  };
+  if (candidate._tag === "ResponseError" && candidate.response?.status === 401) return true;
+  if (candidate._tag === "HttpClientError" && candidate.reason?.response?.status === 401) return true;
+  return false;
+};
 
 const transport = Layer.effect(
   HttpClient.HttpClient,

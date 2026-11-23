@@ -7,6 +7,7 @@ import { Button } from "@terrarium/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -73,12 +74,14 @@ function RootLayout() {
                   <span className="hidden sm:inline">{actor.name ?? actor.sub}</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col">
-                      <span className="text-foreground">{actor.name ?? actor.sub}</span>
-                      <span className="text-xs text-muted-foreground">{actor.sub}</span>
-                    </div>
-                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col">
+                        <span className="text-foreground">{actor.name ?? actor.sub}</span>
+                        <span className="text-xs text-muted-foreground">{actor.sub}</span>
+                      </div>
+                    </DropdownMenuLabel>
+                  </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => void logout()}>Log out</DropdownMenuItem>
                 </DropdownMenuContent>
