@@ -45,7 +45,10 @@ pnpm exec alchemy deploy --config ./src/main.ts --yes
 
 # ── 2. Read stack outputs + extract SSH key ───────────────────────────────
 echo ">>> Reading stack outputs…"
-STATE_DIR="$REPO_ROOT/.alchemy/state/TerrariumInfra/default"
+# Alchemy writes local state under packages/infra/.alchemy (the deploy cwd),
+# keyed by the stage (default "live_<user>"). Discover the current stage's
+# output file rather than hardcoding a path.
+STATE_DIR=$(find "$INFRA_DIR/.alchemy/state/TerrariumInfra" -mindepth 1 -maxdepth 1 -type d ! -name '*.stale-*' | head -1)
 OUTPUT_FILE="$STATE_DIR/__stack_output__.json"
 if [ ! -f "$OUTPUT_FILE" ]; then
   echo "ERROR: no stack output file at $OUTPUT_FILE"
@@ -67,12 +70,13 @@ echo "  Secret ARN: $DB_SECRET_ARN"
 echo ">>> Extracting SSH key…"
 mkdir -p "$REPO_ROOT/.secrets"
 SSH_KEY="$REPO_ROOT/.secrets/terrarium-key.pem"
-jq -r '.sshPrivateKey // empty' "$OUTPUT_FILE" > "$SSH_KEY"
+# The key is stored as a Redacted value: a {"__redacted__": "<pem>"} wrapper.
+# Unwrap to the raw PEM; fall back to the KeyPair resource state if absent.
+jq -r '.sshPrivateKey.__redacted__ // .sshPrivateKey // empty' "$OUTPUT_FILE" > "$SSH_KEY"
 if [ ! -s "$SSH_KEY" ]; then
-  # Fallback: read from the KeyPair resource state file directly
   KEY_STATE=$(find "$STATE_DIR" -name '*.json' ! -name '__stack_output__.json' -exec grep -l 'privateKey' {} \; | head -1)
   if [ -n "$KEY_STATE" ]; then
-    jq -r '.attr.privateKey // .privateKey // empty' "$KEY_STATE" > "$SSH_KEY"
+    jq -r '.attr.privateKey.__redacted__ // .attr.privateKey // .privateKey.__redacted__ // .privateKey // empty' "$KEY_STATE" > "$SSH_KEY"
   fi
 fi
 chmod 600 "$SSH_KEY"

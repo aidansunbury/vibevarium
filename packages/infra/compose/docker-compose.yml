@@ -36,7 +36,7 @@ services:
       # creates it on RDS alongside `control_plane` (idempotent CREATE DATABASE).
       driverName: postgres
       # For Postgres the db name appears in BOTH dbName and the DSN's dbname.
-      dataSourceName: user=${DB_USER} password=${DB_PASSWORD} host=${DB_HOST} port=${DB_PORT} sslmode=disable dbname=casdoor
+      dataSourceName: user=${DB_USER} password=${DB_PASSWORD} host=${DB_HOST} port=${DB_PORT} sslmode=require dbname=casdoor
       dbName: casdoor
       # Public origin (drives the OIDC issuer + discovery URLs).
       origin: https://auth.${DOMAIN}
