@@ -17,6 +17,7 @@ import { createServer } from "node:http";
 import { Directory, Discovery } from "./discovery/index.ts";
 import { AppProxy } from "./gateway/proxy.ts";
 import { controlToolsRegistration } from "./gateway/control-tools.ts";
+import { MCP_INTERNAL_PATH, mcpGateRoutes } from "./gateway/mcp-gate.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
 import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
@@ -37,6 +38,8 @@ import { Provisioning } from "./provisioning/index.ts";
 export interface ControlPlaneOptions {
   readonly port?: number | undefined;
   readonly host?: string | undefined;
+  /** Public origin of this control plane (https://platform.vibevarium.com) — the MCP gate builds internal forwards + discovery URLs from it. */
+  readonly baseUrl?: string | undefined;
   /** Full postgres:// URL — when set, the store uses real Postgres (RDS prod). Wins over databasePath. */
   readonly databaseUrl?: string | undefined;
   /** PGlite data directory — local-dev fallback when databaseUrl is unset. */
@@ -347,18 +350,28 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     registerManifestProviders,
     scheduledDiscovery(options.discoveryIntervalMs ?? 30_000),
   ).pipe(
+    // The Effect MCP transport mounts on an internal-only path; the public
+    // /mcp surface is the bearer gate + discovery docs in mcp-gate.ts.
     Layer.provide(McpServer.layerHttp({
       name: "terrarium-meta-mcp",
       version: "0.0.1",
-      path: "/mcp",
+      path: MCP_INTERNAL_PATH,
       protocols: [McpProtocol.v2025_11_25],
     })),
     Layer.provide(servicesLayer),
   );
 
+  const mcpGate = mcpGateRoutes({
+    baseUrl: options.baseUrl ?? `http://127.0.0.1:${options.port ?? 4100}`,
+    resource: options.oidc?.audience ?? `https://mcp.vibevarium.com`,
+    authEnabled,
+    issuer: options.oidc?.issuer,
+  });
+
   // The GUI is mounted last: its /* fallback must lose to every API route.
   const allRoutes = Layer.mergeAll(
     routes,
+    mcpGate,
     HttpRouter.add("GET", "/health", HttpServerResponse.text("ok")),
     // Config provenance for ops/debugging — key NAMES and providers only,
     // never values. Ungated intentionally (same trust level as /health).
@@ -378,12 +391,10 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         ["CLOUDFLARE_ZONE_ID", process.env.CLOUDFLARE_ZONE_ID],
         ["CLOUDFLARE_WORKERS_SUBDOMAIN", process.env.CLOUDFLARE_WORKERS_SUBDOMAIN],
         ["ROUTER_KV_NAMESPACE_ID", process.env.ROUTER_KV_NAMESPACE_ID],
-        ["LOGTO_M2M_APP_ID", process.env.LOGTO_M2M_APP_ID],
-        ["LOGTO_M2M_APP_SECRET", process.env.LOGTO_M2M_APP_SECRET],
-        ["LOGTO_GUI_APP_ID", process.env.LOGTO_GUI_APP_ID],
-        ["LOGTO_GUI_APP_SECRET", process.env.LOGTO_GUI_APP_SECRET],
-        ["LOGTO_CLI_APP_ID", process.env.LOGTO_CLI_APP_ID],
-        ["LOGTO_MCP_RESOURCE", process.env.LOGTO_MCP_RESOURCE],
+        ["CASDOOR_ISSUER", process.env.CASDOOR_ISSUER],
+        ["GUI_APP_ID", process.env.GUI_APP_ID],
+        ["GUI_APP_SECRET", process.env.GUI_APP_SECRET],
+        ["WORKOS_CLIENT_ID", process.env.WORKOS_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_ID", process.env.GITHUB_OAUTH_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_SECRET", process.env.GITHUB_OAUTH_CLIENT_SECRET],
         ["CONNECTIONS_TOKEN_ENCRYPTION_KEY", process.env.CONNECTIONS_TOKEN_ENCRYPTION_KEY],

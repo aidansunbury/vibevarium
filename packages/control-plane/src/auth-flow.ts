@@ -1,14 +1,18 @@
 /**
  * Real authorization-code + PKCE login for the control-plane GUI against the
- * hosted Logto tenant. The GUI is a traditional-web application (confidential
- * client): the secret stays server-side and the browser only ever holds an
- * opaque session cookie. PKCE (S256) is still used as defense-in-depth.
+ * configured OIDC issuer (Casdoor by default; WorkOS AuthKit under
+ * `TERRARIUM_AUTH_PROVIDER=workos`). The GUI is a traditional-web application
+ * (confidential client): the secret stays server-side and the browser only ever
+ * holds an opaque session cookie. PKCE (S256) is still used as defense-in-depth.
+ *
+ * The flow is provider-agnostic — it reads the authorization/token endpoints
+ * from the issuer's discovery document. Provider-specific knobs (scope set,
+ * logout endpoint) live in the options passed by the caller.
  *
  * Env:
- *   LOGTO_ISSUER        (default https://auth.vibevarium.com/oidc)
- *   LOGTO_GUI_APP_ID    (default s9ne7qecvf20vktab5iwl)
- *   LOGTO_GUI_APP_SECRET  local: repo-root .env; production: AWS Secrets Manager
- *                         at /terrarium/prod/logto-gui-app-secret
+ *   CASDOOR_ISSUER / WORKOS_ISSUER   (the OIDC issuer; see config/index.ts)
+ *   GUI_APP_ID / GUI_APP_SECRET        local: repo-root .env; production: AWS
+ *                                      Secrets Manager at /terrarium/prod/gui-app-*
  *   CONTROL_PLANE_BASE_URL  public origin used to build the redirect_uri
  *                         (default http://127.0.0.1:<port>)
  *   PLATFORM_OIDC_AUDIENCE  RFC 8707 resource (default https://mcp.vibevarium.com)
@@ -34,6 +38,17 @@ export interface AuthFlowOptions {
   readonly baseUrl: string;
   /** RFC 8707 resource indicator for the access token. */
   readonly resource: string;
+  /**
+   * Scope set for the authorize request. Defaults to a minimal OIDC set; a
+   * provider needing extra API scopes (e.g. Logto's `member admin apps:*`) can
+   * override. Casdoor + WorkOS need only the defaults.
+   */
+  readonly scope?: string | undefined;
+  /**
+   * End-session endpoint path on the issuer for logout (default
+   * `/api/logout`, Casdoor's). Set to `/session/end` for Logto-style issuers.
+   */
+  readonly endSessionPath?: string | undefined;
 }
 
 const base64url = (buffer: Buffer) => buffer.toString("base64url");
@@ -151,7 +166,7 @@ const internalError = (where: string, cause: unknown) => {
   );
 };
 
-/** GET /auth/login — 302 to Logto /oidc/auth with PKCE. */
+/** GET /auth/login — 302 to the issuer's authorization endpoint with PKCE. */
 const loginRoute = Effect.gen(function*() {
   const guiAuth = yield* GuiAuth;
   const { options } = guiAuth;
@@ -177,16 +192,13 @@ const loginRoute = Effect.gen(function*() {
   authorize.searchParams.set("client_id", options.clientId);
   authorize.searchParams.set("redirect_uri", redirectUri);
   authorize.searchParams.set("response_type", "code");
-  authorize.searchParams.set(
-    "scope",
-    "openid profile offline_access member admin apps:read apps:write",
-  );
+  authorize.searchParams.set("scope", options.scope ?? "openid profile email offline_access");
   authorize.searchParams.set("resource", options.resource);
   authorize.searchParams.set("code_challenge", challenge);
   authorize.searchParams.set("code_challenge_method", "S256");
   authorize.searchParams.set("state", state);
-  // First-party apps auto-consent; prompt=consent makes Logto also grant
-  // offline_access (refresh token) alongside the API scopes.
+  // First-party apps auto-consent; prompt=consent ensures the provider grants
+  // offline_access (refresh token) alongside the scopes.
   authorize.searchParams.set("prompt", "consent");
 
   return HttpServerResponse.empty({
@@ -212,7 +224,7 @@ const callbackRoute = Effect.gen(function*() {
 
   const error = url.searchParams.get("error");
   if (error !== null) {
-    return fail(`Logto sign-in failed: ${error} ${url.searchParams.get("error_description") ?? ""}`);
+    return fail(`Sign-in failed: ${error} ${url.searchParams.get("error_description") ?? ""}`);
   }
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -290,13 +302,15 @@ const callbackRoute = Effect.gen(function*() {
   });
 });
 
-/** POST /auth/logout — destroy the session and redirect to Logto end-session. */
+/** POST /auth/logout — destroy the session and redirect to the issuer's end-session endpoint. */
 const logoutRoute = Effect.gen(function*() {
   const guiAuth = yield* GuiAuth;
   const request = yield* HttpServerRequest.HttpServerRequest;
   const sessionId = request.cookies[SESSION_COOKIE];
   if (sessionId !== undefined) guiAuth.destroySession(sessionId);
-  const endSession = new URL(`${guiAuth.options.issuer.replace(/\/+$/, "")}/session/end`);
+  const endSession = new URL(
+    `${guiAuth.options.issuer.replace(/\/+$/, "")}${guiAuth.options.endSessionPath ?? "/api/logout"}`,
+  );
   endSession.searchParams.set("post_logout_redirect_uri", `${guiAuth.options.baseUrl}/`);
   return HttpServerResponse.empty({
     status: 302,

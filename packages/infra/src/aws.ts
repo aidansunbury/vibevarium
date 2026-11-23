@@ -28,8 +28,8 @@ export interface AwsInfraOptions {
  * private subnets and is only reachable from the EC2 security group).
  *
  * One EC2 (Ubuntu 24.04, t3.medium) runs Docker; one RDS Postgres (db.t4g.micro)
- * hosts the `logto` database (initial) and `control_plane` (created by the
- * bootstrap script on the box — RDS only creates one initial database).
+ * hosts `postgres` (initial), `control_plane`, and `casdoor` (created by the
+ * deploy script — RDS only creates one initial database).
  *
  * The Elastic IP is allocated here; the association to the instance is done by
  * `scripts/deploy.sh` (alchemy beta.87 has no EIPAssociation resource).
@@ -108,7 +108,7 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       engine: "postgres",
       engineVersion: "16",
       dbInstanceClass,
-      dbName: "logto", // initial database; control_plane is created by bootstrap
+      dbName: "postgres", // initial database; control_plane + casdoor are created by the deploy script
       masterUsername: "postgres",
       ...(options.dbPassword === undefined
         ? { manageMasterUserPassword: true }
@@ -194,7 +194,7 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       dbEndpoint: db.endpointAddress,
       dbPort: db.endpointPort ?? 5432,
       dbMasterSecretArn: db.masterUserSecretArn,
-      logtoDatabase: "logto",
+      casdoorDatabase: "casdoor",
       controlPlaneDatabase: "control_plane",
       // URL-shaped helpers for downstream consumers (password resolved at
       // deploy time by the bootstrap script from Secrets Manager).

@@ -18,20 +18,20 @@ import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-sec
 /**
  * Secrets Manager name (relative to the prefix) → env var populated at boot.
  * Only keys the control-plane runtime actually consumes are mapped.
- * LOGTO_* app credentials are consumed by the CLI/auth flows, not this process.
  */
 const AWS_BOOT_SECRETS = {
   "github-app-id": "GITHUB_APP_ID",
   "github-app-private-key": "GITHUB_APP_PRIVATE_KEY",
   "cloudflare-api-token": "CLOUDFLARE_API_TOKEN",
-  // Logto app credentials — reserved for control-plane-side Logto management
-  // calls; harmless when unset consumers ignore them.
-  "logto-m2m-app-id": "LOGTO_M2M_APP_ID",
-  "logto-m2m-app-secret": "LOGTO_M2M_APP_SECRET",
-  "logto-gui-app-id": "LOGTO_GUI_APP_ID",
-  "logto-gui-app-secret": "LOGTO_GUI_APP_SECRET",
-  "logto-cli-app-id": "LOGTO_CLI_APP_ID",
-  "logto-mcp-resource": "LOGTO_MCP_RESOURCE",
+  // Casdoor (TERRARIUM_AUTH_PROVIDER=casdoor): the GUI app's OIDC credentials.
+  // Per-app client registration is unauthenticated DCR, so there are no M2M
+  // credentials to fetch — only the GUI client id/secret live here.
+  "gui-app-id": "GUI_APP_ID",
+  "gui-app-secret": "GUI_APP_SECRET",
+  // WorkOS AuthKit (TERRARIUM_AUTH_PROVIDER=workos): the public OAuth client +
+  // server-side API key for user/org reads and DCR administration.
+  "workos-client-id": "WORKOS_CLIENT_ID",
+  "workos-api-key": "WORKOS_API_KEY",
   "discovery-client-id": "DISCOVERY_CLIENT_ID",
   "discovery-client-secret": "DISCOVERY_CLIENT_SECRET",
   // Connections (docs/connections.md): the GitHub OAuth client for the

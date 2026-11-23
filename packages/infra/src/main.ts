@@ -68,7 +68,7 @@ export default Alchemy.Stack(
       dbEndpoint: aws.dbEndpoint,
       dbPort: aws.dbPort,
       dbMasterSecretArn: aws.dbMasterSecretArn,
-      logtoDatabase: aws.logtoDatabase,
+      casdoorDatabase: aws.casdoorDatabase,
       controlPlaneDatabase: aws.controlPlaneDatabase,
       keyPairName: aws.keyPairName,
       sshPrivateKey: aws.sshPrivateKey,
