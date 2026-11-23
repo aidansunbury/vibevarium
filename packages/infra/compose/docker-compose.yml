@@ -17,31 +17,33 @@ services:
     environment:
       DOMAIN: ${DOMAIN}
     depends_on:
-      - logto
+      - casdoor
       - control-plane
     networks:
       - terrarium
 
-  logto:
-    image: ghcr.io/logto-io/logto:latest
+  # Casdoor auth server (replaces Logto). Chosen for RFC 7591 DCR + RFC 7592
+  # registration management + CIMD — per-app OIDC clients are created with one
+  # DCR call instead of a Logto M2M Management-API adapter. See
+  # docs/redeployment-plan.md §1.
+  casdoor:
+    image: casbin/casdoor:latest
     restart: unless-stopped
     environment:
-      TRUST_PROXY_HEADER: "1"
-      ENDPOINT: https://auth.${DOMAIN}
-      ADMIN_ENDPOINT: https://auth-admin.${DOMAIN}
-      DB_URL: postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/logto?sslmode=no-verify
-    # First-run seed: idempotent — logto's cli db seed is a no-op when the
-    # schema is already at the current version. Runs on every container start;
-    # safe to leave in place.
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        echo "Waiting for Postgres…"
-        until node -e "const net=require('net');const s=net.connect(${DB_PORT:-5432},'${DB_HOST}',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))" 2>/dev/null; do sleep 2; done
-        echo "Running logto db seed (idempotent)…"
-        npm run cli db seed || true
-        echo "Starting logto…"
-        exec npm start
+      RUNNING_IN_DOCKER: "true"
+      runmode: prod
+      # XORM requires the `casdoor` database to pre-exist — the deploy script
+      # creates it on RDS alongside `control_plane` (idempotent CREATE DATABASE).
+      driverName: postgres
+      # For Postgres the db name appears in BOTH dbName and the DSN's dbname.
+      dataSourceName: user=${DB_USER} password=${DB_PASSWORD} host=${DB_HOST} port=${DB_PORT} sslmode=disable dbname=casdoor
+      dbName: casdoor
+      # Public origin (drives the OIDC issuer + discovery URLs).
+      origin: https://auth.${DOMAIN}
+      # Headless admin bootstrap: sets built-in/admin password on first run so
+      # no one has to visit the welcome page on an internet-facing server. The
+      # value is injected from AWS Secrets Manager at deploy time.
+      initAdminPassword: ${CASDOOR_ADMIN_PASSWORD}
     networks:
       - terrarium
 
@@ -58,10 +60,10 @@ services:
       # SECRETS_PROVIDER=aws below + packages/control-plane/DB-SPIKE.md.
       # (DATABASE_URL is NOT set here; boot.ts fetches it into process.env.)
       DISCOVERY_INTERVAL_MS: "30000"
-      TERRARIUM_ISSUER: https://auth.${DOMAIN}/oidc
-      LOGTO_ISSUER: https://auth.${DOMAIN}/oidc
-      LOGTO_GUI_APP_ID: s9ne7qecvf20vktab5iwl
-      # LOGTO_GUI_APP_SECRET resolves from AWS Secrets Manager (SECRETS_PROVIDER=aws).
+      # Casdoor issuer. Casdoor is a complete OIDC provider; the issuer is the
+      # origin root (discovery at auth.<domain>/.well-known/openid-configuration).
+      TERRARIUM_AUTH_PROVIDER: casdoor
+      TERRARIUM_ISSUER: https://auth.${DOMAIN}
       CONTROL_PLANE_BASE_URL: https://platform.${DOMAIN}
       PLATFORM_OIDC_AUDIENCE: https://mcp.${DOMAIN}
       GUI_DIR: /app/packages/control-plane/web/dist

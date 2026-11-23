@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { controlPlaneServer } from "./server.ts";
 import { loadBootSecrets } from "./secrets/boot.ts";
-import { PlatformConfigService } from "./config/index.ts";
 
 // SECRETS_PROVIDER=aws: resolve runtime config (GITHUB_APP_*, CLOUDFLARE_API_TOKEN,
 // LOGTO_*, DATABASE_URL) from Secrets Manager into process.env before the
@@ -26,6 +25,7 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
   Layer.provideMerge(controlPlaneServer({
     port: config.port,
     host: config.host,
+    baseUrl: config.baseUrl,
     // DATABASE_URL (prod: RDS postgres://…, injected from SM at boot) wins;
     // DATABASE_PATH remains the PGlite local-dev fallback. See DB-SPIKE.md.
     databaseUrl: config.databaseUrl,
@@ -70,7 +70,7 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
               zoneId: config.cloudflare.zoneId,
             },
           }),
-      ...(config.logto === undefined ? {} : { logto: config.logto }),
+      ...(config.casdoor === undefined ? {} : { casdoor: config.casdoor }),
     },
   })),
 );

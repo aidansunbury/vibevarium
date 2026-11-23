@@ -114,16 +114,21 @@ DB_SECRET=$(aws secretsmanager get-secret-value \
 DB_PASSWORD=$(echo "$DB_SECRET" | jq -r '.password')
 DB_USER=$(echo "$DB_SECRET" | jq -r '.username')
 
-# ── 6. Create control_plane database (idempotent) ────────────────────────
-echo ">>> Creating control_plane database on RDS (via EC2)…"
+# ── 6. Create databases (idempotent) ─────────────────────────────────────
+# RDS creates one initial database (named `postgres` via aws.ts dbName). The
+# control_plane + casdoor databases live alongside it on the same instance
+# (the one-instance-many-databases pattern).
+echo ">>> Creating control_plane + casdoor databases on RDS (via EC2)…"
 ssh $SSH_OPTS "$SSH_USER@$EIP" bash -s <<REMOTE
 set -euo pipefail
 export PGPASSWORD='$DB_PASSWORD'
-psql -h "$DB_ENDPOINT" -U "$DB_USER" -d logto -tc \
-  "SELECT 1 FROM pg_database WHERE datname='control_plane'" | grep -q 1 || \
-psql -h "$DB_ENDPOINT" -U "$DB_USER" -d logto -c \
-  "CREATE DATABASE control_plane"
-echo "control_plane database ready"
+for db in control_plane casdoor; do
+  psql -h "$DB_ENDPOINT" -U "$DB_USER" -d postgres -tc \
+    "SELECT 1 FROM pg_database WHERE datname='\$db'" | grep -q 1 || \
+  psql -h "$DB_ENDPOINT" -U "$DB_USER" -d postgres -c \
+    "CREATE DATABASE \$db"
+  echo "\$db database ready"
+done
 REMOTE
 
 # ── 7. Push compose + build context ───────────────────────────────────────
@@ -132,6 +137,25 @@ ssh $SSH_OPTS "$SSH_USER@$EIP" "mkdir -p /opt/terrarium"
 scp $SSH_OPTS -r "$INFRA_DIR/compose/" "$SSH_USER@$EIP:/opt/terrarium/"
 
 # Substitute DOMAIN in compose + Caddyfile, write .env
+# CASDOOR_ADMIN_PASSWORD is generated once, persisted to AWS Secrets Manager,
+# and reused on subsequent deploys (Casdoor only applies initAdminPassword on
+# first database creation, so this is only effective on a fresh install).
+echo ">>> Ensuring Casdoor admin password in Secrets Manager…"
+CASDOOR_ADMIN_PASSWORD=$(aws secretsmanager get-secret-value \
+  --secret-id /terrarium/prod/casdoor-admin-password \
+  --region "$AWS_REGION" --profile "$AWS_PROFILE" \
+  --query 'SecretString' --output text 2>/dev/null || true)
+if [ -z "$CASDOOR_ADMIN_PASSWORD" ]; then
+  CASDOOR_ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -d '=+/' | cut -c1-24)
+  aws secretsmanager create-secret \
+    --name /terrarium/prod/casdoor-admin-password \
+    --secret-string "$CASDOOR_ADMIN_PASSWORD" \
+    --region "$AWS_REGION" --profile "$AWS_PROFILE" >/dev/null
+  echo "  generated + stored new Casdoor admin password"
+else
+  echo "  reusing existing Casdoor admin password"
+fi
+
 ssh $SSH_OPTS "$SSH_USER@$EIP" bash -s <<REMOTE
 set -euo pipefail
 cd /opt/terrarium/compose
@@ -142,7 +166,9 @@ DB_HOST=$DB_ENDPOINT
 DB_PORT=5432
 DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
+CASDOOR_ADMIN_PASSWORD=$CASDOOR_ADMIN_PASSWORD
 ENVEOF
+chmod 600 .env
 echo "Compose .env written"
 REMOTE
 
@@ -176,7 +202,7 @@ echo ">>> docker compose up…"
 ssh $SSH_OPTS "$SSH_USER@$EIP" bash -s <<'REMOTE'
 set -euo pipefail
 cd /opt/terrarium/compose
-docker compose pull caddy logto
+docker compose pull caddy casdoor
 docker compose up -d --build
 echo "=== Services ==="
 docker compose ps

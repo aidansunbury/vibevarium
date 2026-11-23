@@ -10,7 +10,7 @@ export const apps = pgTable("registry_apps", {
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "string" }),
   lastCheckedAt: timestamp("last_checked_at", { withTimezone: true, mode: "string" }),
   lastError: text("last_error"),
-  /** The app's Logto OIDC client id (set at scaffold; deleted on teardown). */
+  /** The app's OIDC client id (set at scaffold via Casdoor DCR; deleted on teardown). */
   oidcClientId: text("oidc_client_id"),
   /** Preview lineage: set on preview apps, the parent app name. Null on prod apps. */
   previewOf: text("preview_of"),

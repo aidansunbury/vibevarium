@@ -44,7 +44,7 @@ export type DatabaseOption = typeof DatabaseOption.Type;
 export const Feature = Schema.Literals(["r2", "hyperdrive"]);
 export type Feature = typeof Feature.Type;
 
-export const AuthProvider = Schema.Literals(["logto", "workos"]);
+export const AuthProvider = Schema.Literals(["casdoor", "workos"]);
 export type AuthProvider = typeof AuthProvider.Type;
 
 /** Comma-separated env list decoded to trimmed non-empty strings, validated against `literals`. */
@@ -94,7 +94,7 @@ const flatConfig = Config.all({
     Config.withDefault([] as Array<Feature>),
   ),
   authProvider: Config.schema(AuthProvider, "TERRARIUM_AUTH_PROVIDER").pipe(
-    Config.withDefault("logto" as AuthProvider),
+    Config.withDefault("casdoor" as AuthProvider),
   ),
 
   startupTimeoutMs: Config.Int("APP_START_TIMEOUT_MS").pipe(Config.withDefault(20_000)),
@@ -103,12 +103,13 @@ const flatConfig = Config.all({
   connectionsRefreshSkewMs: Config.option(Config.Int("CONNECTIONS_REFRESH_SKEW_MS")),
 
   // Block marker keys (presence turns a whole optional block on).
-  logtoIssuer: Config.String("LOGTO_ISSUER").pipe(Config.withDefault("")),
+  casdoorIssuer: Config.String("CASDOOR_ISSUER").pipe(Config.withDefault("")),
+  casdoorOrganization: Config.String("CASDOOR_ORGANIZATION").pipe(Config.withDefault("terrarium")),
   platformAudience: Config.option(Config.NonEmptyString("PLATFORM_OIDC_AUDIENCE")),
   controlPlaneIssuer: Config.option(Config.NonEmptyString("CONTROL_PLANE_ISSUER")),
   controlPlaneAudience: Config.option(Config.NonEmptyString("CONTROL_PLANE_AUDIENCE")),
-  guiAppId: Config.option(Config.NonEmptyString("LOGTO_GUI_APP_ID")),
-  guiAppSecret: Config.option(Config.NonEmptyString("LOGTO_GUI_APP_SECRET")),
+  guiAppId: Config.option(Config.NonEmptyString("GUI_APP_ID")),
+  guiAppSecret: Config.option(Config.NonEmptyString("GUI_APP_SECRET")),
   discoveryClientId: Config.option(Config.NonEmptyString("DISCOVERY_CLIENT_ID")),
   discoveryClientSecret: Config.option(Config.NonEmptyString("DISCOVERY_CLIENT_SECRET")),
   discoveryScope: Config.String("DISCOVERY_SCOPE").pipe(Config.withDefault("member")),
@@ -132,12 +133,6 @@ const flatConfig = Config.all({
   githubAppPrivateKey: Config.option(Config.NonEmptyString("GITHUB_APP_PRIVATE_KEY")),
   githubAppInstallationId: Config.option(Config.Int("GITHUB_APP_INSTALLATION_ID")),
   githubOrg: Config.String("GITHUB_ORG").pipe(Config.withDefault("terrarium-sandbox")),
-
-  logtoM2mAppId: Config.option(Config.NonEmptyString("LOGTO_M2M_APP_ID")),
-  logtoM2mAppSecret: Config.option(Config.NonEmptyString("LOGTO_M2M_APP_SECRET")),
-  logtoManagementResource: Config.String("LOGTO_MANAGEMENT_RESOURCE").pipe(
-    Config.withDefault("https://default.logto.app/api"),
-  ),
 
   workosClientId: Config.option(Config.NonEmptyString("WORKOS_CLIENT_ID")),
   workosApiKey: Config.option(Config.NonEmptyString("WORKOS_API_KEY")),
@@ -223,12 +218,10 @@ export interface PlatformConfig {
   readonly appsRoot: string | undefined;
   readonly startupTimeoutMs: number;
 
-  readonly logto:
+  readonly casdoor:
     | {
         readonly issuer: string;
-        readonly clientId: string;
-        readonly clientSecret: string;
-        readonly managementResource: string;
+        readonly organization: string;
         readonly platformAudience: string;
       }
     | undefined;
@@ -246,7 +239,9 @@ export interface PlatformConfig {
 }
 
 const normalizeIssuer = (issuer: string) => issuer.replace(/\/+$/, "");
-const DEFAULT_ISSUER = "https://auth.vibevarium.com/oidc";
+// Casdoor's issuer is the origin root (no path): discovery at
+// <issuer>/.well-known/openid-configuration, DCR at <issuer>/api/oauth/register.
+const DEFAULT_ISSUER = "https://auth.vibevarium.com";
 
 const hasAwsCredentials = () =>
   process.env.AWS_ACCESS_KEY_ID !== undefined ||
@@ -282,20 +277,44 @@ const get = <A>(option: Option.Option<A>): A | undefined => Option.getOrUndefine
 export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
   const domain = flat.domain;
   const baseUrl = flat.baseUrl !== "" ? normalizeIssuer(flat.baseUrl) : `http://127.0.0.1:${flat.port}`;
-  const issuer = normalizeIssuer(flat.logtoIssuer !== "" ? flat.logtoIssuer : DEFAULT_ISSUER);
+  const authProvider = flat.authProvider;
+  // The issuer every auth flow (GUI, discovery M2M, scaffold) derives from.
+  // WorkOS: the AuthKit domain (https://<subdomain>.authkit.app, custom domain
+  // later). Casdoor: CASDOOR_ISSUER / the auth origin root default.
+  const workosIssuer = normalizeIssuer(flat.workosIssuer);
+  const issuer =
+    authProvider === "workos"
+      ? workosIssuer
+      : normalizeIssuer(flat.casdoorIssuer !== "" ? flat.casdoorIssuer : DEFAULT_ISSUER);
   const platformAudience = get(flat.platformAudience) ?? `https://mcp.${domain}`;
 
   const guiAppSecret = get(flat.guiAppSecret);
+  const guiAppId = get(flat.guiAppId);
+  // GUI client id: Casdoor uses the GUI_APP_ID of the app registered in the
+  // console (or via DCR). WorkOS AuthKit is a public client — the env's client
+  // id, no secret needed.
+  const guiClientId =
+    authProvider === "workos" ? (guiAppId ?? get(flat.workosClientId) ?? "") : (guiAppId ?? "");
   const guiAuth =
-    guiAppSecret === undefined
-      ? undefined
-      : {
-          issuer,
-          clientId: get(flat.guiAppId) ?? "s9ne7qecvf20vktab5iwl",
-          clientSecret: guiAppSecret,
-          baseUrl,
-          resource: platformAudience,
-        };
+    authProvider === "workos"
+      ? guiClientId === ""
+        ? undefined
+        : {
+            issuer,
+            clientId: guiClientId,
+            clientSecret: guiAppSecret ?? "",
+            baseUrl,
+            resource: platformAudience,
+          }
+      : guiAppSecret === undefined
+        ? undefined
+        : {
+            issuer,
+            clientId: guiClientId,
+            clientSecret: guiAppSecret,
+            baseUrl,
+            resource: platformAudience,
+          };
 
   const controlPlaneIssuer = get(flat.controlPlaneIssuer);
   const oidc =
@@ -358,24 +377,25 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
           org: flat.githubOrg,
         };
 
-  const logtoM2mAppId = get(flat.logtoM2mAppId);
-  const logto =
-    logtoM2mAppId === undefined
-      ? undefined
-      : {
+  // Casdoor per-app OIDC client registration uses Dynamic Client Registration
+  // (RFC 7591), which is unauthenticated — the block needs only the issuer and
+  // the organization dynamically-registered clients land in. Presence of the
+  // issuer turns the block on.
+  const casdoor =
+    authProvider === "casdoor"
+      ? {
           issuer,
-          clientId: logtoM2mAppId,
-          clientSecret: get(flat.logtoM2mAppSecret) ?? "",
-          managementResource: flat.logtoManagementResource,
+          organization: flat.casdoorOrganization,
           platformAudience,
-        };
+        }
+      : undefined;
 
   const workosClientId = get(flat.workosClientId);
   const workos =
     workosClientId === undefined
       ? undefined
       : {
-          issuer: normalizeIssuer(flat.workosIssuer),
+          issuer: workosIssuer,
           clientId: workosClientId,
           apiKey: Redacted.make(get(flat.workosApiKey) ?? ""),
         };
@@ -406,7 +426,7 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
     github,
     appsRoot: get(flat.appsRoot),
     startupTimeoutMs: flat.startupTimeoutMs,
-    logto,
+    casdoor,
     workos,
     appSecrets: parseAppSecrets(),
     connectionsRefreshSkewMs: get(flat.connectionsRefreshSkewMs),
@@ -530,11 +550,10 @@ export const validateCapabilities = (
       hyperdriveDb.reason,
     );
 
-    // Auth-server providers.
-    const logtoMissing: Array<string> = [];
-    if (config.logto === undefined) logtoMissing.push("LOGTO_M2M_APP_ID");
-    else if (config.logto.clientSecret === "") logtoMissing.push("LOGTO_M2M_APP_SECRET");
-    const logtoCap = status(config.authProvider === "logto", logtoMissing, "Logto M2M credentials incomplete");
+    // Auth-server providers. Casdoor registration is unauthenticated DCR — it
+    // is always satisfiable once the issuer is configured (which it always is),
+    // so there are no missing credentials to report.
+    const casdoorCap = status(config.authProvider === "casdoor", [], "Casdoor issuer not configured");
 
     const workosMissing: Array<string> = [];
     if (config.workos === undefined) workosMissing.push("WORKOS_CLIENT_ID");
@@ -545,7 +564,7 @@ export const validateCapabilities = (
       deployTargets: { cloudflare, aws },
       database: { "cf-d1": d1, "planetscale-hyperdrive": hyperdriveDb },
       features: { r2, hyperdrive },
-      authProviders: { logto: logtoCap, workos: workosCap },
+      authProviders: { casdoor: casdoorCap, workos: workosCap },
     };
   });
 
