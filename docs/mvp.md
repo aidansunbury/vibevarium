@@ -90,3 +90,14 @@ with proof outputs and findings.
 Known spike shortcuts (deliberate): PGlite instead of docker Postgres
 (daemon unavailable); wrapper-not-fork for generated apps; static
 `DISCOVERY_TOKEN` instead of per-app M2M; no React frontend yet.
+
+## Follow-ups discovered going live (2026-11-23)
+
+- **Scaffold must register per-app Logto clients** at deploy time: create the
+  app's Traditional web client (redirect `https://<name>.<domain>/auth/callback`),
+  store the secret into the app's worker env (`TERRARIUM_CLIENT_ID/SECRET`),
+  and delete the client on app DELETE. (Manual for tickets/notes; the scaffold
+  contract is documented in template-cloudflare/SPIKE.md.)
+- Apps accept **own + platform audience** (Option B′, implemented).
+- Gateway discovery uses an M2M client credential (implemented).
+- Path exemptions for public routes (docs/path-exemptions.md, planned).
