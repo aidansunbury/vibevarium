@@ -19,6 +19,8 @@ import { AppProxy } from "./gateway/proxy.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
 import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
+import { Connections, GITHUB_PROVIDER } from "./connections/index.ts";
+import { connectionRoutes } from "./connections/routes.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
 import { SecretsProvider } from "./integrations/secrets.ts";
 import { Integrations } from "./integrations/service.ts";
@@ -53,6 +55,8 @@ export interface ControlPlaneOptions {
   readonly oidc?: { readonly issuer: string; readonly audience: string } | undefined;
   /** Pre-M2M app credentials for the integration proxy (app name → shared secret). */
   readonly appSecrets?: Readonly<Record<string, string>> | undefined;
+  /** Connections provider-token refresh skew (ms). Overrides the 60s default; demos set it low to prove rotation. */
+  readonly connectionsRefreshSkewMs?: number | undefined;
   /** Built GUI directory (vite output) served at /. Unset disables the GUI. */
   readonly guiDir?: string | undefined;
   /**
@@ -226,6 +230,28 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const authEnabled = options.oidc !== undefined || options.guiAuth !== undefined;
   const guiAuthEnabled = options.guiAuth !== undefined;
 
+  // Connections (docs/connections.md): one proxy mechanism, two credential
+  // sources. Provider OAuth client secrets resolve through the same
+  // SecretsProvider seam as integration tokens. The GitHub provider registers
+  // when GITHUB_OAUTH_CLIENT_ID/_SECRET are resolvable (env locally, SM prod).
+  const connectionsBaseUrl = options.guiAuth?.baseUrl ?? `http://127.0.0.1:${options.port ?? 4100}`;
+  const secretsLayer = Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv));
+  const connectionsLayer = Connections.layer({ baseUrl: connectionsBaseUrl, refreshSkewMs: options.connectionsRefreshSkewMs }).pipe(
+    Layer.provide(databaseLayer),
+    Layer.provide(secretsLayer),
+  );
+  const registerManifestProviders = Layer.effectDiscard(Effect.gen(function*() {
+    const connections = yield* Connections;
+    const secrets = yield* SecretsProvider;
+    const githubConfigured = Option.isSome(yield* secrets.resolve(GITHUB_PROVIDER.clientIdRef)) &&
+      Option.isSome(yield* secrets.resolve(GITHUB_PROVIDER.clientSecretRef));
+    if (githubConfigured) {
+      yield* connections.registerProvider(GITHUB_PROVIDER).pipe(Effect.ignore);
+    } else {
+      yield* Effect.logInfo("[connections] GitHub provider not registered (GITHUB_OAUTH_CLIENT_ID/SECRET unset) — see CONNECTIONS-SPIKE.md");
+    }
+  })).pipe(Layer.provide(connectionsLayer), Layer.provide(secretsLayer));
+
   // When the GUI login flow is off, provide a stub so route types stay uniform.
   const guiAuthLayer = options.guiAuth === undefined
     ? Layer.succeed(GuiAuth, GuiAuth.of({
@@ -248,9 +274,21 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       appSecrets: options.appSecrets ?? {},
     }).pipe(
       Layer.provide(Integrations.layer),
+      // The unified /proxy/:target/* dispatches to provider connections when
+      // the target is a registered provider.
+      Layer.provide(connectionsLayer),
       // SECRETS_PROVIDER=aws|env (default env) — see SECRETS-SPIKE.md
       Layer.provide(Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv))),
     ),
+    connectionRoutes({
+      authEnabled,
+      guiAuthEnabled,
+      appSecrets: options.appSecrets ?? {},
+    }).pipe(
+      Layer.provide(connectionsLayer),
+      Layer.provide(secretsLayer),
+    ),
+    registerManifestProviders,
     scheduledDiscovery(options.discoveryIntervalMs ?? 30_000),
   ).pipe(
     Layer.provide(McpServer.layerHttp({
@@ -290,6 +328,9 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         ["LOGTO_GUI_APP_SECRET", process.env.LOGTO_GUI_APP_SECRET],
         ["LOGTO_CLI_APP_ID", process.env.LOGTO_CLI_APP_ID],
         ["LOGTO_MCP_RESOURCE", process.env.LOGTO_MCP_RESOURCE],
+        ["GITHUB_OAUTH_CLIENT_ID", process.env.GITHUB_OAUTH_CLIENT_ID],
+        ["GITHUB_OAUTH_CLIENT_SECRET", process.env.GITHUB_OAUTH_CLIENT_SECRET],
+        ["CONNECTIONS_TOKEN_ENCRYPTION_KEY", process.env.CONNECTIONS_TOKEN_ENCRYPTION_KEY],
       ] as const;
       const fromSecrets = new Set(bootSecretsReport.resolved);
       const config: Record<string, { set: boolean; source: string }> = {};
@@ -333,12 +374,22 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   ).pipe(
     Layer.provide(authLayer),
     Layer.provide(guiAuthLayer),
+    // Connections (with its Database/SecretsProvider inputs) stays in the
+    // built context so the unified proxy dispatch and demos can reach it.
+    Layer.provideMerge(connectionsLayer),
+    Layer.provideMerge(secretsLayer),
     Layer.provideMerge(NodeHttpServer.layer(createServer, {
       port: options.port ?? 0,
       host: options.host ?? "127.0.0.1",
     })),
   ) as Layer.Layer<
-    HttpServer.HttpServer,
+    | HttpServer.HttpServer
+    // provideMerge keeps Connections (and the Database/SecretsProvider services
+    // it consumes) in the built context so the unified proxy dispatch and demo
+    // scripts can reach them directly.
+    | Connections
+    | Database
+    | SecretsProvider,
     import("@terrarium/auth").DiscoveryError | import("effect/http/HttpServerError").ServeError,
     never
   >;

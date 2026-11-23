@@ -34,6 +34,11 @@ const AWS_BOOT_SECRETS = {
   "logto-mcp-resource": "LOGTO_MCP_RESOURCE",
   "discovery-client-id": "DISCOVERY_CLIENT_ID",
   "discovery-client-secret": "DISCOVERY_CLIENT_SECRET",
+  // Connections (docs/connections.md): the GitHub OAuth client for the
+  // meta-OAuth provider + the AES-256-GCM key for tokens at rest.
+  "github-oauth-client-id": "GITHUB_OAUTH_CLIENT_ID",
+  "github-oauth-client-secret": "GITHUB_OAUTH_CLIENT_SECRET",
+  "connections-token-encryption-key": "CONNECTIONS_TOKEN_ENCRYPTION_KEY",
 } as const;
 
 const hasAwsCredentials = () =>

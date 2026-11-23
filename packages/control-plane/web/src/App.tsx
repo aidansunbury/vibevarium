@@ -4,6 +4,7 @@ import { api, login, logout, type Actor, type AppRow } from "./api";
 import { AppDetail } from "./AppDetail";
 import { ScaffoldForm } from "./ScaffoldForm";
 import { IntegrationsPanel } from "./IntegrationsPanel";
+import { ConnectionsPanel } from "./ConnectionsPanel";
 import { Badge } from "@terrarium/ui/components/badge";
 import { Button } from "@terrarium/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
@@ -197,6 +198,7 @@ export const App = () => {
             </Dialog>
 
             <ScaffoldForm onScaffolded={() => setRefreshTick((n) => n + 1)} />
+            <ConnectionsPanel />
             <IntegrationsPanel />
           </>
         )}

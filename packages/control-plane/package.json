@@ -15,6 +15,7 @@
     "demo": "node --experimental-strip-types scripts/demo.ts",
     "demo:auth": "node --experimental-strip-types scripts/logto-auth-demo.ts",
     "proxy:demo": "node --experimental-strip-types scripts/proxy-demo.ts",
+    "connections:demo": "node --experimental-strip-types scripts/connections-demo.ts",
     "scaffold:demo": "tsx scripts/scaffold-demo.ts",
     "real:demo": "tsx scripts/real-deploy-demo.ts",
     "github:demo": "tsx scripts/github-provider-proof.ts",

@@ -3,6 +3,8 @@ import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as Option from "effect/Option";
+import { Connections } from "../connections/service.ts";
 import { IntegrationError, Integrations } from "./service.ts";
 
 export interface IntegrationRouteOptions {
@@ -175,14 +177,20 @@ export const integrationRoutes = (options: IntegrationRouteOptions) =>
         });
       })));
 
-      // ---- The proxy itself ----
+      // ---- The one proxy: /proxy/:target/* ----
+      // A target is either a provider CONNECTION (per-user OAuth credential,
+      // checked against the user's grant) or a platform INTEGRATION
+      // (company-shared credential, checked against the app grant) — the name
+      // registered in oauth_providers wins, then integrations. One mechanism,
+      // one audit table (docs/connections.md).
+      const connections = yield* Effect.serviceOption(Connections);
       yield* router.add("*", "/proxy/*", Effect.gen(function*() {
         const request = yield* HttpServerRequest;
         const url = new URL(request.url, "http://cp.local");
         const match = url.pathname.match(/^\/proxy\/([^/]+)(?:\/(.*))?$/);
-        const integration = match?.[1];
-        if (match === null || integration === undefined) {
-          return yield* json({ error: "not_found", error_description: "Expected /proxy/:integration/*" }, 404);
+        const target = match?.[1];
+        if (match === null || target === undefined) {
+          return yield* json({ error: "not_found", error_description: "Expected /proxy/:target/*" }, 404);
         }
         const caller = yield* resolveCaller(options).pipe(
           Effect.catch((response: Response) => Effect.succeed({ response })),
@@ -199,13 +207,32 @@ export const integrationRoutes = (options: IntegrationRouteOptions) =>
         const app = caller.kind === "app"
           ? caller.app
           : (typeof onBehalfOf === "string" && onBehalfOf.length > 0 ? onBehalfOf : "user");
+        const decodedTarget = decodeURIComponent(target);
+        const path = match[2] ?? "";
+        if (Option.isSome(connections) && (yield* connections.value.isProvider(decodedTarget))) {
+          const result = yield* connections.value.proxy({
+            appId: app,
+            callerKind: caller.kind,
+            caller: caller.kind === "user" ? caller.actor.sub : caller.app,
+            provider: decodedTarget,
+            path,
+            query: url.search,
+            method: request.method,
+            headers,
+            body: new Uint8Array(body),
+          });
+          return HttpServerResponse.uint8Array(result.body, {
+            status: result.status,
+            headers: result.headers,
+          });
+        }
         const result = yield* integrations.proxy({
           callerKind: caller.kind,
           caller: caller.kind === "user" ? caller.actor.sub : caller.app,
           app,
-          integration: decodeURIComponent(integration),
+          integration: decodedTarget,
           method: request.method,
-          path: (match[2] ?? "") + url.search,
+          path: path + url.search,
           headers,
           body: new Uint8Array(body),
         });

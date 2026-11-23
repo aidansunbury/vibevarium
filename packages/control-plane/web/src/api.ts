@@ -49,6 +49,34 @@ export interface AuditRow {
   durationMs: string;
 }
 
+export interface ProviderView {
+  name: string;
+  displayName: string;
+  defaultScopes: Array<string>;
+  configured: boolean;
+}
+
+export interface ConnectionView {
+  connection_id: string;
+  user_sub: string;
+  provider: string;
+  provider_account: { sub: string; label: string };
+  granted_scopes: Array<string>;
+  expires_at: string | null;
+  status: string;
+}
+
+export interface GrantView {
+  grant_id: string;
+  app_id: string;
+  provider: string;
+  connection_id: string | null;
+  owner_sub: string | null;
+  scopes: Array<string>;
+  status: string;
+  created_at: string;
+}
+
 export class ApiError extends Error {
   constructor(readonly status: number, body: unknown) {
     super(typeof body === "object" && body !== null && "error_description" in body

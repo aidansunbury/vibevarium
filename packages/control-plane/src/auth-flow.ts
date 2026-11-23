@@ -57,6 +57,8 @@ interface PendingLogin {
   readonly verifier: string;
   readonly state: string;
   readonly createdAt: number;
+  /** Optional local path to return to after login (default "/"). */
+  readonly returnTo?: string | undefined;
 }
 
 export class GuiAuth extends Context.Service<GuiAuth, {
@@ -106,12 +108,12 @@ export class GuiAuth extends Context.Service<GuiAuth, {
           const id = unsign(signedId);
           if (id !== undefined) sessions.delete(id);
         },
-        rememberPending: ({ id, verifier, state, createdAt }) => {
+        rememberPending: ({ id, verifier, state, createdAt, returnTo }) => {
           // GC stale pending logins lazily.
           for (const [key, value] of pending) {
             if (createdAt - value.createdAt > 10 * 60 * 1000) pending.delete(key);
           }
-          pending.set(id, { verifier, state, createdAt });
+          pending.set(id, { verifier, state, createdAt, ...(returnTo === undefined ? {} : { returnTo }) });
         },
         takePending: (id) => {
           const value = pending.get(id);
@@ -153,6 +155,13 @@ const internalError = (where: string, cause: unknown) => {
 const loginRoute = Effect.gen(function*() {
   const guiAuth = yield* GuiAuth;
   const { options } = guiAuth;
+  const request = yield* HttpServerRequest.HttpServerRequest;
+  // Optional local return path (e.g. a /grants/consent?grant=… URL the login
+  // interrupted). Local paths only — never an open redirect.
+  const returnToRaw = new URL(request.url, options.baseUrl).searchParams.get("returnTo");
+  const returnTo = returnToRaw !== null && returnToRaw.startsWith("/") && !returnToRaw.startsWith("//")
+    ? returnToRaw
+    : undefined;
   const discovery = yield* Effect.tryPromise({
     try: () => fetchDiscovery(options.issuer),
     catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
@@ -161,7 +170,7 @@ const loginRoute = Effect.gen(function*() {
   const { verifier, challenge } = pkcePair();
   const state = base64url(randomBytes(16));
   const pendingId = base64url(randomBytes(16));
-  guiAuth.rememberPending({ id: pendingId, verifier, state, createdAt: Date.now() });
+  guiAuth.rememberPending({ id: pendingId, verifier, state, createdAt: Date.now(), ...(returnTo === undefined ? {} : { returnTo }) });
 
   const redirectUri = `${options.baseUrl}/auth/callback`;
   const authorize = new URL(discovery.authorization_endpoint);
@@ -275,7 +284,7 @@ const callbackRoute = Effect.gen(function*() {
   return HttpServerResponse.empty({
     status: 302,
     headers: {
-      location: "/",
+      location: pending.returnTo ?? "/",
       "set-cookie": `${SESSION_COOKIE}=${sessionId}; ${cookieOptions}; Max-Age=86400`,
     },
   });
