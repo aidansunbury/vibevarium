@@ -1,6 +1,19 @@
 # Previews + App ACLs — working doc
 
-Two workstreams. **Previews** is being built now (Cloudflare-only first pass).
+Two workstreams, both **built and verified in prod** (2026-11-23).
+
+**Prod e2e verified:** preview `tickets-pr-3` provisioned live via
+`POST /apps/tickets/previews {pr:3}` → job stepper (repo → OIDC → deploy →
+router → discover all `done`) → live at `https://tickets-pr-3.vibevarium.com`
+(health 200, auth/status on), registered with preview lineage, listed in
+`GET /previews?app=tickets`, history in `GET /apps/tickets-pr-3/history`.
+The 7 `control_*` MCP tools are live on the prod meta-MCP; ACL routes respond.
+
+**Real prod constraints hit (now documented):** the Cloudflare account has a
+**10-database D1 limit** — previews must clean up stale `*-data` dbs or they
+exhaust it. And the capability validator now counts boot-injected env
+credentials in aws mode (was falsely reporting Cloudflare unbacked in prod).
+
 **ACLs** Part 2 is built: the control plane owns the policy (store, service,
 gated routes, GUI Access tab); enforcement at the app/router/gateway remains
 the open decision.
