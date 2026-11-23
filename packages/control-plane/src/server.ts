@@ -178,7 +178,7 @@ const mintClientCredentialsToken = (m2m: NonNullable<ControlPlaneOptions["discov
   Effect.gen(function*() {
     const response = yield* Effect.tryPromise({
       try: () =>
-        fetch(`${m2m.issuer}/oidc/token`, {
+        fetch(`${m2m.issuer}/token`, {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
