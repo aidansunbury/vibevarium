@@ -190,8 +190,13 @@ const mintClientCredentialsToken = (m2m: NonNullable<ControlPlaneOptions["discov
           }),
         }).then((r) => r.json() as Promise<{ access_token?: string }>),
       catch: () => new Error("discovery token mint failed"),
-    }).pipe(Effect.orElseSucceed(() => ({} as { access_token?: string })));
-    return response.access_token ?? "";
+    }).pipe(
+      Effect.tapError((e) => Effect.logWarning("discovery token mint failed", e)),
+      Effect.orElseSucceed(() => ({} as { access_token?: string })),
+    );
+    const token = response.access_token ?? "";
+    if (token === "") yield* Effect.logWarning("discovery token mint returned no access_token");
+    return token;
   }).pipe(Effect.orElseSucceed(() => ""));
 
 export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
