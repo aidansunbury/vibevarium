@@ -2,3 +2,8 @@
  * @terrarium/ui; a fork re-themes by overriding the CSS variables after this
  * import (see packages/ui/README.md). */
 @import "@terrarium/ui/styles.css";
+
+/* Tailwind v4 only scans this package's tree by default — the shadcn class
+ * names live in @terrarium/ui components, so scan that package too or the
+ * built CSS misses every component class (the unstyled-page bug). */
+@source "../../../ui/src";
