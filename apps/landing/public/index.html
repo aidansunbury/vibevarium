@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>vibevarium — your enclosed little garden of apps, grown not built</title>
-<meta name="description" content="vibevarium grows vibe-coded apps like plants in glass: every app gets its own repo, its own deploy, its own auth — raised from one control plane." />
+<title>vibevarium — the self-hostable home for your internal apps</title>
+<meta name="description" content="vibevarium is open-source infrastructure you run yourself: every internal app gets its own repo, deploy, and auth, grown from one control plane. Not a hosted product — your garden, your cloud, your rules." />
 <meta property="og:title" content="vibevarium" />
 <meta property="og:description" content="your enclosed little garden of apps — grown, not built." />
 <meta property="og:type" content="website" />
@@ -281,15 +281,17 @@
       </svg>
       <p class="specimen">vibevarium · n. — an enclosed little garden of apps</p>
       <h1>grown, <span class="bracket">&lt;/&gt;</span> not built.</h1>
-      <p class="tagline">every vibe-coded app is a self-contained living world.</p>
+      <p class="tagline">the self-hostable home for your internal apps.</p>
       <p class="lede">
-        vibevarium raises each app like a plant in glass: its own repo, its own
-        deploy, its own auth — all cultivated from one control plane. Fork it,
-        point it at your Cloudflare + GitHub, and grow your own garden.
+        vibevarium is <strong>open-source infrastructure you run yourself</strong> —
+        not a hosted product. Every internal app gets its own repo, its own
+        deploy, its own auth, all raised from one control plane in <em>your</em>
+        cloud. Fork it, point it at your AWS + Cloudflare + GitHub, and grow
+        your own garden. Your jars, your gardener, your rules.
       </p>
       <div class="cta-row">
         <a class="btn primary" href="https://github.com/aidansunbury/vibevarium">fork it on github</a>
-        <a class="btn ghost" href="https://github.com/aidansunbury/vibevarium#readme">read the field guide</a>
+        <a class="btn ghost" href="https://github.com/aidansunbury/vibevarium/blob/main/docs/setup.md">self-hosting guide</a>
       </div>
     </div>
   </section>
@@ -406,18 +408,60 @@
 
   <div class="wrap"><hr class="botanical" /></div>
 
+  <!-- ── self-hosting ─────────────────────────────────────────────── -->
+  <section id="self-host">
+    <div class="wrap">
+      <p class="plate-label">5 — your garden, your ground</p>
+      <div class="anatomy">
+        <div class="card">
+          <p class="taxon">not a service</p>
+          <h3>No signup, no SaaS</h3>
+          <p>There is no vibevarium cloud and no account to create. The repo <em>is</em> the product — you fork it, deploy it, and own every byte of state.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">your cloud</p>
+          <h3>Bring your own infra</h3>
+          <p>The control plane runs on your AWS (EC2 + RDS, one <code>alchemy deploy</code>); apps deploy to your Cloudflare; repos live in your GitHub org. Nothing phones home.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">your identity</p>
+          <h3>Swappable auth</h3>
+          <p>OIDC-only boundary — point the issuer at WorkOS, Casdoor, Keycloak, or your existing SSO. No vendor SDK anywhere; swapping providers is config, not code.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">your data</p>
+          <h3>Secrets stay home</h3>
+          <p>OAuth tokens and API keys live in your AWS Secrets Manager, encrypted at rest. The control plane reads them at boot; they never leave your account.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">your domain</p>
+          <h3>One knob re-domains</h3>
+          <p><code>TERRARIUM_DOMAIN=yourcompany.com</code> and everything — auth, control plane, every app hostname — re-roots to your domain.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">your rules</p>
+          <h3>Audit everything</h3>
+          <p>Every proxied API call writes an audit row in your database. Grants revoke in one place and the next call fails — because the control plane is yours.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr class="botanical" /></div>
+
   <!-- ── closing ──────────────────────────────────────────────────── -->
   <section class="hero" style="padding-block: 3.5rem;">
     <div class="wrap">
       <h1 style="font-size: clamp(2rem, 5vw, 3.25rem);">grow your own.</h1>
       <p class="lede" style="max-width: 40rem;">
-        vibevarium is open source. Fork the repo, bring your own Cloudflare +
-        GitHub, and raise a garden of your own — jars, gardener, and all.
-        The greenhouse you're standing in is one instance; make yours.
+        There is no vibevarium cloud to sign up for — the software is the
+        product. Fork the repo, bring your own AWS + Cloudflare + GitHub, and
+        raise a garden of your own. The greenhouse you're standing in is one
+        self-hosted instance; the setup guide gets you from zero to yours.
       </p>
       <div class="cta-row">
-        <a class="btn primary" href="https://github.com/aidansunbury/vibevarium/fork">fork the repo</a>
-        <a class="btn ghost" href="https://github.com/aidansunbury/vibevarium">star on github</a>
+        <a class="btn primary" href="https://github.com/aidansunbury/vibevarium/blob/main/docs/setup.md">read the setup guide</a>
+        <a class="btn ghost" href="https://github.com/aidansunbury/vibevarium/fork">fork the repo</a>
       </div>
     </div>
   </section>
