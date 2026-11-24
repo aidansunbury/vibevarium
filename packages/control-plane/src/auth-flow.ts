@@ -349,7 +349,10 @@ const meRoute = Effect.gen(function*() {
   const sessionId = request.cookies[SESSION_COOKIE];
   const session = sessionId === undefined ? undefined : guiAuth.getSession(sessionId);
   if (session === undefined) {
-    return HttpServerResponse.jsonUnsafe({ actor: null, auth: "on" }, { status: 401 });
+    // 200, not 401: "not logged in" is a successful answer, not an error. A
+    // 401 makes the Effect HttpApiClient throw a transport error instead of
+    // decoding the not-logged-in state.
+    return HttpServerResponse.jsonUnsafe({ actor: null, auth: "on" });
   }
   return yield* HttpServerResponse.json({
     actor: { sub: session.sub, name: session.name },
