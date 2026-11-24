@@ -1,0 +1,25 @@
+{
+  "name": "@vibevarium/video",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Promo out/video.mp4",
+    "build": "remotion render Promo out/video.mp4",
+    "render:gif": "remotion render Promo out/video.gif --fps=15 --width=960",
+    "compositions": "remotion compositions"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.546",
+    "@remotion/google-fonts": "4.0.546",
+    "remotion": "4.0.546"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/web": "^0.0.166",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "typescript": "^7.0.2"
+  }
+}
