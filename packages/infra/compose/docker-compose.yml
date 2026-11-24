@@ -71,7 +71,7 @@ services:
       # Secrets (github key, cf token) resolve from AWS Secrets Manager.
       GIT_PROVIDER: github
       GITHUB_APP_INSTALLATION_ID: "184285119"
-      GITHUB_ORG: vibevarium-sandbox
+      GITHUB_ORG: terrarium-sandbox
       CLOUDFLARE_ACCOUNT_ID: 7bbaa8f97d6ababf1a5e29eb79491ce3
       CLOUDFLARE_WORKERS_SUBDOMAIN: modal-opencode-test
       CLOUDFLARE_ZONE_ID: c6ae3b555628f3c6c0fb3883c479dcc4

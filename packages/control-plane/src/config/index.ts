@@ -132,7 +132,7 @@ const flatConfig = Config.all({
   githubAppPrivateKeyPath: Config.option(Config.NonEmptyString("GITHUB_APP_PRIVATE_KEY_PATH")),
   githubAppPrivateKey: Config.option(Config.NonEmptyString("GITHUB_APP_PRIVATE_KEY")),
   githubAppInstallationId: Config.option(Config.Int("GITHUB_APP_INSTALLATION_ID")),
-  githubOrg: Config.String("GITHUB_ORG").pipe(Config.withDefault("vibevarium-sandbox")),
+  githubOrg: Config.String("GITHUB_ORG").pipe(Config.withDefault("terrarium-sandbox")),
 
   workosClientId: Config.option(Config.NonEmptyString("WORKOS_CLIENT_ID")),
   workosApiKey: Config.option(Config.NonEmptyString("WORKOS_API_KEY")),
