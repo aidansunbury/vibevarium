@@ -503,7 +503,10 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         HttpMiddleware.cors({
           allowedOrigins: [guiOrigin],
           allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-          allowedHeaders: ["content-type", "authorization", "mcp-session-id"],
+          // traceparent/tracestate/baggage are added by browser tracing (W3C
+          // trace context) on the app's fetches; the preflight rejects them if
+          // not allow-listed.
+          allowedHeaders: ["content-type", "authorization", "mcp-session-id", "traceparent", "tracestate", "baggage"],
           credentials: true,
         })(app),
       );
