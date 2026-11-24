@@ -25,6 +25,13 @@ RUN pnpm install --frozen-lockfile
 # Copy all source (control-plane imports from sibling packages)
 COPY packages/ packages/
 
+# Build the control-plane web GUI into packages/control-plane/web/dist. The web
+# sub-package has its own lockfile (nested standalone install), so install it
+# with --ignore-workspace, then build. The server serves GUI_DIR=web/dist.
+RUN cd packages/control-plane/web \
+  && pnpm install --ignore-workspace \
+  && pnpm run build
+
 WORKDIR /app/packages/control-plane
 
 ENV NODE_ENV=production
