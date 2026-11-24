@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>vibevarium — your enclosed little garden of apps, grown not built</title>
+<meta name="description" content="vibevarium grows vibe-coded apps like plants in glass: every app gets its own repo, its own deploy, its own auth — raised from one control plane." />
+<meta property="og:title" content="vibevarium" />
+<meta property="og:description" content="your enclosed little garden of apps — grown, not built." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="https://vibevarium.com/logo.svg" />
+<link rel="icon" type="image/svg+xml" href="/logo.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Source+Sans+3:ital,wght@0,300..700;1,300..700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  /*
+   * vibevarium botanical-print design system (PR #2) — tokens inlined so the
+   * landing page is a single self-contained file. Keep in sync with
+   * packages/ui/src/styles/globals.css.
+   */
+  :root {
+    --radius: 0rem;
+    --brand: oklch(0.42 0.11 152);
+    --brand-foreground: oklch(0.98 0.008 110);
+    --brand-secondary: oklch(0.5 0.1 60);
+    --brand-bracket: #c88439;
+
+    --background: oklch(0.975 0.008 110);
+    --foreground: oklch(0.27 0.03 130);
+    --card: oklch(0.99 0.006 110);
+    --muted-foreground: oklch(0.44 0.025 125);
+    --border: oklch(0.27 0.03 130 / 52%);
+    --hairline: oklch(0.27 0.03 130 / 24%);
+
+    --grain: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><filter id="p"><feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="3"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.07"/></feComponentTransfer></filter><rect width="180" height="180" filter="url(%23p)"/></svg>');
+
+    --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .dark {
+    --brand: oklch(0.8 0.12 155);
+    --brand-foreground: oklch(0.2 0.03 160);
+    --brand-secondary: oklch(0.78 0.1 90);
+    --brand-bracket: #d89a54;
+
+    --background: oklch(0.235 0.006 240);
+    --foreground: oklch(0.94 0.008 140);
+    --card: oklch(0.28 0.008 240);
+    --muted-foreground: oklch(0.76 0.01 180);
+    --border: oklch(0.94 0.008 140 / 50%);
+    --hairline: oklch(0.94 0.008 140 / 20%);
+  }
+
+  * { box-sizing: border-box; margin: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* laid-paper grain, under everything */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--grain);
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+
+  h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0.01em; }
+  code, kbd, pre { font-family: var(--font-mono); }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  .wrap { max-width: 72rem; margin-inline: auto; padding-inline: 1.5rem; }
+
+  /* ── header ─────────────────────────────────────────────────────── */
+  header.site {
+    border-bottom: 3px double var(--border);
+  }
+  header.site .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-block: 1rem;
+  }
+  .lockup { display: inline-flex; align-items: center; gap: 0.6rem; }
+  .lockup svg { height: 2rem; width: auto; }
+  .lockup .word { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; letter-spacing: 0.01em; }
+  nav.site { display: flex; align-items: center; gap: 1.25rem; font-size: 0.95rem; }
+  .theme-toggle {
+    background: none; border: 1px solid var(--border); color: var(--foreground);
+    font: inherit; font-size: 0.85rem; padding: 0.25rem 0.7rem; cursor: pointer;
+  }
+  .theme-toggle:hover { background: var(--hairline); }
+
+  /* ── hero ───────────────────────────────────────────────────────── */
+  .hero { text-align: center; padding-block: 5.5rem 4rem; }
+  .hero .specimen {
+    font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--muted-foreground);
+  }
+  .hero h1 {
+    font-size: clamp(2.75rem, 7vw, 5rem);
+    font-weight: 500; font-style: italic;
+    line-height: 1.05; margin-block: 1.25rem 1rem;
+  }
+  .hero h1 .bracket { color: var(--brand-bracket); font-style: normal; }
+  .hero .tagline {
+    font-family: var(--font-display); font-size: clamp(1.15rem, 2.5vw, 1.5rem);
+    color: var(--muted-foreground); font-style: italic;
+  }
+  .hero .lede { max-width: 42rem; margin: 1.5rem auto 0; font-size: 1.08rem; }
+  .hero .cta-row {
+    margin-top: 2.25rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-block; padding: 0.7rem 1.5rem; font-size: 1rem;
+    border: 1px solid var(--border); border-radius: var(--radius);
+  }
+  .btn:hover { text-decoration: none; }
+  .btn.primary {
+    background: var(--brand); border-color: var(--brand); color: var(--brand-foreground);
+    font-weight: 600;
+  }
+  .btn.ghost { color: var(--foreground); }
+  .btn.ghost:hover { background: var(--hairline); }
+  .hero .jar { height: 7.5rem; width: auto; margin-bottom: 1rem; }
+  .hero .jar .glass { stroke: var(--background); }
+
+  /* ── rules ──────────────────────────────────────────────────────── */
+  hr.botanical { border: none; border-top: 3px double var(--border); }
+  .plate-label {
+    font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--muted-foreground); text-align: center;
+    margin-bottom: 2.5rem;
+  }
+  .plate-label::before { content: "fig. "; font-style: italic; }
+
+  section { padding-block: 4rem; }
+
+  /* ── pipeline ───────────────────────────────────────────────────── */
+  .steps { display: grid; gap: 0; border: 1px solid var(--border); }
+  .step {
+    display: grid; grid-template-columns: 4.5rem 1fr; gap: 1.25rem;
+    padding: 1.5rem 1.75rem; align-items: start;
+  }
+  .step + .step { border-top: 1px solid var(--hairline); }
+  .step .no {
+    font-family: var(--font-display); font-size: 2rem; font-style: italic;
+    color: var(--brand); line-height: 1.1; text-align: right;
+    border-right: 1px solid var(--border); padding-right: 1.1rem;
+  }
+  .step h3 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .step p { color: var(--muted-foreground); }
+  .step p code {
+    font-size: 0.85em; color: var(--brand-bracket);
+    background: var(--hairline); padding: 0.1em 0.4em;
+  }
+
+  /* ── anatomy ────────────────────────────────────────────────────── */
+  .anatomy { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.25rem; }
+  .card {
+    border: 1px solid var(--border); background: var(--card);
+    padding: 1.5rem 1.4rem; position: relative;
+  }
+  .card .taxon {
+    font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--brand-bracket); margin-bottom: 0.6rem;
+  }
+  .card h3 { font-size: 1.25rem; margin-bottom: 0.4rem; }
+  .card p { color: var(--muted-foreground); font-size: 0.98rem; }
+
+  /* ── terminal ───────────────────────────────────────────────────── */
+  .terminal {
+    border: 1px solid var(--border); background: var(--card);
+    max-width: 46rem; margin-inline: auto;
+    box-shadow: 0 0 0 4px var(--background), 0 0 0 5px var(--border);
+  }
+  .terminal .titlebar {
+    border-bottom: 1px solid var(--hairline); padding: 0.5rem 1rem;
+    font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted-foreground);
+    display: flex; justify-content: space-between;
+  }
+  .terminal pre {
+    padding: 1.4rem 1.6rem; font-size: 0.92rem; line-height: 1.75; overflow-x: auto;
+  }
+  .terminal .p { color: var(--brand-bracket); }        /* prompt */
+  .terminal .c { color: var(--muted-foreground); }     /* comment */
+  .terminal .g { color: var(--brand); }                /* grown */
+
+  /* ── principles ─────────────────────────────────────────────────── */
+  .principles { columns: 2; column-gap: 3rem; max-width: 56rem; margin-inline: auto; }
+  @media (max-width: 48rem) { .principles { columns: 1; } }
+  .principles li {
+    break-inside: avoid; list-style: none; margin-bottom: 1.5rem;
+    padding-left: 1.5rem; position: relative;
+  }
+  .principles li::before {
+    content: "❦"; position: absolute; left: 0; top: 0.1em;
+    color: var(--brand-bracket);
+  }
+  .principles strong { font-family: var(--font-display); font-size: 1.05rem; }
+
+  /* ── footer ─────────────────────────────────────────────────────── */
+  footer.site { border-top: 3px double var(--border); padding-block: 2.5rem; }
+  footer.site .wrap {
+    display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; justify-content: space-between;
+    font-size: 0.9rem; color: var(--muted-foreground);
+  }
+  footer.site .links { display: flex; gap: 1.5rem; }
+  .colophon { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; }
+
+  @media (max-width: 40rem) {
+    nav.site .hide-sm { display: none; }
+    .hero { padding-block: 3.5rem 3rem; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <a class="lockup" href="/" aria-label="vibevarium home">
+      <svg viewBox="0 0 120 138" fill="none" aria-hidden="true">
+        <rect x="27" y="4" width="66" height="14" rx="5" fill="currentColor"/>
+        <path d="M34 20v6c-7 6-15 10-15 25v50c0 14 10 22 28 22h26c18 0 28-8 28-22V51c0-15-8-19-15-25v-6" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M44 31h18M74 31h3" stroke="var(--background)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M28 49c-3 4-3 9-3 14M25 68v3" stroke="var(--background)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M54 42l-9 8 9 8M66 42l9 8-9 8" stroke="var(--brand-bracket)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M60 64v14" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M60 76c-9 0-17-5-20-13 9 0 17 5 20 13z" fill="currentColor"/>
+        <path d="M60 76c9 0 17-5 20-13-9 0-17 5-20 13z" fill="currentColor"/>
+        <path d="M44 102c-7 0-12 3-15 9M35 103l-6-4M38 106l-3 7M42 108l-2 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M76 102c7 0 12 3 15 9M85 103l6-4M82 106l3 7M78 108l2 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M53 87c0-6 3-9 7-9s7 3 7 9" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M60 94h12v5c0 10-5 17-12 22z" fill="currentColor"/>
+        <path d="M48 94h24v5c0 10-5 17-12 22-7-5-12-12-12-22v-5z" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round"/>
+        <path d="M65 99l4-3M66 105l3 3" stroke="var(--background)" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <span class="word">vibevarium</span>
+    </a>
+    <nav class="site">
+      <a class="hide-sm" href="https://platform.vibevarium.com">control plane</a>
+      <a class="hide-sm" href="https://github.com/aidansunbury/vibevarium">github</a>
+      <button class="theme-toggle" id="theme-toggle" type="button">vellum&nbsp;/&nbsp;graphite</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- ── hero ─────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="wrap">
+      <svg class="jar" viewBox="0 0 120 138" fill="none" aria-hidden="true">
+        <rect x="27" y="4" width="66" height="14" rx="5" fill="currentColor"/>
+        <path d="M34 20v6c-7 6-15 10-15 25v50c0 14 10 22 28 22h26c18 0 28-8 28-22V51c0-15-8-19-15-25v-6" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path class="glass" d="M44 31h18M74 31h3" stroke-width="3" stroke-linecap="round"/>
+        <path class="glass" d="M28 49c-3 4-3 9-3 14M25 68v3" stroke-width="3" stroke-linecap="round"/>
+        <path d="M54 42l-9 8 9 8M66 42l9 8-9 8" stroke="var(--brand-bracket)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M60 64v14" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M60 76c-9 0-17-5-20-13 9 0 17 5 20 13z" fill="currentColor"/>
+        <path d="M60 76c9 0 17-5 20-13-9 0-17 5-20 13z" fill="currentColor"/>
+        <path d="M44 102c-7 0-12 3-15 9M35 103l-6-4M38 106l-3 7M42 108l-2 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M76 102c7 0 12 3 15 9M85 103l6-4M82 106l3 7M78 108l2 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M53 87c0-6 3-9 7-9s7 3 7 9" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M60 94h12v5c0 10-5 17-12 22z" fill="currentColor"/>
+        <path d="M48 94h24v5c0 10-5 17-12 22-7-5-12-12-12-22v-5z" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round"/>
+        <path class="glass" d="M65 99l4-3M66 105l3 3" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <p class="specimen">vibevarium · n. — an enclosed little garden of apps</p>
+      <h1>grown, <span class="bracket">&lt;/&gt;</span> not built.</h1>
+      <p class="tagline">every vibe-coded app is a self-contained living world.</p>
+      <p class="lede">
+        vibevarium raises each app like a plant in glass: its own repo, its own
+        deploy, its own auth — all cultivated from one control plane. You bring
+        the idea; the garden handles the plumbing.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://platform.vibevarium.com">enter the control plane</a>
+        <a class="btn ghost" href="https://github.com/aidansunbury/vibevarium">read the field guide</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr class="botanical" /></div>
+
+  <!-- ── pipeline ─────────────────────────────────────────────────── -->
+  <section id="how">
+    <div class="wrap">
+      <p class="plate-label">1 — the growth cycle</p>
+      <div class="steps">
+        <div class="step">
+          <div class="no">i.</div>
+          <div>
+            <h3>Plant a seed</h3>
+            <p>One command — <code>vibevarium grow my-app</code> — or one click in the control plane. Every app starts from the same seed: a React SPA + typed Effect backend, so the contract never varies, only the starting shape.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="no">ii.</div>
+          <div>
+            <h3>It comes up on its own</h3>
+            <p>GitHub repo, Cloudflare Worker + D1 database, custom domain, and a registered OIDC auth client — scaffolded in minutes, discovered by the platform automatically. No YAML, no console spelunking.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="no">iii.</div>
+          <div>
+            <h3>Tend the garden</h3>
+            <p>Provision, inspect, and prune from <code>platform.vibevarium.com</code>. One platform token opens the gateway and every app; per-app grants revoke cleanly. Humans and agents share the same <code>vibevarium</code> CLI.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr class="botanical" /></div>
+
+  <!-- ── anatomy ──────────────────────────────────────────────────── -->
+  <section id="anatomy">
+    <div class="wrap">
+      <p class="plate-label">2 — anatomy of a grown app</p>
+      <div class="anatomy">
+        <div class="card">
+          <p class="taxon">radix · roots</p>
+          <h3>Its own repo</h3>
+          <p>Every app is a real GitHub repository from minute one — history, CI, and collaborators included. Fork the shape, keep the contract.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">caulis · stem</p>
+          <h3>Its own deploy</h3>
+          <p>A Cloudflare Worker + D1 database per app, on its own hostname. Apps scale to zero and wake on demand; no shared blast radius.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">folium · leaves</p>
+          <h3>Its own auth</h3>
+          <p>An OIDC client registered at deploy time. One platform token opens every app — with per-app grants you can revoke in the control plane.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">flos · bloom</p>
+          <h3>One gateway</h3>
+          <p>The meta-MCP aggregates every app's tools into a single gateway, so agents see one interface while each app stays self-contained.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">sucus · sap</p>
+          <h3>Connections</h3>
+          <p>Connect a provider once; per-app tokens are vended through a unified credential proxy, and revoking cascades. The plumbing stays out of your code.</p>
+        </div>
+        <div class="card">
+          <p class="taxon">hortus · garden</p>
+          <h3>One control plane</h3>
+          <p>The gardener at <a href="https://platform.vibevarium.com">platform.vibevarium.com</a>: provision, inspect, prune — a field guide to everything growing.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr class="botanical" /></div>
+
+  <!-- ── terminal ─────────────────────────────────────────────────── -->
+  <section id="cli">
+    <div class="wrap">
+      <p class="plate-label">3 — from seed to service</p>
+      <div class="terminal">
+        <div class="titlebar"><span>greenhouse — zsh</span><span>vibevarium cli</span></div>
+<pre><span class="p">$</span> vibevarium grow my-fernery
+<span class="c"># repo        github.com/you/my-fernery          ✓ grown</span>
+<span class="c"># deploy      my-fernery.vibevarium.com          ✓ live</span>
+<span class="c"># database    d1://my-fernery-data               ✓ migrated</span>
+<span class="c"># auth        oidc client registered             ✓ sealed</span>
+
+<span class="p">$</span> vibevarium ls
+<span class="g">my-fernery    healthy    3d    my-fernery.vibevarium.com</span>
+<span class="g">tickets       healthy   12d    tickets.vibevarium.com</span>
+<span class="g">expenses      healthy   21d    expenses.vibevarium.com</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr class="botanical" /></div>
+
+  <!-- ── principles ───────────────────────────────────────────────── -->
+  <section id="principles">
+    <div class="wrap">
+      <p class="plate-label">4 — horticultural principles</p>
+      <ul class="principles">
+        <li><strong>Grown, not built.</strong> Apps aren't assembled from parts — they're raised from a seed with the shape already inside. You prune and train; you don't pour concrete.</li>
+        <li><strong>Each world, self-contained.</strong> A vibevarium jar has its own soil, water, and air. An app has its own repo, deploy, and auth. Nothing leaks between jars.</li>
+        <li><strong>One gardener, many jars.</strong> The control plane sees every app, every token, every connection — and the meta-MCP hands agents the same view.</li>
+        <li><strong>Agents are first-class gardeners.</strong> The CLI composes app CLIs and MCP tool schemas so humans and agents tend the garden through one interface.</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="wrap"><hr class="botanical" /></div>
+
+  <!-- ── closing ──────────────────────────────────────────────────── -->
+  <section class="hero" style="padding-block: 3.5rem;">
+    <div class="wrap">
+      <h1 style="font-size: clamp(2rem, 5vw, 3.25rem);">come walk the rows.</h1>
+      <p class="lede" style="max-width: 36rem;">
+        vibevarium is in early growth. The greenhouse door is open.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://platform.vibevarium.com">enter the control plane</a>
+        <a class="btn ghost" href="https://github.com/aidansunbury/vibevarium">github</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>vibevarium — <em>your enclosed little garden of apps.</em></span>
+    <span class="links">
+      <a href="https://platform.vibevarium.com">platform</a>
+      <a href="https://github.com/aidansunbury/vibevarium">github</a>
+    </span>
+    <span class="colophon">set in fraunces &amp; source sans · plate № 1 · vellum / graphite</span>
+  </div>
+</footer>
+
+<script>
+  // Vellum (light) / Graphite (dark) toggle, persisted. Default: graphite.
+  const root = document.documentElement;
+  const saved = localStorage.getItem("vibevarium-theme");
+  if (saved === "light") root.classList.remove("dark");
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    const dark = root.classList.toggle("dark");
+    localStorage.setItem("vibevarium-theme", dark ? "dark" : "light");
+  });
+</script>
+</body>
+</html>
