@@ -1,17 +1,7 @@
 # Terrarium control plane — node 22, pnpm workspace, tsx.
 # Build context MUST be the monorepo root (compose sets context: ../../).
-
-# ── Stage 1: build the web GUI (only web/dist is carried into the final image)
-FROM node:22-slim AS webbuild
-RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
-WORKDIR /app
-# The web sub-package installs standalone (its own lockfile), resolving
-# @vibevarium/ui from the sibling packages/ui source.
-COPY packages/control-plane/web/ packages/control-plane/web/
-COPY packages/ui/ packages/ui/
-RUN cd packages/control-plane/web \
-  && pnpm install --ignore-workspace \
-  && pnpm run build
+# NOTE: the control-plane GUI is served from Cloudflare at platform.<domain>,
+# NOT this image — only the app template's SPA is built here (for the scaffold).
 
 # ── Stage 1b: build the app template's SPA (shipped into generated apps by the
 # scaffold's materialize step). Its web/dist is gitignored, so it never reaches
@@ -51,8 +41,6 @@ RUN pnpm install --frozen-lockfile
 # Copy all source (control-plane imports from sibling packages)
 COPY packages/ packages/
 
-# Carry only the built web GUI (not its node_modules) into the runtime image.
-COPY --from=webbuild /app/packages/control-plane/web/dist packages/control-plane/web/dist
 # The app template's pre-built SPA — the scaffold's materialize ships it into
 # every generated app (the Worker's assets.directory serves it).
 COPY --from=templatewebbuild /app/packages/template-cloudflare/web/dist packages/template-cloudflare/web/dist
