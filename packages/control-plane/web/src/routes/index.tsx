@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RadarIcon, RefreshCwIcon } from "@vibevarium/ui/lib/icons";
+import { LayoutGridIcon, RadarIcon, RefreshCwIcon } from "@vibevarium/ui/lib/icons";
 import { api, isUnauthenticated, type AppRow } from "../api";
 import { Badge } from "@vibevarium/ui/components/badge";
 import { Button } from "@vibevarium/ui/components/button";
@@ -43,7 +43,10 @@ function GalleryPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Registered apps</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <LayoutGridIcon className="size-5 text-muted-foreground" />
+          Registered apps
+        </CardTitle>
         <CardDescription>Apps registered with the gateway, with status and last-seen time.</CardDescription>
         <div className="col-start-2 row-span-2 row-start-1 flex gap-2 self-start justify-self-end">
           <Button variant="outline" size="sm" onClick={() => apps.refetch()} disabled={apps.isFetching}>

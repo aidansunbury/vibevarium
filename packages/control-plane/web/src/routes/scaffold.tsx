@@ -9,7 +9,7 @@ import { Input } from "@vibevarium/ui/components/input";
 import { Label } from "@vibevarium/ui/components/label";
 import { Separator } from "@vibevarium/ui/components/separator";
 import { toast } from "@vibevarium/ui/lib/toast";
-import { Check, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Loader2, PlusIcon, X } from "lucide-react";
 
 export const Route = createFileRoute("/scaffold")({ component: ScaffoldWizard });
 
@@ -121,7 +121,10 @@ function ScaffoldWizard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Provision a new app</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <PlusIcon className="size-5 text-muted-foreground" />
+          Provision a new app
+        </CardTitle>
         <CardDescription>
           Repo, deploy, domain, OIDC client, and discovery — wired from the platform capability
           config. Only options the platform can actually back are offered.

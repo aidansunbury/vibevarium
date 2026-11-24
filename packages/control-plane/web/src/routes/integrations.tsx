@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@vibevarium/ui/components/table";
 import { toast } from "@vibevarium/ui/lib/toast";
+import { PlugIcon } from "@vibevarium/ui/lib/icons";
 
 export const Route = createFileRoute("/integrations")({ component: IntegrationsPage });
 
@@ -76,7 +77,10 @@ function IntegrationsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Integrations</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <PlugIcon className="size-5 text-muted-foreground" />
+          Integrations
+        </CardTitle>
         <CardDescription>Connection proxy: register integrations, grant app access, view the proxy audit.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

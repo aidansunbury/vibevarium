@@ -16,6 +16,13 @@ import {
 import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } from "@vibevarium/ui/layout/shell";
 import { LogoLockup } from "@vibevarium/ui/components/logo";
 import { Toaster } from "@vibevarium/ui/components/sonner";
+import {
+  KeyRoundIcon,
+  LayoutGridIcon,
+  LinkIcon,
+  PlugIcon,
+  PlusIcon,
+} from "@vibevarium/ui/lib/icons";
 
 export interface RouterContext {
   readonly queryClient: QueryClient;
@@ -29,11 +36,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 export const useSession = (): Session => Route.useRouteContext().session;
 
 const NAV = [
-  { to: "/", label: "Apps" },
-  { to: "/scaffold", label: "Provision" },
-  { to: "/secrets", label: "Secrets" },
-  { to: "/integrations", label: "Integrations" },
-  { to: "/connections", label: "Connections" },
+  { to: "/", label: "Apps", icon: LayoutGridIcon },
+  { to: "/scaffold", label: "Provision", icon: PlusIcon },
+  { to: "/secrets", label: "Secrets", icon: KeyRoundIcon },
+  { to: "/integrations", label: "Integrations", icon: PlugIcon },
+  { to: "/connections", label: "Connections", icon: LinkIcon },
 ] as const;
 
 function RootLayout() {
@@ -53,8 +60,9 @@ function RootLayout() {
               key={item.to}
               to={item.to}
               activeOptions={{ exact: item.to === "/" }}
-              className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&.active]:bg-muted [&.active]:text-foreground"
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&.active]:bg-muted [&.active]:text-foreground"
             >
+              <item.icon className="size-4" />
               {item.label}
             </Link>
           ))}

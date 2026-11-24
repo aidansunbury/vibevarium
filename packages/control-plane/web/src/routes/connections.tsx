@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@vibevarium/ui/components/table";
 import { toast } from "@vibevarium/ui/lib/toast";
+import { LinkIcon } from "@vibevarium/ui/lib/icons";
 
 export const Route = createFileRoute("/connections")({ component: ConnectionsPage });
 
@@ -80,7 +81,10 @@ function ConnectionsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Connections</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <LinkIcon className="size-5 text-muted-foreground" />
+          Connections
+        </CardTitle>
         <CardDescription>
           Connect a provider once, grant apps access to it. Tokens are held (encrypted) by the control plane.
         </CardDescription>

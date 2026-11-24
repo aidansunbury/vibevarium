@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@vibevarium/ui/components/table";
 import { toast } from "@vibevarium/ui/lib/toast";
+import { KeyRoundIcon, Trash2Icon } from "@vibevarium/ui/lib/icons";
 
 export const Route = createFileRoute("/secrets")({ component: SecretsPage });
 
@@ -60,7 +61,10 @@ function SecretsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Secrets</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <KeyRoundIcon className="size-5 text-muted-foreground" />
+          Secrets
+        </CardTitle>
         <CardDescription>
           Set-only: see which secrets exist and set or overwrite them. Values are never shown or read back.
         </CardDescription>
@@ -101,14 +105,14 @@ function SecretsPage() {
                 <TableRow key={secret.name}>
                   <TableCell className="font-medium">{secret.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">set</Badge>
+                    <Badge variant="secondary">write-only</Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {secret.lastChangedDate === undefined ? "—" : new Date(secret.lastChangedDate).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm" onClick={() => remove.mutate(secret.name)}>
-                      delete
+                    <Button variant="ghost" size="sm" aria-label={`Delete ${secret.name}`} onClick={() => remove.mutate(secret.name)}>
+                      <Trash2Icon className="size-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
