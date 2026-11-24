@@ -1,4 +1,4 @@
-import { Auth } from "@terrarium/auth";
+import { Auth } from "@vibevarium/auth";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
@@ -55,7 +55,7 @@ const escapeHtml = (value: string) =>
 const page = (title: string, body: string) => `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)} · Terrarium</title>
+<title>${escapeHtml(title)} · Vibevarium</title>
 <style>
   :root { color-scheme: light; }
   body { font-family: ui-sans-serif, system-ui, sans-serif; background: #f8f8f6; color: #1c1917; margin: 0; display: grid; place-items: center; min-height: 100vh; }
@@ -302,12 +302,12 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
       const authenticateApp: Effect.Effect<AppAuth, never, HttpServerRequest.HttpServerRequest> =
         Effect.gen(function*() {
           const request = yield* HttpServerRequest.HttpServerRequest;
-          const appId = request.headers["x-terrarium-app"];
+          const appId = request.headers["x-vibevarium-app"];
           if (typeof appId !== "string" || appId.length === 0) {
-            return { ok: false, response: unauthorizedApp("Expected x-terrarium-app + x-terrarium-app-secret headers") } satisfies AppAuth;
+            return { ok: false, response: unauthorizedApp("Expected x-vibevarium-app + x-vibevarium-app-secret headers") } satisfies AppAuth;
           }
           const expected = options.appSecrets[appId];
-          if (expected === undefined || request.headers["x-terrarium-app-secret"] !== expected) {
+          if (expected === undefined || request.headers["x-vibevarium-app-secret"] !== expected) {
             return { ok: false, response: unauthorizedApp(`Bad credentials for app ${appId}`) } satisfies AppAuth;
           }
           return { ok: true, appId } satisfies AppAuth;

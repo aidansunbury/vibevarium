@@ -26,7 +26,7 @@ export const Dns = (options: DnsOptions) =>
       content: options.ip,
       proxied: false,
       ttl: 300,
-      comment: "Terrarium Logto OIDC server",
+      comment: "Vibevarium Casdoor OIDC server",
     });
 
     const platform = yield* Cloudflare.DNS.Record("PlatformA", {
@@ -36,27 +36,16 @@ export const Dns = (options: DnsOptions) =>
       content: options.ip,
       proxied: false,
       ttl: 300,
-      comment: "Terrarium control plane",
+      comment: "Vibevarium control plane",
     });
 
-    // Logto's admin console wants its own origin (it does host-based tenant
-    // resolution; serving it on a path prefix of the core origin 404s its API).
-    const authAdmin = yield* Cloudflare.DNS.Record("AuthAdminA", {
-      zoneId: options.zoneId,
-      name: `auth-admin.${options.domain}`,
-      type: "A",
-      content: options.ip,
-      proxied: false,
-      ttl: 300,
-      comment: "Terrarium Logto admin console",
-    });
-
+    // Casdoor serves the API, OIDC/discovery endpoints, and the admin console
+    // from a single port on one origin — no separate admin origin needed
+    // (unlike Logto's split-core/admin setup).
     return {
       authRecordId: auth.recordId,
       platformRecordId: platform.recordId,
-      authAdminRecordId: authAdmin.recordId,
       authHostname: `auth.${options.domain}`,
       platformHostname: `platform.${options.domain}`,
-      authAdminHostname: `auth-admin.${options.domain}`,
     };
   });

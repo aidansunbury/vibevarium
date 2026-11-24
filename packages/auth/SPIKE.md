@@ -4,14 +4,14 @@
 
 The standard OIDC boundary is enough for local development and verification:
 
-- `@terrarium/dev-issuer` generates an RSA key pair at boot and serves OIDC
+- `@vibevarium/dev-issuer` generates an RSA key pair at boot and serves OIDC
   discovery plus a public JWKS. It mints RS256 access tokens and ID tokens with
   `iss`, `sub`, `aud`, `iat`, `exp`, and optional `name` claims.
 - The non-standard `GET /dev/token` endpoint is a development shortcut for a
   fake user. A minimal standard authorization-code + S256 PKCE flow is also
   available at `/authorize` and `/token`; codes expire after five minutes and
   are single-use.
-- `@terrarium/auth` fetches and validates discovery at layer construction,
+- `@vibevarium/auth` fetches and validates discovery at layer construction,
   verifies that its issuer matches the configured issuer, resolves `jwks_uri`,
   and delegates signature and claim verification to `jose`.
 - `requireAuth` accepts only `Authorization: Bearer ...`, turns every verification
@@ -36,7 +36,7 @@ pnpm exec tsrs --noEmit -p packages/dev-issuer/tsconfig.json
 Run a standalone issuer on port 4010:
 
 ```sh
-pnpm --filter @terrarium/dev-issuer start
+pnpm --filter @vibevarium/dev-issuer start
 ```
 
 Optional environment variables are `PORT`, `OIDC_ISSUER`, and the comma-separated

@@ -2,7 +2,7 @@
 
 ## Verdict
 
-The control-plane workflow works locally: a name becomes a committed app repo, an independent authenticated Node process, a healthy registry entry, four discovered MCP tools, and a callable meta-MCP tool. A dev-issuer user token reaches the generated app through the gateway unchanged; the app verifies its own `expenses.terrarium.local` audience. A hard control-plane kill leaves the app serving requests.
+The control-plane workflow works locally: a name becomes a committed app repo, an independent authenticated Node process, a healthy registry entry, four discovered MCP tools, and a callable meta-MCP tool. A dev-issuer user token reaches the generated app through the gateway unchanged; the app verifies its own `expenses.vibevarium.local` audience. A hard control-plane kill leaves the app serving requests.
 
 This is orchestration glue for learning, not a production process supervisor or deployment system.
 
@@ -12,10 +12,10 @@ From the repository root:
 
 ```sh
 pnpm install
-pnpm --filter @terrarium/control-plane scaffold:demo
+pnpm --filter @vibevarium/control-plane scaffold:demo
 # Existing proofs must still pass:
-pnpm --filter @terrarium/control-plane demo
-pnpm --filter @terrarium/template demo
+pnpm --filter @vibevarium/control-plane demo
+pnpm --filter @vibevarium/template demo
 pnpm exec tsrs --noEmit -p packages/control-plane/tsconfig.json
 pnpm exec tsrs --noEmit -p packages/template/tsconfig.json
 ```
@@ -38,7 +38,7 @@ For a persistent control plane, the new configuration is:
 1. Validates a 1–63 character DNS-label-safe lower-kebab name and rejects a name already in the registry or on disk.
 2. Generates `package.json`, `src/main.ts`, `README.md`, and `.gitignore` under `apps/<name>/`.
 3. Calls `GitProvider.createRepo(name, files)`. `LocalGitProvider` writes the files, runs `git init`, and creates `Initial scaffold`; `repoUrl` is a `file://` URL.
-4. Links the workspace template for module resolution, allocates a localhost port, and spawns the workspace `tsx` CLI in a detached child process. Environment includes `APP_NAME`, `PORT`, `TERRARIUM_AUTH=on`, `TERRARIUM_ISSUER`, and `TERRARIUM_AUDIENCE=<name>.terrarium.local`. Stdout/stderr go to `app.log`.
+4. Links the workspace template for module resolution, allocates a localhost port, and spawns the workspace `tsx` CLI in a detached child process. Environment includes `APP_NAME`, `PORT`, `TERRARIUM_AUTH=on`, `TERRARIUM_ISSUER`, and `TERRARIUM_AUDIENCE=<name>.vibevarium.local`. Stdout/stderr go to `app.log`.
 5. Polls the public `/health` endpoint until ready.
 6. Calls the `Registry` service directly with the child's `/mcp` URL.
 7. Runs authenticated discovery for the new app and immediately synchronizes gateway tools.
@@ -51,24 +51,24 @@ A boot failure stops the child. A discovery failure returns 502 and leaves the r
 The generated repo is deliberately tiny:
 
 ```ts
-import { runTicketsServer } from "@terrarium/template/server";
+import { runTicketsServer } from "@vibevarium/template/server";
 
 runTicketsServer();
 ```
 
-The wrapper receives all app-specific configuration through env. For the spike, the control plane creates an ignored `node_modules/@terrarium/template` symlink after the initial commit, avoiding a workspace reinstall for every generated app. This proves process, configuration, auth, registry, and discovery orchestration without duplicating template source.
+The wrapper receives all app-specific configuration through env. For the spike, the control plane creates an ignored `node_modules/@vibevarium/template` symlink after the initial commit, avoiding a workspace reinstall for every generated app. This proves process, configuration, auth, registry, and discovery orchestration without duplicating template source.
 
 It is **not** the production repository shape. A real scaffold should fork/copy the template into a self-contained repo with a normal lockfile and its own domain declarations. Otherwise every existing app changes whenever the shared workspace template changes. The wrapper was chosen only to keep this spike small and to make the shared-server seam explicit.
 
 ## Auth wiring and discovery
 
-The template wraps its final router effect with `@terrarium/auth`'s `requireAuth`, covering the HTTP API, OpenAPI, RPC, and every MCP request. `/health` remains public for orchestration. `GET /whoami` reads `CurrentActor` and echoes it. Generated apps always set `TERRARIUM_AUTH=on` and have a distinct audience.
+The template wraps its final router effect with `@vibevarium/auth`'s `requireAuth`, covering the HTTP API, OpenAPI, RPC, and every MCP request. `/health` remains public for orchestration. `GET /whoami` reads `CurrentActor` and echoes it. Generated apps always set `TERRARIUM_AUTH=on` and have a distinct audience.
 
-For backwards compatibility, the standalone template is unauthenticated when no issuer is configured. `TERRARIUM_AUTH=off` explicitly disables auth even if an issuer is present. Setting an issuer enables auth by default; `TERRARIUM_AUTH=on` without an issuer fails startup. The audience defaults to `${APP_NAME ?? "tickets"}.terrarium.local` and can be overridden with `TERRARIUM_AUDIENCE`.
+For backwards compatibility, the standalone template is unauthenticated when no issuer is configured. `TERRARIUM_AUTH=off` explicitly disables auth even if an issuer is present. Setting an issuer enables auth by default; `TERRARIUM_AUTH=on` without an issuer fails startup. The audience defaults to `${APP_NAME ?? "tickets"}.vibevarium.local` and can be overridden with `TERRARIUM_AUDIENCE`.
 
 Authenticated children exposed an existing gap: discovery used an unauthenticated `McpClient`, so a protected `/mcp` returned 401 before `initialize`. The spike adds `DISCOVERY_TOKEN` to the control plane and applies it to discovery clients. This is a single static M2M credential, **not** a fleet-wide solution: one token cannot represent arbitrary per-app audiences. Production discovery needs per-app M2M credentials (or another explicit discovery credential policy) stored/resolved by the control plane; scheduled discovery needs the same treatment.
 
-User calls did not need a gateway workaround. The gateway already forwards `Authorization` on its fresh per-call child client. The same dev token used for `/whoami` therefore passed the child OIDC check during MCP initialization and `tools/call`; the audience stayed `expenses.terrarium.local` and no header reshaping was necessary.
+User calls did not need a gateway workaround. The gateway already forwards `Authorization` on its fresh per-call child client. The same dev token used for `/whoami` therefore passed the child OIDC check during MCP initialization and `tools/call`; the audience stayed `expenses.vibevarium.local` and no header reshaping was necessary.
 
 ## Process lifetime: spike vs production
 
@@ -93,14 +93,14 @@ That distinction is intentional but not a deployment guarantee. A production con
 
 ## Real proof output
 
-From `pnpm --filter @terrarium/control-plane scaffold:demo` (relevant fields; ports and paths vary, and the demo asserts every status and payload):
+From `pnpm --filter @vibevarium/control-plane scaffold:demo` (relevant fields; ports and paths vary, and the demo asserts every status and payload):
 
 ```json
 {
   "scaffold": {
     "name": "expenses",
     "url": "http://127.0.0.1:46271",
-    "audience": "expenses.terrarium.local",
+    "audience": "expenses.vibevarium.local",
     "processId": 1346354,
     "initialCommit": "Initial scaffold",
     "directoryEntry": {

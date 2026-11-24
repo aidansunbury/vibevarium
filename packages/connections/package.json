@@ -1,5 +1,5 @@
 {
-  "name": "@terrarium/connections",
+  "name": "@vibevarium/connections",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -21,9 +21,9 @@
     "jose": "^6.0.0"
   },
   "devDependencies": {
-    "@terrarium/auth": "workspace:*",
-    "@terrarium/dev-issuer": "workspace:*",
-    "@terrarium/fake-oauth": "workspace:*",
+    "@vibevarium/auth": "workspace:*",
+    "@vibevarium/dev-issuer": "workspace:*",
+    "@vibevarium/fake-oauth": "workspace:*",
     "@types/node": "^26.6.6"
   }
 }

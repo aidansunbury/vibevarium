@@ -32,7 +32,7 @@ app:        foo
 preview:    foo-pr-42        (worker + stack name)
 database:   foo-pr-42-data
 hostname:   foo-pr-42.<domain>
-stack:      terrarium-foo-pr-42
+stack:      vibevarium-foo-pr-42
 ```
 
 The env-driven template makes this mechanical — `WORKER_NAME`,

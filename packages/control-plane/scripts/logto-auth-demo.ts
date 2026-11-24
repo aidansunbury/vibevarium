@@ -54,7 +54,7 @@ const demo = Effect.gen(function*() {
   assert.ok(guiSecret, "LOGTO_GUI_APP_SECRET must be set (repo-root .env)");
 
   const dataDir = yield* Effect.acquireRelease(
-    Effect.promise(() => mkdtemp(join("/tmp/opencode", "terrarium-gui-auth-demo-"))),
+    Effect.promise(() => mkdtemp(join("/tmp/opencode", "vibevarium-gui-auth-demo-"))),
     (dir) => Effect.promise(() => rm(dir, { recursive: true, force: true })),
   );
 
@@ -100,7 +100,7 @@ const demo = Effect.gen(function*() {
     const challenge = authorize.searchParams.get("code_challenge")!;
     const state = authorize.searchParams.get("state")!;
     const pendingCookie = loginPage.headers.get("set-cookie") ?? "";
-    assert.match(pendingCookie, /terrarium_login=/);
+    assert.match(pendingCookie, /vibevarium_login=/);
     assert.match(pendingCookie, /HttpOnly/);
 
     console.log("== 2. PKCE round-trip (verifier satisfies the challenge) ==");
@@ -175,7 +175,7 @@ const demo = Effect.gen(function*() {
     console.log(`   /auth/callback → ${callbackResponse.status} ${callbackResponse.headers.get("location")}`);
     assert.equal(callbackResponse.status, 302);
     assert.equal(callbackResponse.headers.get("location"), "/");
-    assert.match(sessionCookie, /terrarium_session=/);
+    assert.match(sessionCookie, /vibevarium_session=/);
     assert.match(sessionCookie, /HttpOnly/);
     jar.absorb(callbackResponse);
     console.log("   session cookie set (httpOnly, SameSite=Lax)");

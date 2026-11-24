@@ -13,7 +13,7 @@
  * moves to the control plane, this map becomes a fetched manifest + lazy
  * per-app bundles rather than a static import list.
  */
-import { TicketsApi } from "@terrarium/template/TicketsApi.api";
+import { TicketsApi } from "@vibevarium/template/TicketsApi.api";
 import type { Cliable } from "@alchemy.run/domain/Cli";
 
 /**
@@ -22,5 +22,5 @@ import type { Cliable } from "@alchemy.run/domain/Cli";
  * name. Add an import + entry here when a new app joins the platform release.
  */
 export const embeddedApis: Readonly<Record<string, Readonly<Record<string, Cliable>>>> = {
-  "@terrarium/template": { TicketsApi },
+  "@vibevarium/template": { TicketsApi },
 };

@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import TicketsWorker, { TicketsDatabase } from "./src/TicketsWorker.ts";
 
 export default Alchemy.Stack(
-  process.env.STACK_NAME ?? "TerrariumTicketsCloudflare",
+  process.env.STACK_NAME ?? "VibevariumTicketsCloudflare",
   {
     providers: Layer.mergeAll(Cloudflare.providers(), DomainCloudflare.providers()),
     // Local file state: per-app stacks keep their state with the deployment

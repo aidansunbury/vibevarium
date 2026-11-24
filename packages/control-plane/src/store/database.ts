@@ -198,7 +198,7 @@ export class Database extends Context.Service<Database, {
   readonly db: DrizzleDb;
   /** Which driver this layer is running on ("pglite" | "postgres") — observability only. */
   readonly driver: "pglite" | "postgres";
-}>()("@terrarium/control-plane/store/Database") {
+}>()("@vibevarium/control-plane/store/Database") {
   /** Real Postgres (prod/RDS). postgres.js, one connection is enough at spike scale. */
   static readonly postgresLayer = (databaseUrl: string) =>
     Layer.effect(Database)(Effect.gen(function*() {

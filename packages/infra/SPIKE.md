@@ -1,6 +1,6 @@
-# Terrarium Infrastructure Spike
+# Vibevarium Infrastructure Spike
 
-Production-shaped AWS infrastructure for the Terrarium auth server (Logto) +
+Production-shaped AWS infrastructure for the Vibevarium auth server (Logto) +
 control plane, deployed with [Alchemy](https://alchemy.run) (IaE).
 
 ## What was provisioned
@@ -14,11 +14,11 @@ control plane, deployed with [Alchemy](https://alchemy.run) (IaE).
 | Elastic IP | `107.23.2.162` (`eipalloc-0c073e564d8525909`) | Stable DNS target |
 | EC2 security group | `sg-06440839a8409a0ba` | Ports 22 (SSH), 80 (HTTP), 443 (HTTPS) |
 | RDS security group | `sg-086d5d8a73ffa0f29` | Port 5432 from EC2 SG only |
-| RDS Postgres 16 | `terrariuminfra-postgres-live-aidan-a2whqelgnf35juwv` | db.t4g.micro, 20GB gp3, private |
-| RDS endpoint | `terrariuminfra-postgres-live-aidan-a2whqelgnf35juwv.cctumyw2o6uz.us-east-1.rds.amazonaws.com` | `publiclyAccessible: false` |
+| RDS Postgres 16 | `vibevariuminfra-postgres-live-aidan-a2whqelgnf35juwv` | db.t4g.micro, 20GB gp3, private |
+| RDS endpoint | `vibevariuminfra-postgres-live-aidan-a2whqelgnf35juwv.cctumyw2o6uz.us-east-1.rds.amazonaws.com` | `publiclyAccessible: false` |
 | RDS master secret | `arn:aws:secretsmanager:us-east-1:412215357683:secret:rds!db-6f5a2477-69a7-47b1-beae-ef2ebf072818-5VuAW8` | Managed by RDS in Secrets Manager |
-| SSH key pair | `TerrariumInfra-SshKey-live-aidan-erl4izfsi5wjh2n3` | ed25519, private key in `.secrets/terrarium-key.pem` |
-| DB subnet group | `terrariuminfra-dbsubnets-live-aidan-lntcj47urmwnzrkq` | Private subnets only |
+| SSH key pair | `VibevariumInfra-SshKey-live-aidan-erl4izfsi5wjh2n3` | ed25519, private key in `.secrets/vibevarium-key.pem` |
+| DB subnet group | `vibevariuminfra-dbsubnets-live-aidan-lntcj47urmwnzrkq` | Private subnets only |
 
 **Databases on the RDS instance:**
 - `logto` — initial database (created by RDS `dbName` prop)
@@ -42,9 +42,9 @@ deploys that include DNS records, set `CLOUDFLARE_API_TOKEN` to a token with
 ### On the EC2 box
 
 - Docker + docker-compose plugin
-- `/opt/terrarium/compose/` — Caddy, Logto, control-plane services
-- `/opt/terrarium/compose/.env` — domain + DB credentials (not committed)
-- `/opt/terrarium/compose/control-plane/` — workspace source for Docker build
+- `/opt/vibevarium/compose/` — Caddy, Logto, control-plane services
+- `/opt/vibevarium/compose/.env` — domain + DB credentials (not committed)
+- `/opt/vibevarium/compose/control-plane/` — workspace source for Docker build
 
 **Services (docker compose):**
 - **Caddy** (`caddy:2-alpine`) — reverse proxy, auto-TLS via Let's Encrypt
@@ -156,7 +156,7 @@ Note: RDS takes a final snapshot on destroy (`skipFinalSnapshot: false`).
    `Database.layer()` seam in `store/database.ts` is where to wire it.
 
 2. **Secrets in compose `.env`**: DB credentials are written to
-   `/opt/terrarium/compose/.env` on the box. This is fine for a spike but
+   `/opt/vibevarium/compose/.env` on the box. This is fine for a spike but
    should move to Docker secrets or AWS Secrets Manager injection for
    production.
 

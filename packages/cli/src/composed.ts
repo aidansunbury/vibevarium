@@ -1,6 +1,6 @@
 import type { Exposable } from "@alchemy.run/domain/Cli";
 import { toCli } from "@alchemy.run/domain/Cli";
-import { TicketsApi } from "@terrarium/template/TicketsApi.api";
+import { TicketsApi } from "@vibevarium/template/TicketsApi.api";
 import * as Command from "effect/cli/Command";
 import { authCommands, ssoHeaders, ssoProtocolHttp } from "./auth.ts";
 import { rpcUrl } from "./config.ts";
@@ -24,5 +24,5 @@ export const tickets = toCli(TicketsApi, {
 
 export const platform = Command.make(cliName).pipe(
   Command.withSubcommands([...authCommands, control, tickets]),
-  Command.withDescription("One SSO login for every composed Terrarium app"),
+  Command.withDescription("One SSO login for every composed Vibevarium app"),
 );

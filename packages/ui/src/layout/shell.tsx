@@ -17,14 +17,15 @@ function Shell({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function ShellHeader({ className, ...props }: React.ComponentProps<"header">) {
+function ShellHeader({ className, style, ...props }: React.ComponentProps<"header">) {
   return (
     <header
       data-slot="shell-header"
       className={cn(
-        "sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/60 sm:px-6",
+        "sticky top-0 z-40 flex h-14 items-center gap-3 border-b-0 bg-background px-4 sm:px-6",
         className,
       )}
+      style={{ borderBottom: "var(--rule)", ...style }}
       {...props}
     />
   );

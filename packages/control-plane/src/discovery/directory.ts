@@ -40,7 +40,7 @@ export class Directory extends Context.Service<Directory, {
   readonly find: (gatewayName: string) => Effect.Effect<Option.Option<DirectoryTool>>;
   readonly contains: (gatewayName: string) => Effect.Effect<boolean>;
   readonly search: (query: string) => Effect.Effect<ReadonlyArray<DirectoryTool>>;
-}>()("@terrarium/control-plane/discovery/Directory") {
+}>()("@vibevarium/control-plane/discovery/Directory") {
   static readonly layer = Layer.effect(Directory)(Effect.gen(function*() {
     const { db } = yield* Database;
 

@@ -35,7 +35,7 @@ export class AppProxy extends Context.Service<AppProxy, {
     args: Readonly<Record<string, unknown>>,
     callerHeaders: Headers.Headers,
   ) => Effect.Effect<McpSchema.CallToolResult>;
-}>()("@terrarium/control-plane/gateway/AppProxy") {
+}>()("@vibevarium/control-plane/gateway/AppProxy") {
   static readonly layer = (options: { readonly timeoutMs: number }) =>
     Layer.effect(AppProxy)(Effect.gen(function*() {
       const directory = yield* Directory;
@@ -73,7 +73,7 @@ export class AppProxy extends Context.Service<AppProxy, {
           }, { timeout: options.timeoutMs });
         }).pipe(
           Effect.provide(McpClient.layerHttp({
-            name: "terrarium-gateway",
+            name: "vibevarium-gateway",
             version: "0.0.1",
             url: app.value.url,
             protocol: new URL(app.value.url).hostname.endsWith(".workers.dev")

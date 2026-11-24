@@ -1,4 +1,4 @@
-import { startTicketsServer } from "@terrarium/template/server";
+import { startTicketsServer } from "@vibevarium/template/server";
 import assert from "node:assert/strict";
 import { McpClient, McpProtocol } from "effect/ai";
 import * as McpSchema from "effect/ai/McpSchema";
@@ -152,7 +152,7 @@ export const runGatewayProof = Effect.gen(function*() {
 
   const clientContext = yield* Layer.build(
     McpClient.layerHttp({
-      name: "terrarium-gateway-proof",
+      name: "vibevarium-gateway-proof",
       version: "0.0.1",
       url: `${gateway.url}/mcp`,
       protocol: McpProtocol.v2025_11_25,
@@ -271,7 +271,7 @@ export const runGatewayProof = Effect.gen(function*() {
     assert.ok(bTools.every((tool) => tool.stale));
     requiredTool(afterKillTools, B_OPEN_TICKET);
     assert.ok(afterKillTools.filter((tool) => tool.name.startsWith("tickets-b_")).every((tool) =>
-      tool["_meta"]?.["terrarium/stale"] === true
+      tool["_meta"]?.["vibevarium/stale"] === true
     ));
     assert.equal(bCallAfterKill.isError, true);
     assert.equal(bError?.["_tag"], "AppUnavailable");

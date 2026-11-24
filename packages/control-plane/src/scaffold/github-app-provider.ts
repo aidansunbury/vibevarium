@@ -23,7 +23,7 @@ const asError = (cause: unknown, status = 502) => new ScaffoldError(
   { cause },
 );
 
-/** Real repositories owned by the Terrarium GitHub App installation. */
+/** Real repositories owned by the Vibevarium GitHub App installation. */
 export const GitHubAppProvider = {
   layer: (options: GitHubAppProviderOptions) =>
     Layer.unwrap(attempt(async () => {
@@ -47,7 +47,7 @@ export const GitHubAppProvider = {
             name,
             private: true,
             auto_init: false,
-            description: "A Terrarium-generated Cloudflare Durable Objects app",
+            description: "A Vibevarium-generated Cloudflare Durable Objects app",
           }).catch((cause: { status?: number }) => {
             throw asError(cause, cause.status === 422 ? 409 : 502);
           });

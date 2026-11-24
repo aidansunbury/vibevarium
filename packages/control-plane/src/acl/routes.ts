@@ -15,7 +15,7 @@
  * `sub`. When auth is disabled (local dev) there is no actor and every gate
  * is open — same posture as the rest of the control plane.
  */
-import { CurrentActor } from "@terrarium/auth";
+import { CurrentActor } from "@vibevarium/auth";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";

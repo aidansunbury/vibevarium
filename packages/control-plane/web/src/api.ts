@@ -151,6 +151,16 @@ export const GrantView = Schema.Struct({
 });
 export type GrantView = typeof GrantView.Type;
 
+// --- Set-only secrets (docs/redeployment-plan.md §3) --------------------------
+
+/** A secret's name + provenance — never its value (the set-only trust model). */
+export const SecretMeta = Schema.Struct({
+  name: Schema.String,
+  description: Schema.optional(Schema.String),
+  lastChangedDate: Schema.optional(Schema.String),
+});
+export type SecretMeta = typeof SecretMeta.Type;
+
 // --- App ACLs (docs/previews-and-acl.md Part 2) -------------------------------
 
 export const AclMember = Schema.Struct({
@@ -354,6 +364,28 @@ const OpsApi = HttpApi.make("ControlPlane")
         payload: Schema.Struct({ grantId: Schema.String }),
         success: Schema.Unknown,
       })),
+  )
+  .add(
+    HttpApiGroup.make("secrets", { topLevel: true })
+      .add(HttpApiEndpoint.get("secrets", "/secrets", {
+        query: Schema.Struct({ app: Schema.optional(Schema.String) }),
+        success: Schema.Struct({ secrets: Schema.Array(SecretMeta), app: Schema.NullOr(Schema.String) }),
+      }))
+      .add(HttpApiEndpoint.put("putSecret", "/secrets", {
+        payload: Schema.Struct({
+          reference: Schema.String,
+          value: Schema.String,
+          app: Schema.optional(Schema.String),
+        }),
+        success: Schema.Unknown,
+      }))
+      .add(HttpApiEndpoint["delete"]("deleteSecret", "/secrets", {
+        payload: Schema.Struct({
+          reference: Schema.String,
+          app: Schema.optional(Schema.String),
+        }),
+        success: Schema.Unknown,
+      })),
   );
 
 // --- the client ---------------------------------------------------------------
@@ -446,6 +478,15 @@ export const api = {
   grants: () => clientPromise.then((client) => run(client.grants())),
   revokeGrant: (grantId: string) =>
     clientPromise.then((client) => run(client.revokeGrant({ payload: { grantId } }))),
+
+  secrets: (app?: string) =>
+    clientPromise.then((client) => run(client.secrets({ query: app === undefined ? {} : { app } }))),
+  putSecret: (input: { reference: string; value: string; app?: string }) =>
+    clientPromise.then((client) => run(client.putSecret({ payload: input }))),
+  deleteSecret: (reference: string, app?: string) =>
+    clientPromise.then((client) =>
+      run(client.deleteSecret({ payload: app === undefined ? { reference } : { reference, app } }))
+    ),
 };
 
 /** Start the real Logto login: full-page redirect to /auth/login. */

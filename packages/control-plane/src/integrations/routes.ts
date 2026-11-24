@@ -1,4 +1,4 @@
-import { Auth, requireAuth, type Actor } from "@terrarium/auth";
+import { Auth, requireAuth, type Actor } from "@vibevarium/auth";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
@@ -41,7 +41,7 @@ type Caller =
 const resolveCaller = (options: IntegrationRouteOptions) =>
   Effect.gen(function*() {
     const request = yield* HttpServerRequest;
-    const appId = request.headers["x-terrarium-app"];
+    const appId = request.headers["x-vibevarium-app"];
     if (typeof appId === "string" && appId.length > 0) {
       const expected = options.appSecrets[appId];
       if (expected === undefined) {
@@ -49,7 +49,7 @@ const resolveCaller = (options: IntegrationRouteOptions) =>
           yield* json({ error: "invalid_app_credential", error_description: `Unknown app ${appId}` }, 401),
         );
       }
-      if (request.headers["x-terrarium-app-secret"] !== expected) {
+      if (request.headers["x-vibevarium-app-secret"] !== expected) {
         return yield* Effect.fail(
           yield* json({ error: "invalid_app_credential", error_description: `Bad shared secret for app ${appId}` }, 401),
         );
@@ -62,8 +62,8 @@ const resolveCaller = (options: IntegrationRouteOptions) =>
         yield* json({
           error: "invalid_caller",
           error_description: options.authEnabled
-            ? "Expected a user bearer token or x-terrarium-app + x-terrarium-app-secret headers"
-            : "Expected x-terrarium-app + x-terrarium-app-secret headers (control-plane auth is disabled)",
+            ? "Expected a user bearer token or x-vibevarium-app + x-vibevarium-app-secret headers"
+            : "Expected x-vibevarium-app + x-vibevarium-app-secret headers (control-plane auth is disabled)",
         }, 401),
       );
     }
@@ -203,7 +203,7 @@ export const integrationRoutes = (options: IntegrationRouteOptions) =>
         }
         // User-context proxying: the app dimension of the grant check is the app
         // the user is operating, named by header (default "user").
-        const onBehalfOf = headers["x-terrarium-on-behalf-of-app"];
+        const onBehalfOf = headers["x-vibevarium-on-behalf-of-app"];
         const app = caller.kind === "app"
           ? caller.app
           : (typeof onBehalfOf === "string" && onBehalfOf.length > 0 ? onBehalfOf : "user");

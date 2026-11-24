@@ -1,12 +1,12 @@
-import { startDevIssuer } from "@terrarium/dev-issuer"
-import { startFakeOAuthProvider } from "@terrarium/fake-oauth"
+import { startDevIssuer } from "@vibevarium/dev-issuer"
+import { startFakeOAuthProvider } from "@vibevarium/fake-oauth"
 import { startConnectionsServer } from "./server.ts"
 
 const host = "127.0.0.1"
 const devPort = Number(process.env.OIDC_PORT ?? 4010)
 const connectionsPort = Number(process.env.PORT ?? 4020)
 const providerPort = Number(process.env.PROVIDER_PORT ?? 4040)
-const audience = "terrarium-control-plane"
+const audience = "vibevarium-control-plane"
 const issuer = process.env.OIDC_ISSUER ?? `http://${host}:${devPort}`
 
 const devIssuer = await startDevIssuer({ port: devPort, host, issuer, audiences: [audience] })
@@ -24,7 +24,7 @@ const provider = await startFakeOAuthProvider({
   port: providerPort,
   host,
   clients: [{
-    clientId: "terrarium-control-plane",
+    clientId: "vibevarium-control-plane",
     clientSecret: process.env.PROVIDER_CLIENT_SECRET ?? "dev-control-plane-secret",
     redirectUris: [`${connections.baseUrl}/connections/callback`]
   }]
@@ -36,7 +36,7 @@ await connections.registerProvider({
   tokenUrl: provider.tokenUrl,
   userinfoUrl: provider.userinfoUrl,
   apiBaseUrl: provider.apiBaseUrl,
-  clientId: "terrarium-control-plane",
+  clientId: "vibevarium-control-plane",
   clientSecret: process.env.PROVIDER_CLIENT_SECRET ?? "dev-control-plane-secret",
   defaultScopes: ["read:metrics"],
   responseMode: "form_post"

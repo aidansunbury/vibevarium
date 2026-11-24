@@ -49,7 +49,7 @@ Programmatic callers can start any number of providers with `startFakeOAuthProvi
 
 ## HTTP surface
 
-User/OIDC routes use `@terrarium/auth`'s `requireAuth` and `CurrentActor`:
+User/OIDC routes use `@vibevarium/auth`'s `requireAuth` and `CurrentActor`:
 
 - `POST /connections/start { provider, scopes? }` → provider authorization URL. `scopes` is optional and exists for reconnecting with a wider set.
 - `GET|POST /connections/callback` → one-time state redemption, code + PKCE exchange, userinfo lookup, connection upsert.
@@ -125,14 +125,14 @@ Patterns came from the MIT-licensed `oauth-helpers.ts`, `oauth-service.ts`, `oau
 - Connection identity label, expiry, and health/status live on the credential row.
 - OAuth client registration is independent provider config; connections fill that template.
 
-The grant/consent/vend/proxy layer is Terrarium-specific. A small per-process promise chain serializes refreshes per connection, preventing concurrent local calls from presenting the same rotating refresh token. This is not a cross-replica lock.
+The grant/consent/vend/proxy layer is Vibevarium-specific. A small per-process promise chain serializes refreshes per connection, preventing concurrent local calls from presenting the same rotating refresh token. This is not a cross-replica lock.
 
 ## Consent UX shape
 
-The provider consent and Terrarium consent are intentionally different screens:
+The provider consent and Vibevarium consent are intentionally different screens:
 
 - **Provider consent** establishes user ↔ provider. Fake Datadog shows the OAuth client, scopes, and a provider-user picker, issues a real code, then auto-submits it to the control plane.
-- **Terrarium consent** establishes app ↔ existing connection. It shows app id, provider display name, requested scopes, connected provider-account label, and the OIDC-signed-in user. It performs no new provider round-trip.
+- **Vibevarium consent** establishes app ↔ existing connection. It shows app id, provider display name, requested scopes, connected provider-account label, and the OIDC-signed-in user. It performs no new provider round-trip.
 
 The pending grant is user-agnostic until the authenticated consent screen. Approval binds it to the current user and their connection. Missing scopes fail with HTTP 409 and `missing_scopes`; reconnecting through `/connections/start` with a wider `scopes` array updates the connection's granted set. Deny simply deletes the pending request.
 
@@ -146,10 +146,10 @@ This spike implements one provider per consent screen. Combining multiple provid
 | Latency/path | One fewer control-plane hop on each provider API call. | Every API call traverses the control plane. |
 | Refresh | Control plane refreshes before vending, but the app chooses how long to retain the vended token. | Control plane can refresh on every near-expiry call; lifecycle is centralized. |
 | Revocation | A revoked grant stops future vends, but an already-vended token remains valid at the provider until expiry/revocation there. | The next call immediately gets 403; no provider round-trip occurs. |
-| Audit/policy | Direct provider traffic is invisible to Terrarium. | Natural point for request audit, path/method policy, and scope enforcement. |
+| Audit/policy | Direct provider traffic is invisible to Vibevarium. | Natural point for request audit, path/method policy, and scope enforcement. |
 | Implementation cost | Small response, but client now has secret handling and token caching concerns. | More HTTP edge cases. This spike forwards any method but buffers request/response bodies rather than streaming them. |
 
-The demo's `x-terrarium-token-refreshed: true` proxy header and provider snapshot (`refreshTokenRotations: 1`, `apiRequests: 2`) make the refresh path visible without exposing the provider credential.
+The demo's `x-vibevarium-token-refreshed: true` proxy header and provider snapshot (`refreshTokenRotations: 1`, `apiRequests: 2`) make the refresh path visible without exposing the provider credential.
 
 ## Open questions / deliberately not production-ready
 

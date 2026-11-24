@@ -19,8 +19,8 @@ const required = (key: string) => {
   if (value === undefined) throw new Error(`Missing ${key}`);
   return value;
 };
-const name = process.env.PROOF_REPO_NAME ?? `terrarium-git-proof-${process.pid}`;
-const org = "terrarium-sandbox";
+const name = process.env.PROOF_REPO_NAME ?? `vibevarium-git-proof-${process.pid}`;
+const org = "vibevarium-sandbox";
 const options = {
   appId: required("GITHUB_APP_ID"),
   privateKeyPath: resolve(root, required("GITHUB_APP_PRIVATE_KEY_PATH")),

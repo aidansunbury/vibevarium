@@ -1,6 +1,6 @@
 # State of the project — 2026-11-23
 
-Where Terrarium actually stands: what's live and proven, what's built but not
+Where Vibevarium actually stands: what's live and proven, what's built but not
 deployed/polished, the open items, and the design decisions that are locked vs
 still open. Read this to re-orient; the other docs hold the depth.
 
@@ -13,11 +13,15 @@ still open. Read this to re-orient; the other docs hold the depth.
   auth-code login (session cookie), RDS Postgres for the store, secrets from AWS
   Secrets Manager (zero secret env vars on the box), TanStack GUI.
 - **Two authed apps**: `tickets.vibevarium.com` + `notes.vibevarium.com` —
-  real GitHub repos (terrarium-sandbox), Cloudflare Worker + Durable Objects +
+  real GitHub repos (vibevarium-sandbox), Cloudflare Worker + Durable Objects +
   D1 + React SPA, real OIDC login (per-app client, redirect-on-logout, no
   logged-out state), shadcn frontend.
 - **Meta-MCP**: `platform.vibevarium.com/mcp` aggregates both apps (10 tools:
-  8 app + 2 directory). `tools/call` forwards the caller's bearer; discovery
+  8 app + 2 directory). ⚠️ In prod still **unauthenticated** (the ops gate
+  wraps the HTTP routes but not the MCP layer; verified 2026-11-23). The
+  bearer gate + OAuth discovery docs are built and tested locally
+  (`gateway/mcp-gate.ts`) and ship with the WorkOS cutover (next-step #1).
+  `tools/call` forwards the caller's bearer; discovery
   authenticates via a dedicated M2M credential; a killed app fails fast typed
   while the rest of the fleet keeps working.
 - **Meta-CLI**: `vibevarium` binary (customizable via `TERRARIUM_CLI_NAME`)
@@ -50,7 +54,7 @@ still open. Read this to re-orient; the other docs hold the depth.
   templates vary starting shape, never the contract (domain package, Api
   declaration, auth middleware, deploy stack). Options (R2 bucket etc.) are
   feature flags within a template, not new templates.
-- **shadcn + Base UI** design system (`@terrarium/ui`), Tailwind v4.
+- **shadcn + Base UI** design system (`@vibevarium/ui`), Tailwind v4.
 - **TanStack Router + Query + Effect HttpApiClient** typed clients — no raw
   fetch strings in any frontend.
 - **Domain as a variable** (`TERRARIUM_DOMAIN=vibevarium.com`) — one knob re-
@@ -109,12 +113,32 @@ still open. Read this to re-orient; the other docs hold the depth.
 
 ## Next steps (in rough priority)
 
-1. **Meta-OAuth live proof** — create the GitHub OAuth App (1 dashboard step),
+1. **WorkOS cutover (in progress)** — code-side done 2026-11-23:
+   `TERRARIUM_AUTH_PROVIDER=workos` swaps the issuer all flows derive from
+   (`config/index.ts`), `/mcp` is bearer-gated with `401 +
+   WWW-Authenticate: resource_metadata` and serves both discovery docs
+   (`gateway/mcp-gate.ts`, covered by `mcp-gate.test.ts`), and WorkOS keys
+   resolve from Secrets Manager (`secrets/boot.ts`). Remaining (dashboard +
+   deploy, blocked on the AuthKit domain): enable CIMD + DCR under *Connect →
+   Configuration*, register `https://mcp.vibevarium.com` as a Resource
+   Indicator, set `WORKOS_ISSUER` (+ client/api keys already in `.env`) in
+   Secrets Manager, redeploy the control plane, and update the CLI/template
+   default issuer. Note: scaffold's per-app client registration is
+   Logto-specific (`scaffold/logto.ts`); under WorkOS, apps rely on
+   DCR/CIMD + the platform audience instead — extract an `AuthProvider`
+   seam when the WorkOS deploy is live.
+2. **Casdoor second deployment** — the committed open-source, self-hostable
+   auth option (open DCR + CIMD, Apache-2.0). Stand up beside WorkOS later,
+   prove the OIDC-only swap in both directions. Assessed in docs/auth.md
+   ("DCR: the meta-MCP forcing function"); Authentik eliminated
+   (Enterprise-only, authenticated DCR); Zitadel/Ory documented fallbacks.
+3. **Meta-OAuth live proof** — create the GitHub OAuth App (1 dashboard step),
    wire creds to SM, prove `GET /proxy/github/user` returns a real profile.
-2. **Path exemptions** — implement regex exemptions (registry rows + GUI editor
+4. **Path exemptions** — implement regex exemptions (registry rows + GUI editor
    + router/template enforcement) per docs/path-exemptions.md.
-3. **Authentik swap-test** — prove the OIDC doctrine + extract the AuthProvider
-   adapter interface (the "how truly hot-swappable" test).
+5. **Auth-server swap-test** — prove the OIDC doctrine with the DCR-chosen
+   provider (was: Authentik): issuer + audience config swap on one app,
+   replay CLI + MCP login flows.
 4. **App M2M for the proxy** — real per-app client creds replacing the
    placeholder shared secret.
 5. **Meta-CLI fresh release** — rebuild with the login flow (the released

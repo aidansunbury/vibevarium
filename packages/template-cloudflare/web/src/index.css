@@ -1,8 +1,8 @@
-/* The Terrarium design system (shadcn/ui + Base UI). Theme variables live in
- * @terrarium/ui; a fork re-themes by overriding the CSS variables after this
+/* The Vibevarium design system (shadcn/ui + Base UI). Theme variables live in
+ * @vibevarium/ui; a fork re-themes by overriding the CSS variables after this
  * import (see packages/ui/README.md). */
-@import "@terrarium/ui/styles.css";
+@import "@vibevarium/ui/styles.css";
 
-/* Tailwind v4 only scans this package's tree by default — scan @terrarium/ui
+/* Tailwind v4 only scans this package's tree by default — scan @vibevarium/ui
  * too, or the built CSS misses every shadcn component class. */
 @source "../../../ui/src";

@@ -1,5 +1,5 @@
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
-import { Auth, CurrentActor, requireAuth } from "@terrarium/auth";
+import { Auth, CurrentActor, requireAuth } from "@vibevarium/auth";
 import { McpProtocol, McpServer } from "effect/ai";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -17,13 +17,16 @@ import { createServer } from "node:http";
 import { Directory, Discovery } from "./discovery/index.ts";
 import { AppProxy } from "./gateway/proxy.ts";
 import { controlToolsRegistration } from "./gateway/control-tools.ts";
+import { MCP_INTERNAL_PATH, mcpGateRoutes } from "./gateway/mcp-gate.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
 import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
 import { Connections, GITHUB_PROVIDER } from "./connections/index.ts";
 import { connectionRoutes } from "./connections/routes.ts";
+import { secretsRoutes } from "./integrations/secrets-routes.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
 import { SecretsProvider } from "./integrations/secrets.ts";
+import { AppSecrets } from "./integrations/app-secrets.ts";
 import { Integrations } from "./integrations/service.ts";
 import { bootSecretsReport } from "./secrets/boot.ts";
 import { RegisterAppInput, Registry } from "./registry/index.ts";
@@ -37,6 +40,8 @@ import { Provisioning } from "./provisioning/index.ts";
 export interface ControlPlaneOptions {
   readonly port?: number | undefined;
   readonly host?: string | undefined;
+  /** Public origin of this control plane (https://platform.vibevarium.com) — the MCP gate builds internal forwards + discovery URLs from it. */
+  readonly baseUrl?: string | undefined;
   /** Full postgres:// URL — when set, the store uses real Postgres (RDS prod). Wins over databasePath. */
   readonly databaseUrl?: string | undefined;
   /** PGlite data directory — local-dev fallback when databaseUrl is unset. */
@@ -299,6 +304,24 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       .filter((part) => part.length > 0),
   }).pipe(Layer.provide(databaseLayer));
   const scaffoldLayer = Scaffold.layer(options.scaffold).pipe(Layer.provide(aclLayer));
+  // Per-app secrets → the app's own Worker secrets (Cloudflare). Built only
+  // when the Cloudflare target is configured; the CF API token resolves via
+  // the SecretsProvider (cloudflare-api-token). Absent otherwise — the routes
+  // report app_secrets_unavailable.
+  const appSecretsLayer = options.scaffold?.cloudflare === undefined
+    ? Layer.empty
+    : Layer.unwrap(Effect.gen(function*() {
+        const secrets = yield* SecretsProvider;
+        const token = yield* secrets.resolve("cloudflare-api-token");
+        if (Option.isNone(token)) {
+          yield* Effect.logWarning("[app-secrets] cloudflare-api-token unresolvable — app-secret store disabled");
+          return Layer.empty as Layer.Layer<AppSecrets>;
+        }
+        return AppSecrets.layer({
+          accountId: options.scaffold!.cloudflare!.accountId,
+          apiToken: token.value,
+        }) as Layer.Layer<AppSecrets>;
+      })).pipe(Layer.provide(secretsLayer));
   const provisioningLayer = Provisioning.layer.pipe(
     Layer.provide(databaseLayer),
     Layer.provide(configLayer),
@@ -344,21 +367,40 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       Layer.provide(connectionsLayer),
       Layer.provide(secretsLayer),
     ),
+    // Set-only secrets surface (docs/redeployment-plan.md §3): list names +
+    // provenance, set/overwrite/delete — never read a value back. ACL-gated
+    // (platform secrets → superadmin; app secrets → app admin). Mounted under
+    // the same GUI/bearer gate as the ACL routes.
+    secretsRoutes(makeGated({ authEnabled, guiAuthEnabled })).pipe(
+      Layer.provide(aclLayer),
+      Layer.provide(appSecretsLayer),
+      Layer.provide(Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv))),
+    ),
     registerManifestProviders,
     scheduledDiscovery(options.discoveryIntervalMs ?? 30_000),
   ).pipe(
+    // The Effect MCP transport mounts on an internal-only path; the public
+    // /mcp surface is the bearer gate + discovery docs in mcp-gate.ts.
     Layer.provide(McpServer.layerHttp({
-      name: "terrarium-meta-mcp",
+      name: "vibevarium-meta-mcp",
       version: "0.0.1",
-      path: "/mcp",
+      path: MCP_INTERNAL_PATH,
       protocols: [McpProtocol.v2025_11_25],
     })),
     Layer.provide(servicesLayer),
   );
 
+  const mcpGate = mcpGateRoutes({
+    baseUrl: options.baseUrl ?? `http://127.0.0.1:${options.port ?? 4100}`,
+    resource: options.oidc?.audience ?? `https://mcp.vibevarium.com`,
+    authEnabled,
+    issuer: options.oidc?.issuer,
+  });
+
   // The GUI is mounted last: its /* fallback must lose to every API route.
   const allRoutes = Layer.mergeAll(
     routes,
+    mcpGate,
     HttpRouter.add("GET", "/health", HttpServerResponse.text("ok")),
     // Config provenance for ops/debugging — key NAMES and providers only,
     // never values. Ungated intentionally (same trust level as /health).
@@ -378,12 +420,10 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         ["CLOUDFLARE_ZONE_ID", process.env.CLOUDFLARE_ZONE_ID],
         ["CLOUDFLARE_WORKERS_SUBDOMAIN", process.env.CLOUDFLARE_WORKERS_SUBDOMAIN],
         ["ROUTER_KV_NAMESPACE_ID", process.env.ROUTER_KV_NAMESPACE_ID],
-        ["LOGTO_M2M_APP_ID", process.env.LOGTO_M2M_APP_ID],
-        ["LOGTO_M2M_APP_SECRET", process.env.LOGTO_M2M_APP_SECRET],
-        ["LOGTO_GUI_APP_ID", process.env.LOGTO_GUI_APP_ID],
-        ["LOGTO_GUI_APP_SECRET", process.env.LOGTO_GUI_APP_SECRET],
-        ["LOGTO_CLI_APP_ID", process.env.LOGTO_CLI_APP_ID],
-        ["LOGTO_MCP_RESOURCE", process.env.LOGTO_MCP_RESOURCE],
+        ["CASDOOR_ISSUER", process.env.CASDOOR_ISSUER],
+        ["GUI_APP_ID", process.env.GUI_APP_ID],
+        ["GUI_APP_SECRET", process.env.GUI_APP_SECRET],
+        ["WORKOS_CLIENT_ID", process.env.WORKOS_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_ID", process.env.GITHUB_OAUTH_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_SECRET", process.env.GITHUB_OAUTH_CLIENT_SECRET],
         ["CONNECTIONS_TOKEN_ENCRYPTION_KEY", process.env.CONNECTIONS_TOKEN_ENCRYPTION_KEY],
@@ -469,7 +509,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     | Connections
     | Database
     | SecretsProvider,
-    import("@terrarium/auth").DiscoveryError | import("effect/http/HttpServerError").ServeError,
+    import("@vibevarium/auth").DiscoveryError | import("effect/http/HttpServerError").ServeError,
     never
   >;
 };

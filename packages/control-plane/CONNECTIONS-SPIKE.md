@@ -73,7 +73,7 @@ control plane IS the OAuth client. State + PKCE verifier live in
 app                     control plane                     user
  │ POST /grants/request        │                            │
  │ {provider, scopes}          │                            │
- │ (app credential: x-terrarium-app/secret)                 │
+ │ (app credential: x-vibevarium-app/secret)                 │
  │◄── {grant_id, consent_url} ─│                            │
  │──redirect user to consent_url───────────────────────────►│
  │                       GET /grants/consent?grant=…        │
@@ -95,7 +95,7 @@ per-user audience dimension yet).
 - **`POST /vend {provider}`** (app credential) — returns the raw provider
   access token. Lower latency, the app holds a credential, weaker audit.
 - **`ANY /proxy/:provider/*`** (app credential, or user bearer +
-  `x-terrarium-on-behalf-of-app`) — the control plane attaches the token and
+  `x-vibevarium-on-behalf-of-app`) — the control plane attaches the token and
   forwards to the provider's `api_base_url`. Full per-call audit, instant
   revocation, the app never holds a credential. **Default.**
 
@@ -123,7 +123,7 @@ routes.
   don't keep the presented one. Serialized per-connection by a partitioned
   semaphore — two concurrent vends can never rotate the same refresh token
   twice (rotation invalidates the first). Response header
-  `x-terrarium-token-refreshed` tells the caller it happened.
+  `x-vibevarium-token-refreshed` tells the caller it happened.
 - **Revocation**: grant revoke → vend AND proxy return `403 grant_required` on
   the very next call (the check is a live DB read, no cache). Connection
   revoke → every grant on it dies in the same transaction.
@@ -135,13 +135,13 @@ routes.
 
 The GitHub provider is registered automatically at boot **when
 `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` are resolvable** (env
-locally, Secrets Manager `/terrarium/prod/github-oauth-client-{id,secret}` in
+locally, Secrets Manager `/vibevarium/prod/github-oauth-client-{id,secret}` in
 prod). Creating that OAuth App is the only thing a human must do in a dashboard:
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
    (for an org-owned app: the org's page → Settings → Developer settings).
 2. Fill in:
-   - **Application name**: `Terrarium control plane`
+   - **Application name**: `Vibevarium control plane`
    - **Homepage URL**: `https://platform.vibevarium.com`
    - **Authorization callback URL**:
      `https://platform.vibevarium.com/connections/callback`
@@ -152,7 +152,7 @@ prod). Creating that OAuth App is the only thing a human must do in a dashboard:
    - local: `GITHUB_OAUTH_CLIENT_ID=…` and `GITHUB_OAUTH_CLIENT_SECRET=…` in the
      repo-root `.env`;
    - prod: SM secrets `github-oauth-client-id` / `github-oauth-client-secret`
-     under `/terrarium/prod/`.
+     under `/vibevarium/prod/`.
 5. Also set `CONNECTIONS_TOKEN_ENCRYPTION_KEY` (any 32+ byte random string;
    `openssl rand -base64 32`) so tokens are encrypted at rest.
 6. Restart the control plane — the boot log line changes from
@@ -183,8 +183,8 @@ cookie feeds), fake-oauth as the provider, and drives every endpoint:
 - **vend**: raw RS256 provider token returned; a DIRECT provider API call with
   it returns metrics.
 - **proxy**: `/proxy/datadog/metrics` forwards with the token attached,
-  `x-terrarium-grant-id` set; after the provider's 5s token TTL the proxy
-  transparently rotates (`x-terrarium-token-refreshed: true`,
+  `x-vibevarium-grant-id` set; after the provider's 5s token TTL the proxy
+  transparently rotates (`x-vibevarium-token-refreshed: true`,
   `refreshTokenRotations: 1` in the provider snapshot).
 - **revoke**: grant revoke → vend+proxy `403 grant_required` immediately;
   re-approve, connection revoke → all grants die.
@@ -210,7 +210,7 @@ HTML at `/grants/consent` (no React; requires the user's session).
 - **ID-JAG** (`draft-ietf-oauth-identity-assertion-authz-grant`) — enterprise
   identity assertion instead of the user consent screen. Track the draft;
   executor's `oauth-ema.ts` is the reference when it matures.
-- **App auth is the pre-M2M placeholder** (`x-terrarium-app` + shared secret),
+- **App auth is the pre-M2M placeholder** (`x-vibevarium-app` + shared secret),
   same as the integrations proxy. When apps get real OIDC M2M client
   credentials, `/grants/request` + `/vend` + `/proxy` swap the header check for
   a platform-audience bearer check — the grant model doesn't change.

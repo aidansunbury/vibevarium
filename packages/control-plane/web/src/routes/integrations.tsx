@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../api";
-import { Badge } from "@terrarium/ui/components/badge";
-import { Button } from "@terrarium/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
-import { Input } from "@terrarium/ui/components/input";
-import { Label } from "@terrarium/ui/components/label";
-import { Separator } from "@terrarium/ui/components/separator";
+import { Badge } from "@vibevarium/ui/components/badge";
+import { Button } from "@vibevarium/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@vibevarium/ui/components/card";
+import { Input } from "@vibevarium/ui/components/input";
+import { Label } from "@vibevarium/ui/components/label";
+import { Separator } from "@vibevarium/ui/components/separator";
 import {
   Table,
   TableBody,
@@ -15,8 +15,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@terrarium/ui/components/table";
-import { toast } from "@terrarium/ui/lib/toast";
+} from "@vibevarium/ui/components/table";
+import { toast } from "@vibevarium/ui/lib/toast";
 
 export const Route = createFileRoute("/integrations")({ component: IntegrationsPage });
 

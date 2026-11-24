@@ -8,5 +8,5 @@
   "rules": {
     "typescript/no-explicit-any": "off"
   },
-  "ignorePatterns": ["dist/", "apps/"]
+  "ignorePatterns": ["dist/", "apps/", "docs/"]
 }

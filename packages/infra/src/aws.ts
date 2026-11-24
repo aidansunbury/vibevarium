@@ -21,15 +21,15 @@ export interface AwsInfraOptions {
 }
 
 /**
- * AWS infrastructure for the Terrarium auth server + control plane.
+ * AWS infrastructure for the Vibevarium auth server + control plane.
  *
  * Layout: one small VPC (2 AZs) with public + private subnets, no NAT gateway
  * (the single EC2 lives in a public subnet with an Elastic IP; RDS sits in the
  * private subnets and is only reachable from the EC2 security group).
  *
  * One EC2 (Ubuntu 24.04, t3.medium) runs Docker; one RDS Postgres (db.t4g.micro)
- * hosts the `logto` database (initial) and `control_plane` (created by the
- * bootstrap script on the box — RDS only creates one initial database).
+ * hosts `postgres` (initial), `control_plane`, and `casdoor` (created by the
+ * deploy script — RDS only creates one initial database).
  *
  * The Elastic IP is allocated here; the association to the instance is done by
  * `scripts/deploy.sh` (alchemy beta.87 has no EIPAssociation resource).
@@ -50,7 +50,7 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
     // --- Security groups ---------------------------------------------------
     const ec2Sg = yield* AWS.EC2.SecurityGroup("Ec2Sg", {
       vpcId: network.vpcId,
-      description: "Terrarium control-plane EC2",
+      description: "Vibevarium control-plane EC2",
       ingress: [
         {
           ipProtocol: "tcp",
@@ -74,12 +74,12 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
           description: "HTTPS",
         },
       ],
-      tags: { Name: "terrarium-ec2" },
+      tags: { Name: "vibevarium-ec2" },
     });
 
     const rdsSg = yield* AWS.EC2.SecurityGroup("RdsSg", {
       vpcId: network.vpcId,
-      description: "Terrarium RDS - reachable from EC2 only",
+      description: "Vibevarium RDS - reachable from EC2 only",
       ingress: [
         {
           ipProtocol: "tcp",
@@ -89,18 +89,18 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
           description: "Postgres from EC2 SG",
         },
       ],
-      tags: { Name: "terrarium-rds" },
+      tags: { Name: "vibevarium-rds" },
     });
 
     // --- SSH key pair ------------------------------------------------------
     const keyPair = yield* AWS.EC2.KeyPair("SshKey", {
       keyType: "ed25519",
-      tags: { Name: "terrarium-ssh" },
+      tags: { Name: "vibevarium-ssh" },
     });
 
     // --- RDS Postgres ------------------------------------------------------
     const subnetGroup = yield* AWS.RDS.DBSubnetGroup("DbSubnets", {
-      description: "Terrarium private subnets",
+      description: "Vibevarium private subnets",
       subnetIds: network.privateSubnetIds,
     });
 
@@ -108,7 +108,7 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       engine: "postgres",
       engineVersion: "16",
       dbInstanceClass,
-      dbName: "logto", // initial database; control_plane is created by bootstrap
+      dbName: "postgres", // initial database; control_plane + casdoor are created by the deploy script
       masterUsername: "postgres",
       ...(options.dbPassword === undefined
         ? { manageMasterUserPassword: true }
@@ -120,15 +120,15 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       vpcSecurityGroupIds: [rdsSg.groupId],
       backupRetentionPeriod: "7 days",
       skipFinalSnapshot: false, // take a final snapshot on destroy — cheap insurance
-      tags: { Name: "terrarium-postgres" },
+      tags: { Name: "vibevarium-postgres" },
     });
 
     // --- Elastic IP (stable DNS target) ------------------------------------
     const eip = yield* AWS.EC2.EIP("PublicIp", {
-      tags: { Name: "terrarium-ec2-eip" },
+      tags: { Name: "vibevarium-ec2-eip" },
     });
 
-    // --- IAM: EC2 instance role with read access to /terrarium/prod/* ------
+    // --- IAM: EC2 instance role with read access to /vibevarium/prod/* ------
     // The control plane resolves its runtime config from AWS Secrets Manager
     // (SECRETS_PROVIDER=aws) via the instance profile — no static AWS keys.
     const instanceRole = yield* AWS.IAM.Role("Ec2Role", {
@@ -141,21 +141,50 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
         }],
       },
       inlinePolicies: {
-        TerrariumSecretsRead: {
+        VibevariumSecretsRead: {
           Version: "2012-10-17",
           Statement: [{
             Effect: "Allow",
             Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-            Resource: ["arn:aws:secretsmanager:us-east-1:412215357683:secret:/terrarium/prod/*"],
+            Resource: ["arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*"],
           }],
         },
+        // The set-only secrets GUI (docs/redeployment-plan.md §3): the control
+        // plane creates/overwrites/deletes/list secrets under the prefix but the
+        // GUI never reads values back. CreateSecret on a NEW name needs the
+        // "-??????" suffix wildcard (AWS appends 6 random chars to the ARN).
+        VibevariumSecretsWrite: {
+          Version: "2012-10-17",
+          Statement: [
+            {
+              Sid: "SecretsGuiWrite",
+              Effect: "Allow",
+              Action: [
+                "secretsmanager:PutSecretValue",
+                "secretsmanager:CreateSecret",
+                "secretsmanager:DeleteSecret",
+                "secretsmanager:TagResource",
+              ],
+              Resource: [
+                "arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*",
+                "arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*-??????",
+              ],
+            },
+            {
+              Sid: "SecretsGuiListAll",
+              Effect: "Allow",
+              Action: ["secretsmanager:ListSecrets"],
+              Resource: "*",
+            },
+          ],
+        },
       },
-      tags: { Name: "terrarium-ec2-role" },
+      tags: { Name: "vibevarium-ec2-role" },
     });
 
     const instanceProfile = yield* AWS.IAM.InstanceProfile("Ec2Profile", {
       roleName: instanceRole.roleName,
-      tags: { Name: "terrarium-ec2-profile" },
+      tags: { Name: "vibevarium-ec2-profile" },
     });
 
     // --- EC2 instance ------------------------------------------------------
@@ -173,7 +202,7 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       },
       // userData: bootstrap.sh is piped in by the caller (see main.ts) so the
       // script lives in a real file we can lint/read, not an inline string.
-      tags: { Name: "terrarium-server" },
+      tags: { Name: "vibevarium-server" },
     });
 
     return {
@@ -194,7 +223,7 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
       dbEndpoint: db.endpointAddress,
       dbPort: db.endpointPort ?? 5432,
       dbMasterSecretArn: db.masterUserSecretArn,
-      logtoDatabase: "logto",
+      casdoorDatabase: "casdoor",
       controlPlaneDatabase: "control_plane",
       // URL-shaped helpers for downstream consumers (password resolved at
       // deploy time by the bootstrap script from Secrets Manager).

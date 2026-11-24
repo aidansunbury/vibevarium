@@ -25,7 +25,7 @@ export interface GitProviderShape {
 }
 
 export class GitProvider extends Context.Service<GitProvider, GitProviderShape>()(
-  "@terrarium/control-plane/scaffold/GitProvider",
+  "@vibevarium/control-plane/scaffold/GitProvider",
 ) {}
 
 /** Spike provider: one independent local repository per generated app. */
@@ -52,9 +52,9 @@ export const LocalGitProvider = {
             "-C",
             directory,
             "-c",
-            "user.name=Terrarium Scaffold",
+            "user.name=Vibevarium Scaffold",
             "-c",
-            "user.email=scaffold@terrarium.local",
+            "user.email=scaffold@vibevarium.local",
             "commit",
             "--quiet",
             "-m",

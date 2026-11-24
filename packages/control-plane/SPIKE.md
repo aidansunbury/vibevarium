@@ -15,20 +15,20 @@ From the repository root:
 
 ```sh
 pnpm install
-pnpm --filter @terrarium/control-plane demo
-pnpm --filter @terrarium/control-plane test
+pnpm --filter @vibevarium/control-plane demo
+pnpm --filter @vibevarium/control-plane test
 pnpm exec tsrs --noEmit -p packages/control-plane/tsconfig.json
 pnpm exec oxlint --type-aware packages/control-plane
 ```
 
-The demo boots two real `@terrarium/template` servers on ephemeral ports, boots the gateway and an embedded PGlite database, performs the complete proof, asserts it, and prints the full report (including every unabridged tool JSON Schema). TypeScript execution uses `node --experimental-strip-types`, matching the template.
+The demo boots two real `@vibevarium/template` servers on ephemeral ports, boots the gateway and an embedded PGlite database, performs the complete proof, asserts it, and prints the full report (including every unabridged tool JSON Schema). TypeScript execution uses `node --experimental-strip-types`, matching the template.
 
 To run a persistent control plane:
 
 ```sh
-PORT=4100 pnpm --filter @terrarium/control-plane start
+PORT=4100 pnpm --filter @vibevarium/control-plane start
 # Optional: durable rather than in-memory PGlite storage
-DATABASE_PATH=.data/control-plane pnpm --filter @terrarium/control-plane start
+DATABASE_PATH=.data/control-plane pnpm --filter @vibevarium/control-plane start
 ```
 
 Configuration environment variables:
@@ -41,7 +41,7 @@ Configuration environment variables:
 | `DISCOVERY_TIMEOUT_MS` | `3000` | Per-app discovery/connect/list deadline |
 | `CALL_TIMEOUT_MS` | `3000` | Per-app connect/call deadline |
 | `CONTROL_PLANE_ISSUER` | unset | OIDC issuer for the control plane's own HTTP surfaces; unset means dev-open |
-| `CONTROL_PLANE_AUDIENCE` | `control.terrarium.local` | Audience expected on control-plane tokens |
+| `CONTROL_PLANE_AUDIENCE` | `control.vibevarium.local` | Audience expected on control-plane tokens |
 | `APP_SECRETS` | unset | JSON object of pre-M2M app credentials for the integration proxy (or `APP_SECRET_<NAME>` env vars) |
 | `GUI_DIR` | `web/dist` | Built GUI directory served at `/`; missing dir disables the mount |
 | `INTEGRATION_<NAME>_TOKEN` | unset | v1 integration tokens (referenced by `token_env` rows; see PROXY-SPIKE.md) |
@@ -99,8 +99,8 @@ CREATE TABLE directory_tools (
 
 ```json
 {
-  "terrarium/app": "tickets-a",
-  "terrarium/stale": false
+  "vibevarium/app": "tickets-a",
+  "vibevarium/stale": false
 }
 ```
 
@@ -254,7 +254,7 @@ One complete descriptor from that same array shows schema and annotation passthr
     "idempotentHint": false,
     "openWorldHint": true
   },
-  "_meta": { "terrarium/app": "tickets-a", "terrarium/stale": false }
+  "_meta": { "vibevarium/app": "tickets-a", "vibevarium/stale": false }
 }
 ```
 
@@ -342,7 +342,7 @@ B's registry row retained its last successful timestamp:
 }
 ```
 
-All four B tools remained in both the directory and gateway `tools/list`, with `stale: true` in the rows and `terrarium/stale: true` in the exposed descriptors:
+All four B tools remained in both the directory and gateway `tools/list`, with `stale: true` in the rows and `vibevarium/stale: true` in the exposed descriptors:
 
 ```json
 [
@@ -406,7 +406,7 @@ Tests       1 passed (1)
 - Add single-flight/versioned discovery. Manual and scheduled refreshes can currently overlap, and an older response could win a race.
 - Add MCP-name length/collision policy and reserve directory-tool names. Lower-kebab app names solve prefix ambiguity only.
 - Add a hanging-child test and, if needed, a circuit breaker. The spike implements deadlines, not a breaker.
-- Decide how discovery obtains a platform M2M credential, then add `@terrarium/auth` verification around the gateway router. User headers belong on calls, not automatically on scheduled discovery.
+- Decide how discovery obtains a platform M2M credential, then add `@vibevarium/auth` verification around the gateway router. User headers belong on calls, not automatically on scheduled discovery.
 - Add real migrations before persistent PGlite schema evolution matters.
 - Determine whether prompts/resources, notifications, progress, and child-initiated requests are in scope; this spike only aggregates tools.
 - Preserve or intentionally reject MCP tool variants that Effect's descriptor model filters rather than silently treating the gateway as a transparent arbitrary JSON-RPC proxy.

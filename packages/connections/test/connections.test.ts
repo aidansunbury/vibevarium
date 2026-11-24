@@ -6,7 +6,7 @@ describe("connections meta-OAuth spike", () => {
     const report = await runConnectionsDemo()
 
     expect(report.connect.start.status).toBe(200)
-    expect(report.connect.providerConsent.html).toContain("terrarium-control-plane")
+    expect(report.connect.providerConsent.html).toContain("vibevarium-control-plane")
     expect(report.connect.providerConsent.html).toContain("read:metrics")
     expect(report.connect.providerApproved.html).toContain('method="post"')
     expect(report.connect.callback).toMatchObject({

@@ -25,7 +25,7 @@ import { TicketsModel } from "./Tickets.model.ts";
 import { TicketsHttp, TicketsMcp } from "./surfaces.ts";
 
 export const TicketsDatabase = Cloudflare.D1.Database("TicketsDatabase", {
-  name: process.env.D1_DATABASE_NAME ?? "terrarium-tickets-cloudflare-data",
+  name: process.env.D1_DATABASE_NAME ?? "vibevarium-tickets-cloudflare-data",
   migrations: "./migrations",
 });
 
@@ -67,7 +67,7 @@ const workerFirstPaths = [
 export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
   "TicketsWorker",
   {
-    name: process.env.WORKER_NAME ?? "terrarium-tickets-cloudflare",
+    name: process.env.WORKER_NAME ?? "vibevarium-tickets-cloudflare",
     main: import.meta.url,
     domain: process.env.APP_HOSTNAME === undefined
       ? null

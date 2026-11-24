@@ -29,8 +29,8 @@ export const namespaceTool = (record: DirectoryTool) =>
     name: record.gatewayName,
     ["_meta"]: {
       ...record.descriptor["_meta"],
-      "terrarium/app": record.appName,
-      "terrarium/stale": record.stale,
+      "vibevarium/app": record.appName,
+      "vibevarium/stale": record.stale,
     },
   });
 

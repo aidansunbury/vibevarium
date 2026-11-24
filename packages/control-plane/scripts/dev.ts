@@ -1,11 +1,11 @@
 /**
  * Local-dev orchestrator: one command boots the whole local platform.
  *
- *   pnpm --filter @terrarium/control-plane dev
+ *   pnpm --filter @vibevarium/control-plane dev
  *
  * Boots the dev OIDC issuer, the control plane (PGlite, auth on, GUI served
  * from web/dist), and one template app (the localhost twin at
- * <name>.terrarium.local audience), then registers the app and runs
+ * <name>.vibevarium.local audience), then registers the app and runs
  * discovery so the gateway directory is warm. Prints the URL map and keeps
  * everything alive until Ctrl+C, with clean shutdown.
  *
@@ -13,10 +13,10 @@
  *   PORT (4100)            control-plane port
  *   OIDC_PORT (4010)       dev-issuer port
  *   APP_PORT (4300)        template app port
- *   APP_NAME (tickets)     app name → audience <name>.terrarium.local
+ *   APP_NAME (tickets)     app name → audience <name>.vibevarium.local
  *   DATABASE_PATH          PGlite dir (default .data/dev-control-plane)
  */
-import { startDevIssuer } from "@terrarium/dev-issuer";
+import { startDevIssuer } from "@vibevarium/dev-issuer";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
@@ -32,7 +32,7 @@ const CONTROL_PORT = Number(process.env.PORT ?? 4100);
 const ISSUER_PORT = Number(process.env.OIDC_PORT ?? 4010);
 const APP_PORT = Number(process.env.APP_PORT ?? 4300);
 const APP_NAME = process.env.APP_NAME ?? "tickets";
-const DOMAIN = process.env.TERRARIUM_DOMAIN ?? "terrarium.local";
+const DOMAIN = process.env.TERRARIUM_DOMAIN ?? "vibevarium.local";
 const CONTROL_AUDIENCE = `control.${DOMAIN}`;
 const APP_AUDIENCE = `${APP_NAME}.${DOMAIN}`;
 const ISSUER = `http://127.0.0.1:${ISSUER_PORT}`;

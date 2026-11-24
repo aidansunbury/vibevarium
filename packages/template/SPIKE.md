@@ -8,7 +8,7 @@ The thesis works locally. One `TicketsApi` declaration drives:
 - streamable-HTTP MCP at `/mcp` via `toMcp` (Effect MCP protocol `2025-11-25`);
 - an executable CLI via `toCli`, using `Domain.protocolHttp` against `/rpc`.
 
-The aggregate and both views run on `Domain.InMemory` in a plain Node process. No cloud credentials, Docker, Bun, frontend, or database are involved. Optional OIDC auth now uses `@terrarium/auth`; the original demo remains unauthenticated by default, and the control-plane scaffold demo exercises authenticated mode. TypeScript execution consistently uses `node --experimental-strip-types`.
+The aggregate and both views run on `Domain.InMemory` in a plain Node process. No cloud credentials, Docker, Bun, frontend, or database are involved. Optional OIDC auth now uses `@vibevarium/auth`; the original demo remains unauthenticated by default, and the control-plane scaffold demo exercises authenticated mode. TypeScript execution consistently uses `node --experimental-strip-types`.
 
 ## Run it
 
@@ -16,8 +16,8 @@ From the repository root:
 
 ```sh
 pnpm install
-pnpm --filter @terrarium/template demo
-pnpm --filter @terrarium/template test
+pnpm --filter @vibevarium/template demo
+pnpm --filter @vibevarium/template test
 pnpm exec tsrs --noEmit -p packages/template/tsconfig.json
 ```
 
@@ -26,7 +26,7 @@ The demo boots an ephemeral localhost port, exercises all three surfaces, and pr
 To run a persistent server and the executable directly:
 
 ```sh
-pnpm --filter @terrarium/template start  # http://127.0.0.1:3000; override with PORT
+pnpm --filter @vibevarium/template start  # http://127.0.0.1:3000; override with PORT
 cd packages/template
 ./src/cli.ts open-ticket --title "VPN access" --reporter carol
 ./src/cli.ts ticket-list get --key all
@@ -45,23 +45,23 @@ curl http://127.0.0.1:3000/TicketById/http-1
 
 ## Optional OIDC auth
 
-Setting `TERRARIUM_ISSUER` enables `@terrarium/auth` verification for the HTTP API, OpenAPI, RPC, and MCP. `TERRARIUM_AUDIENCE` defaults to `${APP_NAME:-tickets}.terrarium.local`; `TERRARIUM_AUTH=off` explicitly preserves unauthenticated local demos even when an issuer is present. `/health` is public, while `GET /whoami` echoes the verified `CurrentActor`.
+Setting `TERRARIUM_ISSUER` enables `@vibevarium/auth` verification for the HTTP API, OpenAPI, RPC, and MCP. `TERRARIUM_AUDIENCE` defaults to `${APP_NAME:-tickets}.vibevarium.local`; `TERRARIUM_AUTH=off` explicitly preserves unauthenticated local demos even when an issuer is present. `/health` is public, while `GET /whoami` echoes the verified `CurrentActor`.
 
-For example, with the dev issuer running on port 4010 and `expenses.terrarium.local` in its allowed audiences:
+For example, with the dev issuer running on port 4010 and `expenses.vibevarium.local` in its allowed audiences:
 
 ```sh
 TERRARIUM_AUTH=on \
 TERRARIUM_ISSUER=http://127.0.0.1:4010 \
-TERRARIUM_AUDIENCE=expenses.terrarium.local \
+TERRARIUM_AUDIENCE=expenses.vibevarium.local \
 APP_NAME=expenses \
-pnpm --filter @terrarium/template start
+pnpm --filter @vibevarium/template start
 
-TOKEN=$(curl -s 'http://127.0.0.1:4010/dev/token?sub=user-1&name=Ada&aud=expenses.terrarium.local' | node -pe 'JSON.parse(require("node:fs").readFileSync(0)).access_token')
+TOKEN=$(curl -s 'http://127.0.0.1:4010/dev/token?sub=user-1&name=Ada&aud=expenses.vibevarium.local' | node -pe 'JSON.parse(require("node:fs").readFileSync(0)).access_token')
 curl -i http://127.0.0.1:3000/whoami                    # 401
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3000/whoami
 ```
 
-The complete automated authenticated proof is `pnpm --filter @terrarium/control-plane scaffold:demo`; see `packages/control-plane/SCAFFOLD-SPIKE.md`.
+The complete automated authenticated proof is `pnpm --filter @vibevarium/control-plane scaffold:demo`; see `packages/control-plane/SCAFFOLD-SPIKE.md`.
 
 ## What was built
 

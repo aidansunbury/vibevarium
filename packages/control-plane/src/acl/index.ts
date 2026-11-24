@@ -82,7 +82,7 @@ export class Acl extends Context.Service<Acl, {
    * row when missing and upserts the creator's admin member row.
    */
   readonly seedCreator: (app: string, userSub: string) => Effect.Effect<void>;
-}>()("@terrarium/control-plane/acl/Acl") {
+}>()("@vibevarium/control-plane/acl/Acl") {
   static readonly layer = (options: { readonly superadmins?: ReadonlyArray<string> | undefined } = {}) =>
     Layer.effect(Acl)(Effect.gen(function*() {
       const { db } = yield* Database;

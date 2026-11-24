@@ -12,9 +12,9 @@ env var** (the v1 secrets backend), attaches it as `Authorization: Bearer`,
 forwards method/body, and returns the upstream response. Every call writes a
 `proxy_audit` row. Revoking the grant is a row delete; the very next call gets
 `403 grant_required`. User-context proxying (a caller's OIDC bearer token) also
-works, keyed to the app named by `x-terrarium-on-behalf-of-app`.
+works, keyed to the app named by `x-vibevarium-on-behalf-of-app`.
 
-Proof: `pnpm --filter @terrarium/control-plane proxy:demo` boots a dev issuer,
+Proof: `pnpm --filter @vibevarium/control-plane proxy:demo` boots a dev issuer,
 a fake "snowflake" API, and the control plane (auth on), then asserts the whole
 grant → proxy → audit → revoke → 403 round trip. Excerpt:
 
@@ -44,12 +44,12 @@ grant → proxy → audit → revoke → 403 round trip. Excerpt:
 
 ## Caller auth on `/proxy/*` — the auth seams
 
-1. **User-context**: a valid `@terrarium/auth` bearer token (dev-issuer today;
+1. **User-context**: a valid `@vibevarium/auth` bearer token (dev-issuer today;
    Logto hosted flow later — the config seam is `CONTROL_PLANE_ISSUER` /
    `CONTROL_PLANE_AUDIENCE`). The grant's app dimension comes from
-   `x-terrarium-on-behalf-of-app` (default `user`).
-2. **App-context (pre-M2M placeholder)**: `x-terrarium-app` +
-   `x-terrarium-app-secret` headers against `APP_SECRETS` (JSON) or
+   `x-vibevarium-on-behalf-of-app` (default `user`).
+2. **App-context (pre-M2M placeholder)**: `x-vibevarium-app` +
+   `x-vibevarium-app-secret` headers against `APP_SECRETS` (JSON) or
    `APP_SECRET_<NAME>` env vars. **This is not the final app credential** —
    real app M2M creds (OIDC client credentials with per-app audiences) arrive
    with Logto; the seam is the `resolveCaller` function in
@@ -70,6 +70,6 @@ referenced env var is set, without exposing the value.
 - No method/path allowlists per integration — any path under `baseUrl` is
   forwarded. That's a per-integration policy addition.
 - No OAuth/refresh lifecycle — tokens are static env values. The OAuth
-  machinery for user connections lives in `@terrarium/connections` and is a
+  machinery for user connections lives in `@vibevarium/connections` and is a
   separate (compatible) spike; merging the two is a later integration.
 - Audit is a table, not a tamper-evident log.

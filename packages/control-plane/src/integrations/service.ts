@@ -85,7 +85,7 @@ export class Integrations extends Context.Service<Integrations, {
     integration: string | undefined,
     limit: number,
   ) => Effect.Effect<ReadonlyArray<ProxyAuditRow>>;
-}>()("@terrarium/control-plane/integrations/Integrations") {
+}>()("@vibevarium/control-plane/integrations/Integrations") {
   static readonly layer = Layer.effect(Integrations)(Effect.gen(function*() {
     const { db } = yield* Database;
     const secrets = yield* SecretsProvider;
@@ -297,8 +297,8 @@ export class Integrations extends Context.Service<Integrations, {
         if (!hopByHop.has(name)) outbound[name] = value;
       }
       delete outbound["authorization"];
-      delete outbound["x-terrarium-app"];
-      delete outbound["x-terrarium-app-secret"];
+      delete outbound["x-vibevarium-app"];
+      delete outbound["x-vibevarium-app-secret"];
       if (row.authHeader === "authorization_bearer") outbound["authorization"] = `Bearer ${token}`;
       else if (row.authHeader === "authorization") outbound["authorization"] = token;
       else if (row.authHeader === "x-api-key") outbound["x-api-key"] = token;

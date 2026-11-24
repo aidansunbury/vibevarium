@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { base64url, decodeJwt, decodeProtectedHeader } from "jose"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { startDevIssuer } from "@terrarium/dev-issuer"
-import type { DevIssuer } from "@terrarium/dev-issuer"
+import { startDevIssuer } from "@vibevarium/dev-issuer"
+import type { DevIssuer } from "@vibevarium/dev-issuer"
 
 let devIssuer: DevIssuer
 

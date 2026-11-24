@@ -89,7 +89,7 @@ version.) Then:
 
 ```sh
 platform login                                    # dev-issuer login in this spike
-platform apps add tickets @terrarium/template http://127.0.0.1:3000
+platform apps add tickets @vibevarium/template http://127.0.0.1:3000
 platform tickets open-ticket --title "…" --reporter ada
 ```
 
@@ -144,7 +144,7 @@ The exact knobs (all optional; defaults are production):
 | `PLATFORM_OIDC_AUDIENCE` | `https://mcp.vibevarium.com` | RFC 8707 resource indicator — the access token's audience |
 | `PLATFORM_CONTROL_PLANE_URL` | `https://platform.vibevarium.com` | Base URL the `control` subtree calls |
 | `TERRARIUM_CLI_CALLBACK_PORT` | `8919` | Loopback redirect port for the login flow |
-| `TERRARIUM_CONFIG_DIR` | `~/.config/terrarium` | Where `auth.json` / `apps.json` live |
+| `TERRARIUM_CONFIG_DIR` | `~/.config/vibevarium` | Where `auth.json` / `apps.json` live |
 | `PLATFORM_AUTH_MODE` | unset (`dev` = local dev issuer) | Set to `dev` to mint a local dev token instead of the Logto flow |
 
 The cached session (`auth.json`) carries the access token + refresh token;

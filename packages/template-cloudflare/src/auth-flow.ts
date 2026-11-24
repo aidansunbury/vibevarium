@@ -75,8 +75,8 @@ export interface Session {
   readonly expiresAt: number;
 }
 
-const SESSION_COOKIE = "terrarium_session";
-const PENDING_COOKIE = "terrarium_login";
+const SESSION_COOKIE = "vibevarium_session";
+const PENDING_COOKIE = "vibevarium_login";
 /** Pending-login transactions are good for 10 minutes. */
 const PENDING_TTL_MS = 10 * 60 * 1000;
 
@@ -190,7 +190,7 @@ const requestOrigin = (request: HttpServerRequest, flow: AuthFlowConfig): string
   // originalUrl keeps the public absolute URL (the platform rewrites `url` to
   // a relative path as it routes); fall back for runtimes that don't.
   const absolute = request.originalUrl.length > 0 ? request.originalUrl : request.url;
-  const url = new URL(absolute, "https://app.terrarium.invalid");
+  const url = new URL(absolute, "https://app.vibevarium.invalid");
   const forwardedProto = request.headers["x-forwarded-proto"];
   const proto = typeof forwardedProto === "string" && forwardedProto.length > 0
     ? forwardedProto.split(",")[0]!.trim()
@@ -265,7 +265,7 @@ export const loginRoute = Effect.gen(function*() {
 export const callbackRoute = Effect.gen(function*() {
   const flow = yield* AuthFlow;
   const request = yield* HttpServerRequest;
-  const url = new URL(request.url, "https://app.terrarium.invalid");
+  const url = new URL(request.url, "https://app.vibevarium.invalid");
   const fail = failCallback;
 
   const error = url.searchParams.get("error");

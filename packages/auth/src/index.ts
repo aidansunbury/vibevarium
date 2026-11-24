@@ -13,7 +13,7 @@ export const Actor = Schema.Struct({
 })
 export type Actor = typeof Actor.Type
 
-export class CurrentActor extends Context.Service<CurrentActor, Actor>()("@terrarium/auth/CurrentActor") {}
+export class CurrentActor extends Context.Service<CurrentActor, Actor>()("@vibevarium/auth/CurrentActor") {}
 
 export class DiscoveryError extends Schema.TaggedError<DiscoveryError>()("DiscoveryError", {
   message: Schema.String,
@@ -153,7 +153,7 @@ export class Auth extends Context.Service<Auth, {
   readonly audience: string
   readonly verify: (token: string) => Effect.Effect<Actor, AuthError>
   readonly refreshJwks: () => Effect.Effect<void, KeyRefreshError>
-}>()("@terrarium/auth/Auth") {
+}>()("@vibevarium/auth/Auth") {
   static readonly layer = (config: AuthConfig): Layer.Layer<Auth, DiscoveryError> =>
     Layer.effect(Auth)(makeAuth(config))
 }

@@ -2,8 +2,8 @@ import { createRootRouteWithContext, Link, Outlet } from "@tanstack/react-router
 import type { QueryClient } from "@tanstack/react-query";
 import { loadSession, type Session } from "../session";
 import { login, logout } from "../api";
-import { Badge } from "@terrarium/ui/components/badge";
-import { Button } from "@terrarium/ui/components/button";
+import { Badge } from "@vibevarium/ui/components/badge";
+import { Button } from "@vibevarium/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,9 +12,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@terrarium/ui/components/dropdown-menu";
-import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } from "@terrarium/ui/layout/shell";
-import { Toaster } from "@terrarium/ui/components/sonner";
+} from "@vibevarium/ui/components/dropdown-menu";
+import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } from "@vibevarium/ui/layout/shell";
+import { LogoLockup } from "@vibevarium/ui/components/logo";
+import { Toaster } from "@vibevarium/ui/components/sonner";
 
 export interface RouterContext {
   readonly queryClient: QueryClient;
@@ -30,6 +31,7 @@ export const useSession = (): Session => Route.useRouteContext().session;
 const NAV = [
   { to: "/", label: "Apps" },
   { to: "/scaffold", label: "Provision" },
+  { to: "/secrets", label: "Secrets" },
   { to: "/integrations", label: "Integrations" },
   { to: "/connections", label: "Connections" },
 ] as const;
@@ -42,7 +44,7 @@ function RootLayout() {
     <Shell>
       <ShellHeader>
         <ShellHeaderTitle>
-          <span className="font-semibold">Terrarium</span>
+          <LogoLockup />
           <span className="text-muted-foreground">control plane</span>
         </ShellHeaderTitle>
         <nav className="hidden items-center gap-1 sm:flex">

@@ -203,7 +203,7 @@ export class Connections extends Context.Service<Connections, {
   /** True when the name is a registered provider (used by the unified /proxy to dispatch). */
   readonly isProvider: (name: string) => Effect.Effect<boolean>;
   readonly audit: (provider: string | undefined, limit: number) => Effect.Effect<ReadonlyArray<typeof proxyAudit.$inferSelect>>;
-}>()("@terrarium/control-plane/connections/Connections") {
+}>()("@vibevarium/control-plane/connections/Connections") {
   static readonly layer = (options: {
     readonly baseUrl: string;
     readonly refreshSkewMs?: number | undefined;
@@ -714,15 +714,15 @@ export class Connections extends Context.Service<Connections, {
 
         const skipped = new Set([
           "authorization", "proxy-authorization", "cookie", "host", "connection", "content-length",
-          "transfer-encoding", "te", "trailer", "upgrade", "x-terrarium-app", "x-terrarium-app-secret",
-          "x-app-id", "x-app-secret", "x-terrarium-on-behalf-of-app",
+          "transfer-encoding", "te", "trailer", "upgrade", "x-vibevarium-app", "x-vibevarium-app-secret",
+          "x-app-id", "x-app-secret", "x-vibevarium-on-behalf-of-app",
         ]);
         const headers = new Headers();
         for (const [name, value] of Object.entries(call.headers)) {
           if (!skipped.has(name.toLowerCase())) headers.set(name, value);
         }
         headers.set("authorization", `Bearer ${usable.accessToken}`);
-        headers.set("user-agent", headers.get("user-agent") ?? "terrarium-control-plane");
+        headers.set("user-agent", headers.get("user-agent") ?? "vibevarium-control-plane");
         const upstream = yield* Effect.tryPromise({
           try: () =>
             fetch(target, {
@@ -752,8 +752,8 @@ export class Connections extends Context.Service<Connections, {
           responseHeaders.delete(name);
         }
         responseHeaders.set("cache-control", "no-store");
-        responseHeaders.set("x-terrarium-grant-id", usable.approved.grant.id);
-        responseHeaders.set("x-terrarium-token-refreshed", String(usable.refreshed));
+        responseHeaders.set("x-vibevarium-grant-id", usable.approved.grant.id);
+        responseHeaders.set("x-vibevarium-token-refreshed", String(usable.refreshed));
         const body = new Uint8Array(yield* Effect.promise(() => upstream.arrayBuffer()));
         const outHeaders: Record<string, string> = {};
         responseHeaders.forEach((value, name) => {

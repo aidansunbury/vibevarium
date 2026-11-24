@@ -45,7 +45,7 @@ export const guiRoutes = (options: GuiOptions) =>
           const target = existsSync(filePath) && !filePath.endsWith("/") ? filePath : indexPath;
           if (!existsSync(target)) {
             return HttpServerResponse.text(
-              "GUI is not built. Run `pnpm --filter @terrarium/control-plane gui:build` or `gui:dev`.",
+              "GUI is not built. Run `pnpm --filter @vibevarium/control-plane gui:build` or `gui:dev`.",
               { status: 404 },
             );
           }

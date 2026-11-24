@@ -1,5 +1,5 @@
 /**
- * Optional OIDC auth seam, vendored from @terrarium/auth so generated apps
+ * Optional OIDC auth seam, vendored from @vibevarium/auth so generated apps
  * stay self-contained (no workspace dependencies).
  *
  * Off by default. Setting TERRARIUM_ISSUER (and optionally
@@ -116,7 +116,7 @@ export const authConfigFromEnv = (env: Record<string, unknown>): AuthConfig | un
   if (typeof issuer !== "string" || issuer.length === 0) return undefined;
   const own = typeof env.TERRARIUM_AUDIENCE === "string" && env.TERRARIUM_AUDIENCE.length > 0
     ? env.TERRARIUM_AUDIENCE
-    : "app.terrarium.local";
+    : "app.vibevarium.local";
   // The platform audience (Option B′): one platform token opens every app. Apps
   // accept both their own audience and the platform's. TERRARIUM_PLATFORM_AUDIENCE
   // defaults to the platform MCP resource on the base domain.
@@ -186,7 +186,7 @@ export const requireAuth = <E, R>(
     const flowOption = yield* Effect.serviceOption(AuthFlow);
     if (flowOption._tag === "Some") {
       const session = yield* Effect.promise(() =>
-        sessionFromCookie(flowOption.value, request.cookies.terrarium_session)
+        sessionFromCookie(flowOption.value, request.cookies.vibevarium_session)
       );
       if (session !== undefined) {
         const verified = yield* Effect.result(auth.verify(session.accessToken));

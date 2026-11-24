@@ -17,7 +17,7 @@ import { embeddedApis } from "./registry.ts";
 
 const AppEntry = Schema.Struct({
   // The domain package's published name (must be present in the embedded
-  // registry for this CLI build), for example "@terrarium/template".
+  // registry for this CLI build), for example "@vibevarium/template".
   package: Schema.String,
   url: Schema.String,
   api: Schema.optional(Schema.String),
@@ -189,6 +189,6 @@ export const dynamicPlatform = Effect.gen(function* () {
   );
   return Command.make(cliName).pipe(
     Command.withSubcommands([...authCommands, apps, control, ...appCommands]),
-    Command.withDescription("One SSO login for dynamically imported Terrarium apps"),
+    Command.withDescription("One SSO login for dynamically imported Vibevarium apps"),
   );
 });

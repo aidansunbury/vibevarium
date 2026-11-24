@@ -216,7 +216,7 @@ const waitForCallback = (state: string): Promise<{ code: string }> =>
         return;
       }
       response.writeHead(200, { "content-type": "text/html" }).end(
-        "<p>Signed in to Terrarium. You can close this tab and return to the terminal.</p>",
+        "<p>Signed in to Vibevarium. You can close this tab and return to the terminal.</p>",
       );
       server.close();
       resolve({ code });

@@ -42,7 +42,7 @@ export class CloudflareDeployer {
       CI: "1",
       ALCHEMY_HOME: this.#options.alchemyHome,
       CLOUDFLARE_ACCOUNT_ID: this.#options.accountId,
-      STACK_NAME: `terrarium-${name}`,
+      STACK_NAME: `vibevarium-${name}`,
       WORKER_NAME: name,
       D1_DATABASE_NAME: `${name}-data`,
       APP_HOSTNAME: `${name}.${this.#options.domain}`,
@@ -69,7 +69,7 @@ export class CloudflareDeployer {
         maxBuffer: 4 * 1024 * 1024,
       });
     } else {
-      const template = createRequire(import.meta.url).resolve("terrarium-tickets-cloudflare/package.json");
+      const template = createRequire(import.meta.url).resolve("vibevarium-tickets-cloudflare/package.json");
       const dependencies = join(dirname(template), "node_modules");
       if (!existsSync(join(deployment.directory, "node_modules"))) {
         await symlink(dependencies, join(deployment.directory, "node_modules"), "dir");

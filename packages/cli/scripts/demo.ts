@@ -1,6 +1,6 @@
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import { startDevIssuer } from "@terrarium/dev-issuer";
-import { startTicketsServer } from "@terrarium/template/server";
+import { startDevIssuer } from "@vibevarium/dev-issuer";
+import { startTicketsServer } from "@vibevarium/template/server";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import * as Effect from "effect/Effect";
@@ -134,7 +134,7 @@ const demo = Effect.gen(function* () {
     (started) => Effect.promise(() => started.close()),
   );
   const configDirectory = yield* Effect.acquireRelease(
-    Effect.promise(() => mkdtemp(join("/tmp/opencode", "terrarium-cli-demo-"))),
+    Effect.promise(() => mkdtemp(join("/tmp/opencode", "vibevarium-cli-demo-"))),
     (directory) => Effect.promise(() => rm(directory, { recursive: true, force: true })),
   );
   const environment = {
@@ -212,7 +212,7 @@ const demo = Effect.gen(function* () {
       "apps",
       "add",
       "tickets",
-      "@terrarium/template",
+      "@vibevarium/template",
       proxy.url,
     ]);
     const manifest = parseJson(await readFile(join(configDirectory, "apps.json"), "utf8"));

@@ -1,4 +1,4 @@
-import { startDevIssuer } from "@terrarium/dev-issuer";
+import { startDevIssuer } from "@vibevarium/dev-issuer";
 import { McpClient, McpProtocol } from "effect/ai";
 import * as Effect from "effect/Effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
@@ -83,7 +83,7 @@ const callThroughGateway = (gatewayUrl: string, token: string) =>
     return { toolNames: tools.map((tool) => tool.name), result };
   }).pipe(
     Effect.provide(McpClient.layerHttp({
-      name: "terrarium-scaffold-proof",
+      name: "vibevarium-scaffold-proof",
       version: "0.0.1",
       url: `${gatewayUrl}/mcp`,
       protocol: McpProtocol.v2025_11_25,
@@ -100,7 +100,7 @@ let issuer: Awaited<ReturnType<typeof startDevIssuer>> | undefined;
 
 try {
   await mkdir(appsRoot, { recursive: true });
-  const audience = "expenses.terrarium.local";
+  const audience = "expenses.vibevarium.local";
   issuer = await startDevIssuer({ audiences: [audience] });
   const discoveryToken = await mintToken(issuer.issuer, audience, "discovery-service");
   const controlPlanePort = await allocatePort();
