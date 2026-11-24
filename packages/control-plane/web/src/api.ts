@@ -390,21 +390,21 @@ const OpsApi = HttpApi.make("ControlPlane")
 
 // --- the client ---------------------------------------------------------------
 
-// Effect 4.1.5's HttpApiClient fails an undeclared 401 with an
-// HttpClientError whose `reason` is a DecodeError carrying the response — the
-// status lives at `error.reason.response.status`, not `error.response.status`.
-// Exported so loadSession + Query's retry can also match it.
-export const isSessionExpired = (error: unknown): boolean => {
-  if (typeof error !== "object" || error === null) return false;
-  const candidate = error as {
-    _tag?: string;
-    reason?: { _tag?: string; response?: { status?: number } };
-    response?: { status?: number };
-  };
-  if (candidate._tag === "ResponseError" && candidate.response?.status === 401) return true;
-  if (candidate._tag === "HttpClientError" && candidate.reason?.response?.status === 401) return true;
+// A 401 is an expired/missing session regardless of the exact error wrapper the
+// Effect client produces. Effect's HttpApiClient surfaces it as an
+// HttpClientError whose reason is a DecodeError carrying the response — the
+// status lives at `error.reason.response.status`, not `error.response.status` —
+// and the tag varies across versions. Match a 401 at any nesting depth.
+const hasStatus401 = (value: unknown, depth: number): boolean => {
+  if (depth > 4 || typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (record.status === 401) return true;
+  for (const key of ["response", "reason", "error", "cause"]) {
+    if (hasStatus401(record[key], depth + 1)) return true;
+  }
   return false;
 };
+export const isSessionExpired = (error: unknown): boolean => hasStatus401(error, 0);
 
 /**
  * The API origin. Same-origin in single-container dev (relative `/`). In the
