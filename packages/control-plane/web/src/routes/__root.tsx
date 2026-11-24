@@ -119,7 +119,7 @@ function SignInCard() {
       <div className="rounded-xl border bg-card p-8 text-card-foreground">
         <h2 className="text-lg font-semibold">Sign in required</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          This control plane requires sign-in. Use the login button to authenticate with Logto.
+          This control plane requires sign-in. Use the login button to authenticate.
         </p>
         <Button className="mt-4" onClick={() => login()}>
           Log in
