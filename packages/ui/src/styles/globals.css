@@ -28,6 +28,8 @@
   --brand-foreground: oklch(0.98 0.008 110);
   /* Secondary accent: pressed clay / brass — ornaments, second logo leaf. */
   --brand-secondary: oklch(0.5 0.1 60);
+  /* Logo bracket amber (warm, reads on both paper and charcoal). */
+  --brand-bracket: #c88439;
 
   --background: oklch(0.975 0.008 110);
   --foreground: oklch(0.27 0.03 130);
@@ -59,6 +61,7 @@
   --brand: oklch(0.8 0.12 155);
   --brand-foreground: oklch(0.2 0.03 160);
   --brand-secondary: oklch(0.78 0.1 90);
+  --brand-bracket: #d89a54;
 
   --background: oklch(0.235 0.006 240);
   --foreground: oklch(0.94 0.008 140);

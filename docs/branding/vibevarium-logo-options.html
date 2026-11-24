@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>vibevarium — logo options · a botanical plate of marks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,480&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<style>
+  /* ----------------------------------------------------------------
+     vibevarium logo options — botanical plate styling
+     ink/green/clay per brand; paper cream; fine letterpress rules
+     ---------------------------------------------------------------- */
+  :root {
+    --paper:  #f7f7f1;
+    --paper2: #f0efe4;
+    --ink:    #22291a;
+    --ink-soft: rgba(34,41,26,.62);
+    --rule:   rgba(34,41,26,.28);
+    --rule-faint: rgba(34,41,26,.14);
+    --a-l: #015d2d;  /* forest green, light mode */
+    --b-l: #8c541f;  /* clay / brass, light mode */
+    --a-d: #7ad59c;  /* green, dark mode */
+    --b-d: #d0b56a;  /* brass, dark mode */
+    --charcoal: #1c1e21;
+    --ink-d: #e8ece7;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "EB Garamond", Georgia, serif;
+    font-size: 17px;
+    line-height: 1.55;
+    /* faint laid-paper texture via repeating hairlines */
+    background-image:
+      repeating-linear-gradient(0deg, rgba(34,41,26,.016) 0 1px, transparent 1px 7px);
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---------- masthead ---------- */
+  header.plate-head {
+    padding: 64px 0 30px;
+    text-align: center;
+    border-bottom: 1px solid var(--rule);
+    position: relative;
+  }
+  header.plate-head::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -5px;
+    border-bottom: 1px solid var(--rule-faint);
+  }
+  .overtitle {
+    font-size: 12px; letter-spacing: .34em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 0 0 14px;
+  }
+  h1 {
+    font-family: "Fraunces", serif; font-weight: 480; font-size: 46px;
+    letter-spacing: -0.015em; margin: 0 0 10px;
+  }
+  h1 .v { color: var(--a-l); }
+  .subtitle { font-style: italic; color: var(--ink-soft); margin: 0 auto; max-width: 56ch; }
+  .specimen-note {
+    margin: 22px auto 0; max-width: 68ch; font-size: 14.5px; color: var(--ink-soft);
+  }
+  .specimen-note code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px;
+    background: var(--paper2); border: 1px solid var(--rule-faint); padding: 1px 5px;
+  }
+
+  /* ---------- plate grid ---------- */
+  main { padding: 34px 0 10px; }
+  .plates { display: grid; grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); gap: 44px 36px; }
+  @media (max-width: 580px) { .plates { grid-template-columns: 1fr; } }
+
+  figure.plate { margin: 0; }
+  .plate-frame {
+    border: 1px solid var(--rule);
+    outline: 1px solid var(--rule-faint);
+    outline-offset: 4px;
+    background: #fbfbf6;
+  }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; }
+  .tile {
+    aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
+    padding: 18px;
+  }
+  .tile.light { background: var(--paper); color: var(--ink); --a: var(--a-l); --b: var(--b-l); }
+  .tile.dark  { background: var(--charcoal); color: var(--ink-d); --a: var(--a-d); --b: var(--b-d); }
+  .tile svg.mark { width: 124px; height: 124px; display: block; }
+
+  .lockup {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    padding: 18px 16px 15px; border-top: 1px solid var(--rule-faint);
+    background: #fbfbf6; color: var(--ink); --a: var(--a-l); --b: var(--b-l);
+  }
+  .lockup svg.mark { width: 34px; height: 34px; display: block; flex: none; }
+  .lockup .word {
+    font-family: "Fraunces", serif; font-weight: 480; font-size: 29px;
+    letter-spacing: -0.012em; line-height: 1; transform: translateY(1px);
+  }
+
+  .sizes {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
+    padding: 12px 16px 13px; border-top: 1px solid var(--rule-faint);
+    background: var(--paper2); color: var(--ink); --a: var(--a-l); --b: var(--b-l);
+    font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft);
+  }
+  .sizes .cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .sizes svg.mark { display: block; }
+  .sizes .s32 svg.mark { width: 32px; height: 32px; }
+  .sizes .s16 svg.mark { width: 16px; height: 16px; }
+
+  figcaption { padding: 14px 4px 0; }
+  .fig-line {
+    display: flex; align-items: baseline; gap: 10px;
+    border-bottom: 1px solid var(--rule-faint); padding-bottom: 7px; margin-bottom: 7px;
+  }
+  .fig-no {
+    font-style: italic; font-size: 13.5px; color: var(--ink-soft); white-space: nowrap;
+  }
+  .fig-name {
+    font-family: "Fraunces", serif; font-weight: 480; font-size: 21px; letter-spacing: -0.01em;
+  }
+  .fig-desc { margin: 0; font-size: 14.5px; color: var(--ink-soft); font-style: italic; }
+
+  /* ---------- stress test ---------- */
+  section.stress { margin: 64px 0 20px; }
+  .stress h2 {
+    font-family: "Fraunces", serif; font-weight: 480; font-size: 26px;
+    text-align: center; margin: 0 0 4px;
+  }
+  .stress .sub {
+    text-align: center; font-style: italic; color: var(--ink-soft);
+    margin: 0 0 26px; font-size: 14.5px;
+  }
+  .stress-band { border: 1px solid var(--rule); outline: 1px solid var(--rule-faint); outline-offset: 4px; }
+  .stress-row { display: grid; grid-template-columns: 86px repeat(8, 1fr); }
+  .stress-row + .stress-row { border-top: 1px solid var(--rule-faint); }
+  .stress-row .tag {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    border-right: 1px solid var(--rule-faint); padding: 14px 6px;
+  }
+  .stress-row.light { background: var(--paper); color: var(--ink); --a: var(--a-l); --b: var(--b-l); }
+  .stress-row.dark  { background: var(--charcoal); color: var(--ink-d); --a: var(--a-d); --b: var(--b-d); }
+  .stress-row.light .tag { color: var(--ink-soft); }
+  .stress-row.dark  .tag { color: rgba(232,236,231,.55); }
+  .stress-row .cell16 { display: flex; align-items: center; justify-content: center; padding: 12px 4px; }
+  .stress-row .cell16 svg.mark { width: 16px; height: 16px; display: block; }
+  .stress-cols { display: grid; grid-template-columns: 86px repeat(8, 1fr); font-size: 10.5px;
+    letter-spacing: .1em; color: var(--ink-soft); text-transform: uppercase; }
+  .stress-cols span { text-align: center; padding: 8px 2px 0; font-style: italic; text-transform: none; letter-spacing: 0; }
+
+  /* ---------- footer ---------- */
+  footer.colophon {
+    margin: 70px 0 0; padding: 26px 0 60px; text-align: center;
+    border-top: 1px solid var(--rule); color: var(--ink-soft); font-size: 13.5px; font-style: italic;
+  }
+  footer.colophon .rule-orn { display: block; margin: 0 auto 14px; }
+
+  svg.mark { color: inherit; }
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+     The eight marks. Each SVG is inlined once as a <template>, then
+     cloned into every display context by the tiny script at the end,
+     so each concept exists as a single source of truth.
+     ================================================================ -->
+
+<!-- Fig. 1 — Flytrap Cloche -->
+<template id="m-flytrap">
+<svg class="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Venus flytrap in a glass cloche, its open trap forming angle brackets">
+  <!-- cloche -->
+  <path d="M14 50v-17a18 18 0 0 1 36 0v17" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M29.5 14.5h5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <path d="M32 14.5v-3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="9" r="2.4" stroke="currentColor" stroke-width="2.4"/>
+  <!-- base tray -->
+  <path d="M11 50h42" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M17 50v4M47 50v4" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M15 54h6M43 54h6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- soil stipple inside cloche -->
+  <circle cx="24" cy="46.5" r=".9" fill="currentColor" opacity=".55"/>
+  <circle cx="30" cy="47.5" r=".9" fill="currentColor" opacity=".55"/>
+  <circle cx="36" cy="46.5" r=".9" fill="currentColor" opacity=".55"/>
+  <circle cx="41" cy="47.5" r=".9" fill="currentColor" opacity=".55"/>
+  <!-- stem and basal leaf pair -->
+  <path d="M32 47V35" stroke="var(--a)" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M32 44c-4.4.4-6.8-1.4-7.4-4.6" stroke="var(--a)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M32 41c4.4.4 6.8-1.4 7.4-4.6" stroke="var(--a)" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- the open trap: two arched jaws, still reading < and > -->
+  <path d="M31.5 19C26 21 23.6 25.6 24.4 30c.5 3 2.2 4.6 7.1 5.4" stroke="var(--a)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M32.5 19C38 21 40.4 25.6 39.6 30c-.5 3-2.2 4.6-7.1 5.4" stroke="var(--b)" stroke-width="3" stroke-linecap="round"/>
+  <!-- hinge -->
+  <path d="M32 18.5v-3" stroke="var(--a)" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- trap teeth (cilia) along the jaw arcs -->
+  <path d="M27.6 20.4l-2.6-1.2M24.8 24.8l-3-.6M24.4 29.6l-3.2.2M26 33.2l-2.8 1" stroke="var(--a)" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M36.4 20.4l2.6-1.2M39.2 24.8l3-.6M39.6 29.6l3.2.2M38 33.2l2.8 1" stroke="var(--b)" stroke-width="1.7" stroke-linecap="round"/>
+  <!-- trigger hairs inside the trap -->
+  <path d="M29.2 27h-2M34.8 27h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".6"/>
+</svg>
+</template>
+
+<!-- Fig. 2 — Pitcher Prompt -->
+<template id="m-pitcher">
+<svg class="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Pitcher plant bearing a terminal prompt, with cross-hatched shading">
+  <!-- ground -->
+  <path d="M14 57h36" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M24 61h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>
+  <!-- curling tendril -->
+  <path d="M32 57c-9 .5-13-4.6-12-9.6" stroke="var(--a)" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- main stem -->
+  <path d="M32 57V40" stroke="var(--a)" stroke-width="3" stroke-linecap="round"/>
+  <!-- pitcher body -->
+  <path d="M26 22h12l-1.4 10.6c-.9 4.6-2.4 7.4-4.6 7.4s-3.7-2.8-4.6-7.4L26 22z" stroke="var(--a)" stroke-width="3" stroke-linejoin="round"/>
+  <!-- flared lip (peristome) -->
+  <path d="M23 22h18" stroke="var(--a)" stroke-width="3.6" stroke-linecap="round"/>
+  <!-- operculum hood: curved cap that cups the rim -->
+  <path d="M25.6 20.8C24 11 30.5 7 36.5 8.4c4.2 1 6.4 4.4 6 8.4-2.8-2.2-5.6-2.4-8.4-1-2 .9-3.6 2.6-4.3 5.4" stroke="var(--a)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 12.4c2.2-1 4.4-1 6.6.2M29.4 15.8c2.4-1.2 4.8-1.2 7 .2" stroke="var(--a)" stroke-width="1.3" stroke-linecap="round" opacity=".65"/>
+  <!-- cross-hatching on the pitcher flank -->
+  <path d="M27.6 26l2.4 2.4M27.2 29.6l3.4 3.4M27.4 33.2l2.8 2.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".5"/>
+  <path d="M30.2 26l-1.8 1.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".5"/>
+  <!-- the terminal prompt, set into the pitcher -->
+  <path d="M32.2 27.6l2.4 2.2-2.4 2.2" stroke="var(--b)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M35.8 33.4h2.6" stroke="var(--b)" stroke-width="2" stroke-linecap="round"/>
+  <!-- a falling dew square -->
+  <path d="M44 30h2.6v2.6H44z" fill="var(--b)"/>
+</svg>
+</template>
+
+<!-- Fig. 3 — Circuit Monstera -->
+<template id="m-monstera">
+<svg class="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Monstera leaf whose splits are circuit traces, inside a bell jar">
+  <!-- bell jar -->
+  <path d="M16 49V30a16 16 0 0 1 32 0v19" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M30 13.5h4" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="32" cy="10.5" r="2.2" stroke="currentColor" stroke-width="2.2"/>
+  <!-- stepped base -->
+  <path d="M13 49h38" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M11 53h42" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <path d="M16 56.5h32" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".7"/>
+  <!-- monstera leaf silhouette -->
+  <path d="M32 44c-5.4 0-9.4-3.4-9.4-9.4C22.6 27 27 22.6 32 22.6s9.4 4.4 9.4 12c0 6-4 9.4-9.4 9.4z" stroke="var(--a)" stroke-width="2.8" stroke-linejoin="round"/>
+  <!-- petiole -->
+  <path d="M32 44v4.5" stroke="var(--a)" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- midrib as a circuit trace with node pads -->
+  <path d="M32 43V24.5" stroke="var(--a)" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="32" cy="38" r="1.3" fill="var(--a)"/>
+  <circle cx="32" cy="30" r="1.3" fill="var(--a)"/>
+  <!-- left splits: trace from midrib, right-angle jog, out to the edge -->
+  <path d="M32 33.4h-3v-3.4h-4" stroke="var(--b)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="23.6" cy="30" r="1.4" fill="var(--b)"/>
+  <path d="M32 39.4h-2.6v3h-3.4" stroke="var(--b)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.8" cy="42.4" r="1.4" fill="var(--b)"/>
+  <!-- right splits -->
+  <path d="M32 27.4h3v-2h3.4" stroke="var(--b)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="39.8" cy="25.4" r="1.4" fill="var(--b)"/>
+  <path d="M32 36.4h3.2v3.2h3.6" stroke="var(--b)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.2" cy="39.6" r="1.4" fill="var(--b)"/>
+  <!-- fenestration holes -->
+  <circle cx="27.2" cy="35" r="1.1" fill="currentColor" opacity=".7"/>
+  <circle cx="36.6" cy="33" r="1.1" fill="currentColor" opacity=".7"/>
+</svg>
+</template>
+
+<!-- Fig. 4 — Strata Jar -->
+<template id="m-strata">
+<svg class="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Terrarium jar with layered soil strata and a seedling with etched leaf veins">
+  <!-- squared apothecary jar -->
+  <path d="M19 12h26" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M23 12v6l-3.2 3.2V52a4 4 0 0 0 4 4h16.4a4 4 0 0 0 4-4V21.2L41 18v-6" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- strata: gravel / sand / charcoal -->
+  <path d="M21 49h22" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M25.5 45.5l1.6 1.6M31.5 45.5l1.6 1.6M37.5 45.5l1.6 1.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" opacity=".8"/>
+  <path d="M21 44h22" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2.4 2.6" stroke-linecap="round" opacity=".85"/>
+  <path d="M21 40.5h22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M23 36.5c2-1.6 3.8 1.4 5.8-.2s3.6 1.2 5.6-.2 3.8 1.4 6.2 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".9"/>
+  <!-- seedling -->
+  <path d="M32 40.5V28" stroke="var(--a)" stroke-width="3" stroke-linecap="round"/>
+  <!-- left leaf with veins -->
+  <path d="M32 30.5c-4.4 0-7.2-3-7.2-7.4 4.4 0 7.2 3 7.2 7.4z" stroke="var(--a)" stroke-width="2.6" stroke-linejoin="round"/>
+  <path d="M31.4 29.6l-4.8-4.6M29.2 28l-.2-2M27.6 26.4l1.8-.4" stroke="var(--a)" stroke-width="1.2" stroke-linecap="round" opacity=".8"/>
+  <!-- right leaf with veins -->
+  <path d="M32 30.5c4.4 0 7.2-3 7.2-7.4-4.4 0-7.2 3-7.2 7.4z" stroke="var(--b)" stroke-width="2.6" stroke-linejoin="round"/>
+  <path d="M32.6 29.6l4.8-4.6M34.8 28l.2-2M36.4 26.4l-1.8-.4" stroke="var(--b)" stroke-width="1.2" stroke-linecap="round" opacity=".8"/>
+  <!-- apical bud -->
+  <circle cx="32" cy="25.6" r="1.5" fill="var(--a)"/>
+  <!-- engraved tick on the shoulder -->
+  <path d="M19.8 25.5h3M19.8 29h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity=".55"/>
+</svg>
+</template>
+
+<!-- Fig. 5 — Herringbone Fern -->
+<template id="m-fern">
+<svg class="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Potted fern with fractal fronds and an etched herringbone band on the pot">
+  <!-- fronds: single etched strokes, tapering pinnae, airy silhouette -->
+  <!-- left outer frond -->
+  <path d="M31 32C24.6 31.4 18.8 27.4 15.6 20.6" stroke="var(--a)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M27.8 31.2l-5 1.4M29.8 31.8l-4.2 2.6M24.6 28.8l-5.2.2M21.6 25.6l-4.6-1.4M18.8 22.4l-3.4-2.2" stroke="var(--a)" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- left inner frond -->
+  <path d="M31 32c-3-3.2-4.6-8-3.8-14.6" stroke="var(--a)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M29.4 28l-3.8-.6M28.6 24.4l-3.2-1.8M28.2 20.6l-2.4-2.4M31 30.4l-3 2M29.4 26.8l-2.6 1.8" stroke="var(--a)" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- right outer frond -->
+  <path d="M33 32c6.4-.6 12.2-4.6 15.4-11.4" stroke="var(--a)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M36.2 31.2l5 1.4M34.2 31.8l4.2 2.6M39.4 28.8l5.2.2M42.4 25.6l4.6-1.4M45.2 22.4l3.4-2.2" stroke="var(--a)" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- right inner frond -->
+  <path d="M33 32c3-3.2 4.6-8 3.8-14.6" stroke="var(--a)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M34.6 28l3.8-.6M35.4 24.4l3.2-1.8M35.8 20.6l2.4-2.4M33 30.4l3 2M34.6 26.8l2.6 1.8" stroke="var(--a)" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- fiddlehead crozier -->
+  <path d="M32 32v-11.5" stroke="var(--a)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M32 20.5a3.8 3.8 0 1 1 3.8-3.8 2.4 2.4 0 1 1-2.4-2.4" stroke="var(--a)" stroke-width="2" stroke-linecap="round"/>
+  <!-- squared pot -->
+  <path d="M20 38h24l-2.6 16.2a3.6 3.6 0 0 1-3.6 3H26.2a3.6 3.6 0 0 1-3.6-3L20 38z" stroke="var(--b)" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M17.5 38h29" stroke="var(--b)" stroke-width="3.6" stroke-linecap="round"/>
+  <!-- herringbone band -->
+  <path d="M25.4 42.6l3.2 3.2-3.2 3.2M31.4 42.6l3.2 3.2-3.2 3.2M37.4 42.6l3.2 3.2-3.2 3.2" stroke="var(--b)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
+  <!-- soil -->
+  <path d="M23 38c2-1.4 4 .8 6-.4s4 1 6-.2 4 .6 6-.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".7"/>
+  <!-- feet -->
+  <path d="M26 60.5h-3M41 60.5h-3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".7"/>
+</svg>
+</template>
+
+<!-- Fig. 6 — Pixel Sundew -->
+<template id="m-sundew">
+<svg class="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Sundew leaf with glandular tentacles tipped with pixel-square dewdrops">
+  <!-- ground rule -->
+  <path d="M13 55h38" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M20 59h24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".6"/>
+  <!-- stem -->
+  <path d="M32 55V47" stroke="var(--a)" stroke-width="3" stroke-linecap="round"/>
+  <!-- leaf stipple -->
+  <circle cx="28.5" cy="35" r=".8" fill="currentColor" opacity=".6"/>
+  <circle cx="35.5" cy="32.5" r=".8" fill="currentColor" opacity=".6"/>
+  <circle cx="31" cy="28.5" r=".8" fill="currentColor" opacity=".6"/>
+  <!-- tentacles + pixel dew: upper-left -->
+  <path d="M29.6 31.6L20 22" stroke="var(--a)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M17.4 19.4h4.4v4.4h-4.4z" fill="var(--b)"/>
+  <!-- up -->
+  <path d="M32 30V18" stroke="var(--a)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M29.8 13.6h4.4V18h-4.4z" fill="var(--b)"/>
+  <!-- upper-right -->
+  <path d="M34.4 31.6L44 22" stroke="var(--a)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M42.2 19.4h4.4v4.4h-4.4z" fill="var(--b)"/>
+  <!-- left -->
+  <path d="M28 37.6l-12 3.4" stroke="var(--a)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M12.4 39.2h4.4v4.4h-4.4z" fill="var(--b)"/>
+  <!-- right -->
+  <path d="M36 37.6l12 3.4" stroke="var(--a)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M47.2 39.2h4.4v4.4h-4.4z" fill="var(--b)"/>
+  <!-- lower-left -->
+  <path d="M30 41.4l-8.6 8" stroke="var(--a)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M18.2 47.6h4.4V52h-4.4z" fill="var(--b)"/>
+  <!-- lower-right -->
+  <path d="M34 41.4l8.6 8" stroke="var(--a)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M41.4 47.6h4.4V52h-4.4z" fill="var(--b)"/>
+  <!-- the leaf pad -->
+  <circle cx="32" cy="36" r="6.4" stroke="var(--a)" stroke-width="2.8"/>
+  <circle cx="32" cy="36" r="1.6" fill="var(--a)"/>
+</svg>
+</template>
+
+<!-- Fig. 7 — Seed Packet Window -->
+<template id="m-packet">
+<svg class="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Seed packet with serrated top and a die-cut window showing a terrarium sprig">
+  <!-- packet -->
+  <path d="M18 16h28v36a3.4 3.4 0 0 1-3.4 3.4H21.4A3.4 3.4 0 0 1 18 52V16z" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/>
+  <!-- serrated crimp -->
+  <path d="M18 16l3.6-5 3.4 4.4 3.4-4.4 3.4 4.4 3.4-4.4 3.4 4.4 3.4-4.4 3.6 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- letterpress label rules -->
+  <path d="M23 21.5h18M23 49.5h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>
+  <path d="M27 24.8h10" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.6 2" stroke-linecap="round" opacity=".55"/>
+  <path d="M28.5 46.2h7" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.6 2" stroke-linecap="round" opacity=".55"/>
+  <!-- window frame -->
+  <rect x="23.5" y="27.5" width="17" height="16" stroke="currentColor" stroke-width="2.2"/>
+  <path d="M25.6 29.6l-1.4-1.4M38.4 29.6l1.4-1.4M25.6 41.4l-1.4 1.4M38.4 41.4l1.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".7"/>
+  <!-- terrarium inside the window -->
+  <path d="M32 43.4V36" stroke="var(--a)" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M32 38.2c-2.8 0-4.4-2-4.4-4.6 2.8 0 4.4 2 4.4 4.6z" fill="var(--a)"/>
+  <path d="M32 38.2c2.8 0 4.4-2 4.4-4.6-2.8 0-4.4 2-4.4 4.6z" fill="var(--b)"/>
+  <path d="M27 43.4h10" stroke="var(--a)" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- seeds scattered at the packet base -->
+  <path d="M24.5 51.6l1.6 1.2M39.5 51.6l-1.6 1.2" stroke="var(--b)" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="32" cy="52.4" r="1" fill="var(--b)"/>
+</svg>
+</template>
+
+<!-- Fig. 8 — Pixel Watering Can -->
+<template id="m-can">
+<svg class="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Watering can pouring pixel droplets onto a seedling">
+  <!-- can body -->
+  <path d="M27 23h16v17a4 4 0 0 1-4 4h-8a4 4 0 0 1-4-4V23z" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/>
+  <!-- open top + lid lip -->
+  <path d="M24.5 23h21" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M31 19.5h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- handle -->
+  <path d="M43 26.5c4.6 0 6.6 2.4 6.6 6s-2 6-6.6 6" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- spout -->
+  <path d="M27 28.5l-9-5.4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <!-- rose head -->
+  <path d="M18.8 19.6l-4 6.4" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+  <circle cx="18.2" cy="20.6" r="1.2" fill="currentColor"/>
+  <!-- etched ribs on the can -->
+  <path d="M31.5 26.5v14M35.5 26.5v14M39.5 26.5v14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".45"/>
+  <!-- pixel droplets -->
+  <path d="M13.5 30.5h3v3h-3zM16.5 37.5h3v3h-3zM13.5 44.5h3v3h-3z" fill="var(--b)"/>
+  <!-- ground -->
+  <path d="M13 57h38" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M20 60.5h24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".6"/>
+  <!-- seedling -->
+  <path d="M32 57v-7" stroke="var(--a)" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M32 51.4c-3.2 0-5-2.2-5-5.2 3.2 0 5 2.2 5 5.2z" fill="var(--a)"/>
+  <path d="M32 51.4c3.2 0 5-2.2 5-5.2-3.2 0-5 2.2-5 5.2z" fill="var(--a)" opacity=".65"/>
+  <!-- second smaller sprig -->
+  <path d="M42 57v-4" stroke="var(--a)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M42 53.8c-2 0-3.2-1.4-3.2-3.4 2 0 3.2 1.4 3.2 3.4z" fill="var(--b)"/>
+</svg>
+</template>
+
+<div class="wrap">
+
+  <header class="plate-head">
+    <p class="overtitle">Hortus Signorum · Vol. II</p>
+    <h1><span class="v">vibevarium</span> — Logo Options</h1>
+    <p class="subtitle">Eight new marks for the enclosed garden of apps, drawn in the manner
+      of the botanical plate: fine line-work, etched shading, letterpress geometry.</p>
+    <p class="specimen-note">Every specimen is hand-drawn inline SVG on a <code>64×64</code> grid.
+      Ink is <code>currentColor</code>; accents are <code>--a</code> (green) and <code>--b</code> (clay),
+      so each mark adapts to light paper (<code>#f7f7f1</code>) and dark charcoal (<code>#1c1e21</code>)
+      without edits. All sizes below are the real artwork, rendered live.</p>
+  </header>
+
+  <main>
+    <div class="plates" id="plates"><!-- plates injected --></div>
+
+    <section class="stress">
+      <h2>Favicon Stress Test</h2>
+      <p class="sub">All eight specimens at 16px, side by side — an honest comparison.</p>
+      <div class="stress-band">
+        <div class="stress-row light" id="stress-light"><span class="tag">Light</span></div>
+        <div class="stress-row dark" id="stress-dark"><span class="tag">Dark</span></div>
+      </div>
+      <div class="stress-cols" id="stress-cols"><span></span></div>
+    </section>
+  </main>
+
+  <footer class="colophon">
+    <svg class="rule-orn" width="120" height="10" viewBox="0 0 120 10" fill="none" aria-hidden="true">
+      <path d="M0 5h44M76 5h44" stroke="currentColor" stroke-width="1" opacity=".4"/>
+      <path d="M60 1.5l5 3.5-5 3.5-5-3.5z" stroke="currentColor" stroke-width="1" opacity=".6"/>
+    </svg>
+    Drawn by hand in vector lines · ink <span style="font-style:normal">#22291a</span> on paper
+    <span style="font-style:normal">#f7f7f1</span> · green <span style="font-style:normal">#015d2d</span>
+    · clay <span style="font-style:normal">#8c541f</span> · set in Fraunces &amp; EB Garamond
+  </footer>
+</div>
+
+<script>
+/* Build the plate grid from the <template> marks above — each SVG has a
+   single source of truth and is cloned into display, lockup, favicon and
+   stress-test contexts. */
+const FIGURES = [
+  { tpl: "m-flytrap",  name: "Flytrap Cloche",
+    desc: "A Venus flytrap under glass; the open trap snaps shut as </ and >." },
+  { tpl: "m-pitcher",  name: "Pitcher Prompt",
+    desc: "A cross-hatched pitcher plant whose cup holds the >_ prompt." },
+  { tpl: "m-monstera", name: "Circuit Monstera",
+    desc: "A monstera under a bell jar — every leaf-split is a routed trace with node pads." },
+  { tpl: "m-strata",   name: "Strata Jar",
+    desc: "An apothecary jar with geological soil strata and a veined seedling." },
+  { tpl: "m-fern",     name: "Herringbone Fern",
+    desc: "Fractal etched fronds over a clay pot banded in letterpress herringbone." },
+  { tpl: "m-sundew",   name: "Pixel Sundew",
+    desc: "A sundew whose glistening dewdrops are rendered as little pixel squares." },
+  { tpl: "m-packet",   name: "Seed Packet",
+    desc: "A serrated seed packet with a die-cut window — the terrarium ships inside." },
+  { tpl: "m-can",      name: "Pixel Watering",
+    desc: "An etched watering can raining pixel droplets onto a new sprig." },
+];
+
+const clone = id => document.getElementById(id).content.firstElementChild.cloneNode(true);
+
+const plates = document.getElementById("plates");
+FIGURES.forEach((f, i) => {
+  const fig = document.createElement("figure");
+  fig.className = "plate";
+  fig.innerHTML = `
+    <div class="plate-frame">
+      <div class="tiles">
+        <div class="tile light"></div>
+        <div class="tile dark"></div>
+      </div>
+      <div class="lockup"><span class="word">vibevarium</span></div>
+      <div class="sizes">
+        <span>favicon</span>
+        <span class="cell s32"><em>32</em></span>
+        <span class="cell s16"><em>16</em></span>
+      </div>
+    </div>
+    <figcaption>
+      <div class="fig-line">
+        <span class="fig-no">Fig. ${i + 1}</span>
+        <span class="fig-name">${f.name}</span>
+      </div>
+      <p class="fig-desc">${f.desc}</p>
+    </figcaption>`;
+  fig.querySelector(".tile.light").appendChild(clone(f.tpl));
+  fig.querySelector(".tile.dark").appendChild(clone(f.tpl));
+  const lockup = fig.querySelector(".lockup");
+  lockup.insertBefore(clone(f.tpl), lockup.firstChild);
+  fig.querySelector(".s32").prepend(clone(f.tpl));
+  fig.querySelector(".s16").prepend(clone(f.tpl));
+  plates.appendChild(fig);
+});
+
+/* stress test strip */
+const rowL = document.getElementById("stress-light");
+const rowD = document.getElementById("stress-dark");
+const cols = document.getElementById("stress-cols");
+FIGURES.forEach(f => {
+  const cl = document.createElement("span"); cl.className = "cell16"; cl.appendChild(clone(f.tpl)); rowL.appendChild(cl);
+  const cd = document.createElement("span"); cd.className = "cell16"; cd.appendChild(clone(f.tpl)); rowD.appendChild(cd);
+  const s = document.createElement("span"); s.textContent = f.name; cols.appendChild(s);
+});
+</script>
+</body>
+</html>
