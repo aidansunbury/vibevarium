@@ -31,6 +31,7 @@ export const useSession = (): Session => Route.useRouteContext().session;
 const NAV = [
   { to: "/", label: "Apps" },
   { to: "/scaffold", label: "Provision" },
+  { to: "/secrets", label: "Secrets" },
   { to: "/integrations", label: "Integrations" },
   { to: "/connections", label: "Connections" },
 ] as const;

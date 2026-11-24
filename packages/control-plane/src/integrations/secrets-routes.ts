@@ -112,14 +112,15 @@ export const secretsRoutes = (gated: Gated) =>
         );
       })));
 
-      // DELETE /secrets/:reference[?app=<name>] → delete a secret.
-      yield* router.add("DELETE", "/secrets/*", gated(Effect.gen(function*() {
+      // DELETE /secrets { reference, app? } → delete a secret.
+      yield* router.add("DELETE", "/secrets", gated(Effect.gen(function*() {
         const request = yield* HttpServerRequest.HttpServerRequest;
-        const path = new URL(request.url, "http://cp.local").pathname;
-        const reference = path.replace(/^\/secrets\//, "");
-        const app = appFromQuery(request.url);
-        if (!refPattern.test(reference)) {
-          return yield* json({ error: "invalid_reference", error_description: "Expected a secret reference path" }, 400);
+        const body = yield* request.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
+        const input = typeof body === "object" && body !== null ? body as Record<string, unknown> : undefined;
+        const reference = input?.reference;
+        const app = typeof input?.app === "string" ? input.app : undefined;
+        if (typeof reference !== "string" || !refPattern.test(reference)) {
+          return yield* json({ error: "invalid_body", error_description: "Expected { reference } (lowercase path segments)" }, 400);
         }
         const auth = yield* authorize(app);
         if (!auth.allowed) return yield* denied(auth.reason);
