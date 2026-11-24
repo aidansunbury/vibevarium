@@ -13,3 +13,4 @@ apps/*/
 .alchemy-home/
 .data/
 *.pem
+**/:memory:/
