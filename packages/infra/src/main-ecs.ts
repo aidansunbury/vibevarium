@@ -42,6 +42,7 @@ export default Alchemy.Stack(
     const casdoorDatabaseUrlArn = yield* requireEnv("CASDOOR_DATABASE_URL_ARN");
     const casdoorAdminPasswordArn = yield* requireEnv("CASDOOR_ADMIN_PASSWORD_ARN");
     const cloudflareApiTokenArn = yield* requireEnv("CLOUDFLARE_API_TOKEN_ARN");
+    const secretsPolicyArn = yield* requireEnv("SECRETS_POLICY_ARN");
 
     const ecs = yield* EcsInfra({
       controlPlaneContext,
@@ -52,6 +53,7 @@ export default Alchemy.Stack(
       casdoorDatabaseUrlArn,
       casdoorAdminPasswordArn,
       cloudflareApiTokenArn,
+      secretsPolicyArn,
     });
 
     return {
