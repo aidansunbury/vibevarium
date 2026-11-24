@@ -62,5 +62,11 @@ export const materializeCloudflareTemplate = async (
     "",
   ].join("\n");
   files["README.md"] = `# ${name}\n\n${files["README.md"]}`;
+  // The template's web/.gitignore ignores `dist/` for local dev, but a
+  // generated app's repo must COMMIT the pre-built SPA (web/dist) — the
+  // Worker's assets.directory serves it and there's no web build on the box.
+  // Override it so web/dist (and the built worker dist, rebuilt at deploy) is
+  // not ignored in the app repo.
+  files["web/.gitignore"] = "node_modules/\n*.tsbuildinfo\nsrc/routeTree.gen.ts\n";
   return files;
 };
