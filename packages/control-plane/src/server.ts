@@ -342,8 +342,8 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     ),
     operationalRoutes({ authEnabled, guiAuthEnabled }),
     authFlowRoutes,
-    Scaffold.routes({ authEnabled }).pipe(Layer.provide(scaffoldLayer)),
-    Provisioning.routes({ authEnabled }).pipe(
+    Scaffold.routes(makeGated({ authEnabled, guiAuthEnabled })).pipe(Layer.provide(scaffoldLayer)),
+    Provisioning.routes(makeGated({ authEnabled, guiAuthEnabled })).pipe(
       Layer.provide(provisioningLayer),
       Layer.provide(configLayer),
     ),

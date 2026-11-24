@@ -36,6 +36,14 @@ import { CurrentActor, requireAuth } from "@vibevarium/auth";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import { isReservedAppName, RESERVED_APP_NAME } from "../reserved.ts";
 
+// The gate factory's exact requirement shape is the caller's business — it
+// matches server.ts's `gated` (GUI session OR bearer, providing CurrentActor).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Gated = <E, R>(
+  handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+) => Effect.Effect<HttpServerResponse.HttpServerResponse, E, any>;
+
 const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /** `control` is the platform's reserved control-surface alias — never an app name. */
@@ -333,14 +341,11 @@ export class Provisioning extends Context.Service<Provisioning, {
     }),
   );
 
-  static readonly routes = (options: { readonly authEnabled: boolean }) =>
+  static readonly routes = (gated: Gated) =>
     HttpRouter.use((router) =>
       Effect.gen(function*() {
         const provisioning = yield* Provisioning;
         const config = yield* PlatformConfigService;
-        const gated = options.authEnabled
-          ? requireAuth
-          : <E, R>(handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) => handler;
 
         yield* router.add("GET", "/provisioning/options", gated(Effect.gen(function*() {
           const report = yield* provisioning.options();

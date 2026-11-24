@@ -128,13 +128,18 @@ const respond = <A>(effect: Effect.Effect<A, ScaffoldError>, successStatus = 200
     }),
   );
 
-const registerGeneratedRoutes = (options: { readonly authEnabled: boolean }) =>
+// The gate factory's exact requirement shape is the caller's business — it
+// matches server.ts's `gated` (GUI session OR bearer, providing CurrentActor).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Gated = <E, R>(
+  handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+) => Effect.Effect<HttpServerResponse.HttpServerResponse, E, any>;
+
+const registerGeneratedRoutes = (gated: Gated) =>
   HttpRouter.use((router) =>
     Effect.gen(function*() {
       const scaffold = yield* Scaffold;
-      const gated = options.authEnabled
-        ? requireAuth
-        : <E, R>(handler: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>) => handler;
 
       yield* router.add("POST", "/scaffold", gated(Effect.gen(function*() {
         const request = yield* HttpServerRequest;
