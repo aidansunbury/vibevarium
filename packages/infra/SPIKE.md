@@ -14,11 +14,11 @@ control plane, deployed with [Alchemy](https://alchemy.run) (IaE).
 | Elastic IP | `107.23.2.162` (`eipalloc-0c073e564d8525909`) | Stable DNS target |
 | EC2 security group | `sg-06440839a8409a0ba` | Ports 22 (SSH), 80 (HTTP), 443 (HTTPS) |
 | RDS security group | `sg-086d5d8a73ffa0f29` | Port 5432 from EC2 SG only |
-| RDS Postgres 16 | `terrariuminfra-postgres-live-aidan-a2whqelgnf35juwv` | db.t4g.micro, 20GB gp3, private |
-| RDS endpoint | `terrariuminfra-postgres-live-aidan-a2whqelgnf35juwv.cctumyw2o6uz.us-east-1.rds.amazonaws.com` | `publiclyAccessible: false` |
+| RDS Postgres 16 | `vibevariuminfra-postgres-live-aidan-a2whqelgnf35juwv` | db.t4g.micro, 20GB gp3, private |
+| RDS endpoint | `vibevariuminfra-postgres-live-aidan-a2whqelgnf35juwv.cctumyw2o6uz.us-east-1.rds.amazonaws.com` | `publiclyAccessible: false` |
 | RDS master secret | `arn:aws:secretsmanager:us-east-1:412215357683:secret:rds!db-6f5a2477-69a7-47b1-beae-ef2ebf072818-5VuAW8` | Managed by RDS in Secrets Manager |
 | SSH key pair | `VibevariumInfra-SshKey-live-aidan-erl4izfsi5wjh2n3` | ed25519, private key in `.secrets/vibevarium-key.pem` |
-| DB subnet group | `terrariuminfra-dbsubnets-live-aidan-lntcj47urmwnzrkq` | Private subnets only |
+| DB subnet group | `vibevariuminfra-dbsubnets-live-aidan-lntcj47urmwnzrkq` | Private subnets only |
 
 **Databases on the RDS instance:**
 - `logto` — initial database (created by RDS `dbName` prop)

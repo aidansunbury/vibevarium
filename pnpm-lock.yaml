@@ -43,6 +43,178 @@ importers:
         specifier: ^4.166.0
         version: 4.166.0(@cloudflare/workers-types@5.20261121.1)(@types/node@26.6.6)(vitest@3.2.7(@types/node@26.6.6)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1))
 
+  apps/expenses:
+    dependencies:
+      '@alchemy.run/cloudflare':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+      '@alchemy.run/domain':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@alchemy.run/cloudflare@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1)))(@distilled.cloud/cloudflare@1.0.0-rc.20(effect@4.1.5))(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)
+      '@effect/platform-node':
+        specifier: ^4.1.5
+        version: 4.1.5(effect@4.1.5)
+      alchemy:
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0)
+      effect:
+        specifier: ^4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      wrangler:
+        specifier: ^4.166.0
+        version: 4.166.0(@cloudflare/workers-types@5.20261121.1)(@types/node@26.6.6)(vitest@3.2.7(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+
+  apps/real-demo:
+    dependencies:
+      '@alchemy.run/cloudflare':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+      '@alchemy.run/domain':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@alchemy.run/cloudflare@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1)))(@distilled.cloud/cloudflare@1.0.0-rc.20(effect@4.1.5))(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)
+      '@effect/platform-node':
+        specifier: ^4.1.5
+        version: 4.1.5(effect@4.1.5)
+      alchemy:
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0)
+      effect:
+        specifier: ^4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      wrangler:
+        specifier: ^4.166.0
+        version: 4.166.0(@cloudflare/workers-types@5.20261121.1)(@types/node@26.6.6)(vitest@3.2.7(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+
+  apps/showcase:
+    dependencies:
+      '@alchemy.run/cloudflare':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+      '@alchemy.run/domain':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@alchemy.run/cloudflare@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1)))(@distilled.cloud/cloudflare@1.0.0-rc.20(effect@4.1.5))(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)
+      '@effect/platform-node':
+        specifier: ^4.1.5
+        version: 4.1.5(effect@4.1.5)
+      alchemy:
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0)
+      effect:
+        specifier: ^4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      wrangler:
+        specifier: ^4.166.0
+        version: 4.166.0(@cloudflare/workers-types@5.20261121.1)(@types/node@26.6.6)(vitest@3.2.7(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+
+  apps/showcase2:
+    dependencies:
+      '@alchemy.run/cloudflare':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+      '@alchemy.run/domain':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@alchemy.run/cloudflare@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1)))(@distilled.cloud/cloudflare@1.0.0-rc.20(effect@4.1.5))(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)
+      '@effect/platform-node':
+        specifier: ^4.1.5
+        version: 4.1.5(effect@4.1.5)
+      alchemy:
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0)
+      effect:
+        specifier: ^4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      wrangler:
+        specifier: ^4.166.0
+        version: 4.166.0(@cloudflare/workers-types@5.20261121.1)(@types/node@26.6.6)(vitest@3.2.7(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+
+  apps/terrarium-git-proof-75625:
+    dependencies:
+      '@alchemy.run/cloudflare':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+      '@alchemy.run/domain':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@alchemy.run/cloudflare@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1)))(@distilled.cloud/cloudflare@1.0.0-rc.20(effect@4.1.5))(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)
+      '@effect/platform-node':
+        specifier: ^4.1.5
+        version: 4.1.5(effect@4.1.5)
+      alchemy:
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0)
+      effect:
+        specifier: ^4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+
+  apps/terrarium-git-proof-76434:
+    dependencies:
+      '@alchemy.run/cloudflare':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+      '@alchemy.run/domain':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@alchemy.run/cloudflare@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1)))(@distilled.cloud/cloudflare@1.0.0-rc.20(effect@4.1.5))(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)
+      '@effect/platform-node':
+        specifier: ^4.1.5
+        version: 4.1.5(effect@4.1.5)
+      alchemy:
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0)
+      effect:
+        specifier: ^4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+
+  apps/tickets-local:
+    dependencies:
+      '@alchemy.run/cloudflare':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+      '@alchemy.run/domain':
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@alchemy.run/cloudflare@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/node@26.6.6)(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1)))(@distilled.cloud/cloudflare@1.0.0-rc.20(effect@4.1.5))(alchemy@2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0))(effect@4.1.5)
+      '@effect/platform-node':
+        specifier: ^4.1.5
+        version: 4.1.5(effect@4.1.5)
+      alchemy:
+        specifier: 2.0.0-beta.87
+        version: 2.0.0-beta.87(@effect/platform-node@4.1.5(effect@4.1.5))(@types/react@19.3.0)(effect@4.1.5)(vite@7.3.8(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))(ws@8.23.0)
+      effect:
+        specifier: ^4.1.5
+        version: 4.1.5
+      jose:
+        specifier: ^6.0.0
+        version: 6.2.18
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      wrangler:
+        specifier: ^4.166.0
+        version: 4.166.0(@cloudflare/workers-types@5.20261121.1)(@types/node@26.6.6)(vitest@3.2.7(@types/node@26.6.6)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/auth:
     dependencies:
       effect:
