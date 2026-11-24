@@ -38,7 +38,8 @@ export default Alchemy.Stack(
     const controlPlaneContext = fileURLToPath(new URL("../../../", import.meta.url));
     const controlPlaneDockerfile = fileURLToPath(new URL("../../control-plane/Dockerfile", import.meta.url));
 
-    const databaseUrlArn = yield* requireEnv("DATABASE_URL_ARN");
+    const ecsDatabaseUrlArn = yield* requireEnv("ECS_DATABASE_URL_ARN");
+    const casdoorDatabaseUrlArn = yield* requireEnv("CASDOOR_DATABASE_URL_ARN");
     const casdoorAdminPasswordArn = yield* requireEnv("CASDOOR_ADMIN_PASSWORD_ARN");
 
     const ecs = yield* EcsInfra({
@@ -46,7 +47,8 @@ export default Alchemy.Stack(
       controlPlaneDockerfile,
       domain,
       certificateArn,
-      databaseUrlArn,
+      ecsDatabaseUrlArn,
+      casdoorDatabaseUrlArn,
       casdoorAdminPasswordArn,
     });
 

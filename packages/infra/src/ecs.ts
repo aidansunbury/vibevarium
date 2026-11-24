@@ -10,8 +10,10 @@ export interface EcsInfraOptions {
   readonly domain: string;
   /** ACM certificate ARN for the shared 443 listener (covers api. + auth.). */
   readonly certificateArn: string;
-  /** Full SM ARN of the control-plane DATABASE_URL secret. */
-  readonly databaseUrlArn: string;
+  /** Full SM ARN of THIS stack's control-plane DATABASE_URL (written at deploy). */
+  readonly ecsDatabaseUrlArn: string;
+  /** Full SM ARN of THIS stack's casdoor dataSourceName (written at deploy). */
+  readonly casdoorDatabaseUrlArn: string;
   /** Full SM ARN of the casdoor admin password secret. */
   readonly casdoorAdminPasswordArn: string;
   /** RDS instance class. */
@@ -138,11 +140,18 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         dbName: "casdoor",
         origin: `https://auth.${options.domain}`,
       },
+      env: {
+        RUNNING_IN_DOCKER: "true",
+        runmode: "prod",
+        driverName: "postgres",
+        dbName: "casdoor",
+        origin: `https://auth.${options.domain}`,
+        // The DSN for the casdoor db on THIS stack's RDS. Written to SM at
+        // deploy (RDS endpoint + master password) and injected via secrets below.
+        DUMMY2: "",
+      },
       secrets: {
-        // dataSourceName: full postgres DSN for the casdoor db (RDS master
-        // secret → the deploy writes a casdoor-db DSN to SM). initAdminPassword
-        // sets built-in/admin on first run.
-        dataSourceName: options.databaseUrlArn,
+        dataSourceName: options.casdoorDatabaseUrlArn,
         initAdminPassword: options.casdoorAdminPasswordArn,
       },
       healthCheckPath: "/api/health",
@@ -185,9 +194,12 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         AWS_REGION: "us-east-1",
         SECRETS_PREFIX: "/vibevarium/prod/",
         DISCOVERY_INTERVAL_MS: "30000",
+        DISCOVERY_INTERVAL_MS: "30000",
       },
       secrets: {
-        DATABASE_URL: options.databaseUrlArn,
+        // Full postgres:// DSN for THIS stack's RDS (deploy script reads the
+        // master password from the RDS-managed secret and writes this).
+        DATABASE_URL: options.ecsDatabaseUrlArn,
       },
       healthCheckPath: "/health",
       loadBalancer: {
