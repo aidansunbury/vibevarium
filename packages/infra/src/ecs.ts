@@ -145,6 +145,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         dataSourceName: options.databaseUrlArn,
         initAdminPassword: options.casdoorAdminPasswordArn,
       },
+      healthCheckPath: "/api/health",
       loadBalancer: {
         listener,
         rules: [{ host: `auth.${options.domain}`, priority: 100 }],
@@ -188,6 +189,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       secrets: {
         DATABASE_URL: options.databaseUrlArn,
       },
+      healthCheckPath: "/health",
       loadBalancer: {
         listener,
         rules: [{ host: `api.${options.domain}`, priority: 200 }],
