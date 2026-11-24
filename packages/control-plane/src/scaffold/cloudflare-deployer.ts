@@ -75,6 +75,25 @@ export class CloudflareDeployer {
         await symlink(dependencies, join(deployment.directory, "node_modules"), "dir");
       }
     }
+    // Build the SPA into web/dist before deploying — the Worker's
+    // assets.directory points at ./web/dist, so a freshly materialized app
+    // must have its frontend built (the materialize step ships web/ source,
+    // not a prebuilt dist). The web sub-package installs standalone (its own
+    // lockfile) then vite-builds.
+    if (command === "deploy" && existsSync(join(deployment.directory, "web", "package.json"))) {
+      await execFileAsync("pnpm", ["install", "--ignore-workspace"], {
+        cwd: join(deployment.directory, "web"),
+        env: this.env(deployment.name, oidcClient),
+        timeout: 3 * 60_000,
+        maxBuffer: 4 * 1024 * 1024,
+      });
+      await execFileAsync("pnpm", ["run", "build"], {
+        cwd: join(deployment.directory, "web"),
+        env: this.env(deployment.name, oidcClient),
+        timeout: 5 * 60_000,
+        maxBuffer: 4 * 1024 * 1024,
+      });
+    }
     let lastOutput = "";
     for (let retryIndex = 0; retryIndex < (command === "deploy" ? 3 : 1); retryIndex++) {
       try {
