@@ -406,6 +406,15 @@ export const isSessionExpired = (error: unknown): boolean => {
   return false;
 };
 
+/**
+ * The API origin. Same-origin in single-container dev (relative `/`). In the
+ * split deployment the GUI is a Cloudflare SPA and the API is at
+ * `api.<domain>` — baked in at build time via VITE_API_ORIGIN. The session
+ * cookie is scoped `Domain=.<domain>` + SameSite=Lax, so it's sent same-site
+ * across subdomains; fetches use `credentials: "include"` to carry it.
+ */
+const API_ORIGIN: string = (import.meta.env?.VITE_API_ORIGIN as string | undefined) ?? "";
+
 const transport = Layer.effect(
   HttpClient.HttpClient,
   Effect.map(
@@ -422,13 +431,15 @@ const transport = Layer.effect(
 ).pipe(
   Layer.provide(
     FetchHttpClient.layer.pipe(
-      Layer.provide(Layer.succeed(FetchHttpClient.RequestInit, { credentials: "same-origin" })),
+      // "include" carries the cross-subdomain session cookie; "same-origin"
+      // would drop it on api.<domain> from platform.<domain>.
+      Layer.provide(Layer.succeed(FetchHttpClient.RequestInit, { credentials: "include" })),
     ),
   ),
 );
 
 const clientPromise = Effect.runPromise(
-  Effect.provide(HttpApiClient.make(OpsApi), transport),
+  Effect.provide(HttpApiClient.make(OpsApi, { baseUrl: API_ORIGIN === "" ? undefined : API_ORIGIN }), transport),
 );
 
 const run = <A>(effect: Effect.Effect<A, unknown>): Promise<A> => Effect.runPromise(effect);
@@ -489,12 +500,12 @@ export const api = {
     ),
 };
 
-/** Start the real Logto login: full-page redirect to /auth/login. */
+/** Start the login: full-page redirect to the API's /auth/login (which 302s to the issuer). */
 export const login = () => {
-  globalThis.location.assign("/auth/login");
+  globalThis.location.assign(`${API_ORIGIN}/auth/login`);
 };
 
 export const logout = async () => {
-  await fetch("/auth/logout", { method: "POST", credentials: "same-origin", redirect: "manual" });
+  await fetch(`${API_ORIGIN}/auth/logout`, { method: "POST", credentials: "include", redirect: "manual" });
   globalThis.location.assign("/");
 };

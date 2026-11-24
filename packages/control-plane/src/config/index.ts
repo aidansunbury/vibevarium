@@ -75,6 +75,10 @@ const flatConfig = Config.all({
   baseUrl: Config.String("CONTROL_PLANE_BASE_URL").pipe(Config.withDefault("")),
   domain: Config.String("TERRARIUM_DOMAIN").pipe(Config.withDefault("vibevarium.com")),
   guiDir: Config.option(Config.NonEmptyString("GUI_DIR")),
+  /** Public GUI origin when it differs from the API origin (SPA on Cloudflare). Unset → same origin. */
+  guiOrigin: Config.option(Config.NonEmptyString("GUI_ORIGIN")),
+  /** Cookie domain scope for the session cookie, e.g. `.vibevarium.com` (cross-subdomain). Unset → host-only. */
+  cookieDomain: Config.option(Config.NonEmptyString("COOKIE_DOMAIN")),
 
   databaseUrl: Config.option(Config.NonEmptyString("DATABASE_URL")),
   databasePath: Config.option(Config.NonEmptyString("DATABASE_PATH")),
@@ -176,6 +180,8 @@ export interface PlatformConfig {
         readonly clientId: string;
         readonly clientSecret: string;
         readonly baseUrl: string;
+        readonly guiOrigin: string | undefined;
+        readonly cookieDomain: string | undefined;
         readonly resource: string;
       }
     | undefined;
@@ -304,6 +310,8 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
             clientId: guiClientId,
             clientSecret: guiAppSecret ?? "",
             baseUrl,
+            guiOrigin: get(flat.guiOrigin),
+            cookieDomain: get(flat.cookieDomain),
             resource: platformAudience,
           }
       : guiAppSecret === undefined
@@ -313,6 +321,8 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
             clientId: guiClientId,
             clientSecret: guiAppSecret,
             baseUrl,
+            guiOrigin: get(flat.guiOrigin),
+            cookieDomain: get(flat.cookieDomain),
             resource: platformAudience,
           };
 

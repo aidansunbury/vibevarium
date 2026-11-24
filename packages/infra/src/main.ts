@@ -60,7 +60,7 @@ export default Alchemy.Stack(
     return {
       domain,
       authUrl: `https://auth.${domain}`,
-      platformUrl: `https://platform.${domain}`,
+      apiUrl: `https://api.${domain}`,
       elasticIp: aws.elasticIp,
       elasticIpAllocationId: aws.elasticIpAllocationId,
       instanceId: aws.instanceId,
@@ -75,7 +75,7 @@ export default Alchemy.Stack(
       ec2SecurityGroupId: aws.ec2SecurityGroupId,
       rdsSecurityGroupId: aws.rdsSecurityGroupId,
       authRecordId: dns.authRecordId,
-      platformRecordId: dns.platformRecordId,
+      apiRecordId: dns.apiRecordId,
     };
   }),
 );

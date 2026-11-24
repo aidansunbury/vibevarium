@@ -29,14 +29,17 @@ export const Dns = (options: DnsOptions) =>
       comment: "Vibevarium Casdoor OIDC server",
     });
 
-    const platform = yield* Cloudflare.DNS.Record("PlatformA", {
+    // The control-plane API. The GUI SPA is served from Cloudflare at
+    // platform.<domain> (proxied — not a grey-cloud A record here, so Cloudflare
+    // can route it to the SPA); the API lives on the box at api.<domain>.
+    const api = yield* Cloudflare.DNS.Record("ApiA", {
       zoneId: options.zoneId,
-      name: `platform.${options.domain}`,
+      name: `api.${options.domain}`,
       type: "A",
       content: options.ip,
       proxied: false,
       ttl: 300,
-      comment: "Vibevarium control plane",
+      comment: "Vibevarium control-plane API",
     });
 
     // Casdoor serves the API, OIDC/discovery endpoints, and the admin console
@@ -44,8 +47,8 @@ export const Dns = (options: DnsOptions) =>
     // (unlike Logto's split-core/admin setup).
     return {
       authRecordId: auth.recordId,
-      platformRecordId: platform.recordId,
+      apiRecordId: api.recordId,
       authHostname: `auth.${options.domain}`,
-      platformHostname: `platform.${options.domain}`,
+      apiHostname: `api.${options.domain}`,
     };
   });

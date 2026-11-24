@@ -9,6 +9,9 @@ auth.{$DOMAIN} {
 	reverse_proxy casdoor:8000
 }
 
-platform.{$DOMAIN} {
+# The control-plane API. The GUI SPA is served from Cloudflare at
+# platform.<domain>; the API lives here at api.<domain>. The GUI calls it
+# cross-subdomain (same-site → SameSite=Lax session cookie + CORS).
+api.{$DOMAIN} {
 	reverse_proxy control-plane:4100
 }

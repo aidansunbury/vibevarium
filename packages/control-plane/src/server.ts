@@ -1,4 +1,5 @@
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
+import * as HttpMiddleware from "effect/http/HttpMiddleware";
 import { Auth, CurrentActor, requireAuth } from "@vibevarium/auth";
 import { McpProtocol, McpServer } from "effect/ai";
 import * as Context from "effect/Context";
@@ -82,6 +83,8 @@ export interface ControlPlaneOptions {
     readonly clientId: string;
     readonly clientSecret: string;
     readonly baseUrl: string;
+    readonly guiOrigin?: string | undefined;
+    readonly cookieDomain?: string | undefined;
     readonly resource: string;
   } | undefined;
 }
@@ -488,8 +491,25 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       }))
     : Auth.layer(options.oidc);
 
+  // CORS for the GUI when it's on a different subdomain (SPA on Cloudflare at
+  // platform., API here at api.). Same-site, so the SameSite=Lax session
+  // cookie rides along on credentialed fetches. Unset → same-origin (no CORS).
+  const guiOrigin = options.guiAuth?.guiOrigin;
+
+  const toHttpApp = HttpRouter.toHttpEffect(allRoutes);
+  const toHttpAppCors = guiOrigin === undefined
+    ? toHttpApp
+    : Effect.map(toHttpApp, (app) =>
+        HttpMiddleware.cors({
+          allowedOrigins: [guiOrigin],
+          allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+          allowedHeaders: ["content-type", "authorization", "mcp-session-id"],
+          credentials: true,
+        })(app),
+      );
+
   return Layer.unwrap(
-    Effect.map(HttpRouter.toHttpEffect(allRoutes), (app) => HttpServer.serve()(app)),
+    Effect.map(toHttpAppCors, (app) => HttpServer.serve()(app)),
   ).pipe(
     Layer.provide(authLayer),
     Layer.provide(guiAuthLayer),

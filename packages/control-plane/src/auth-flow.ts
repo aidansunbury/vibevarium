@@ -34,8 +34,23 @@ export interface AuthFlowOptions {
   readonly issuer: string;
   readonly clientId: string;
   readonly clientSecret: string;
-  /** Public origin of this control plane, e.g. https://platform.vibevarium.com */
+  /**
+   * Public origin of the API (where /auth/* and the OIDC callback live), e.g.
+   * https://api.vibevarium.com. The redirect_uri is built from this.
+   */
   readonly baseUrl: string;
+  /**
+   * Public origin of the GUI (where the user lands after login + after
+   * logout), e.g. https://platform.vibevarium.com. Defaults to baseUrl when
+   * the GUI and API share an origin (single-container local dev).
+   */
+  readonly guiOrigin?: string | undefined;
+  /**
+   * Cookie domain scope, e.g. `.vibevarium.com`, so the session cookie is sent
+   * same-site across subdomains (GUI on platform., API on api.). Unset for
+   * host-only cookies (same-origin local dev).
+   */
+  readonly cookieDomain?: string | undefined;
   /** RFC 8707 resource indicator for the access token. */
   readonly resource: string;
   /**
@@ -142,7 +157,12 @@ export class GuiAuth extends Context.Service<GuiAuth, {
 const SESSION_COOKIE = "vibevarium_session";
 const PENDING_COOKIE = "vibevarium_login";
 
-const cookieOptions = "Path=/; HttpOnly; SameSite=Lax";
+/** Cookie attributes; Secure always (prod is HTTPS), Domain only when scoped cross-subdomain. */
+const cookieOptions = (cookieDomain: string | undefined) =>
+  `Path=/; HttpOnly; SameSite=Lax; Secure${cookieDomain === undefined ? "" : `; Domain=${cookieDomain}`}`;
+
+/** The origin the user is returned to after login/logout (the GUI), defaulting to the API origin. */
+const guiOrigin = (options: AuthFlowOptions) => (options.guiOrigin ?? options.baseUrl).replace(/\/+$/, "");
 
 const decodeJwtPayload = (token: string): Record<string, unknown> =>
   JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString()) as Record<string, unknown>;
@@ -205,7 +225,7 @@ const loginRoute = Effect.gen(function*() {
     status: 302,
     headers: {
       location: authorize.toString(),
-      "set-cookie": `${PENDING_COOKIE}=${pendingId}; ${cookieOptions}; Max-Age=600`,
+      "set-cookie": `${PENDING_COOKIE}=${pendingId}; ${cookieOptions(options.cookieDomain)}; Max-Age=600`,
     },
   });
 }).pipe(
@@ -296,8 +316,9 @@ const callbackRoute = Effect.gen(function*() {
   return HttpServerResponse.empty({
     status: 302,
     headers: {
-      location: pending.returnTo ?? "/",
-      "set-cookie": `${SESSION_COOKIE}=${sessionId}; ${cookieOptions}; Max-Age=86400`,
+      // Post-login, land on the GUI origin (the API served the callback).
+      location: pending.returnTo ?? guiOrigin(options),
+      "set-cookie": `${SESSION_COOKIE}=${sessionId}; ${cookieOptions(options.cookieDomain)}; Max-Age=86400`,
     },
   });
 });
@@ -311,12 +332,12 @@ const logoutRoute = Effect.gen(function*() {
   const endSession = new URL(
     `${guiAuth.options.issuer.replace(/\/+$/, "")}${guiAuth.options.endSessionPath ?? "/api/logout"}`,
   );
-  endSession.searchParams.set("post_logout_redirect_uri", `${guiAuth.options.baseUrl}/`);
+  endSession.searchParams.set("post_logout_redirect_uri", `${guiOrigin(guiAuth.options)}/`);
   return HttpServerResponse.empty({
     status: 302,
     headers: {
       location: endSession.toString(),
-      "set-cookie": `${SESSION_COOKIE}=; ${cookieOptions}; Max-Age=0`,
+      "set-cookie": `${SESSION_COOKIE}=; ${cookieOptions(guiAuth.options.cookieDomain)}; Max-Age=0`,
     },
   });
 });
