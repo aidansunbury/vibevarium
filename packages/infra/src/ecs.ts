@@ -18,6 +18,8 @@ export interface EcsInfraOptions {
   readonly casdoorAdminPasswordArn: string;
   /** Full SM ARN of the Cloudflare API token. */
   readonly cloudflareApiTokenArn: string;
+  /** Managed policy ARN granting the task role SM read+write on /vibevarium/prod/*. */
+  readonly secretsPolicyArn: string;
   /** RDS instance class. */
   readonly dbInstanceClass?: string;
 }
@@ -146,6 +148,9 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         dataSourceName: options.casdoorDatabaseUrlArn,
         initAdminPassword: options.casdoorAdminPasswordArn,
       },
+      // The synthesized task role needs broad SM read for boot-time secret
+      // resolution (loadBootSecrets fetches every boot secret via the task role).
+      taskRoleManagedPolicyArns: [options.secretsPolicyArn],
       healthCheckPath: "/api/health",
       loadBalancer: {
         listener,
@@ -195,6 +200,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         // Alchemy profile file).
         CLOUDFLARE_API_TOKEN: options.cloudflareApiTokenArn,
       },
+      taskRoleManagedPolicyArns: [options.secretsPolicyArn],
       healthCheckPath: "/health",
       loadBalancer: {
         listener,
