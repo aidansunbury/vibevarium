@@ -23,6 +23,7 @@ import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
 import { Connections, GITHUB_PROVIDER } from "./connections/index.ts";
 import { connectionRoutes } from "./connections/routes.ts";
+import { secretsRoutes } from "./integrations/secrets-routes.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
 import { SecretsProvider } from "./integrations/secrets.ts";
 import { Integrations } from "./integrations/service.ts";
@@ -346,6 +347,14 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     }).pipe(
       Layer.provide(connectionsLayer),
       Layer.provide(secretsLayer),
+    ),
+    // Set-only secrets surface (docs/redeployment-plan.md §3): list names +
+    // provenance, set/overwrite/delete — never read a value back. ACL-gated
+    // (platform secrets → superadmin; app secrets → app admin). Mounted under
+    // the same GUI/bearer gate as the ACL routes.
+    secretsRoutes(makeGated({ authEnabled, guiAuthEnabled })).pipe(
+      Layer.provide(aclLayer),
+      Layer.provide(Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv))),
     ),
     registerManifestProviders,
     scheduledDiscovery(options.discoveryIntervalMs ?? 30_000),
