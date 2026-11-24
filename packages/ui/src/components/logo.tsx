@@ -6,9 +6,9 @@ import { cn } from "../lib/utils";
  * sprout, with amber code brackets (`</>`) growing above the leaves.
  *
  * Ink uses `currentColor` (inherits text color); the brackets take
- * `--logo-bracket` (default: pressed-clay amber, light/dark aware via the
- * `--brand-bracket` theme var). Glass glints use `--logo-glass`, which the
- * theme sets to the paper color so the highlight reads as glass.
+ * `--logo-bracket` (default: pressed-clay amber via the `--brand-bracket`
+ * theme var). Glass glints use `--logo-glass`, which the theme sets to the
+ * paper color so the highlight reads as glass.
  */
 function Logo({ className, ...props }: React.ComponentProps<"svg">) {
   const ink = "currentColor";
@@ -24,50 +24,56 @@ function Logo({ className, ...props }: React.ComponentProps<"svg">) {
       {...props}
     >
       {/* lid */}
-      <rect x="30" y="6" width="60" height="13" rx="4" fill={ink} />
+      <rect x="27" y="4" width="66" height="14" rx="5" fill={ink} />
       {/* jar walls */}
       <path
-        d="M36 19v8c-7 7-13 11-13 25v45c0 13 9 21 26 21h22c17 0 26-8 26-21V52c0-14-6-18-13-25v-8"
+        d="M34 20v6c-7 6-15 10-15 25v50c0 14 10 22 28 22h26c18 0 28-8 28-22V51c0-15-8-19-15-25v-6"
         stroke={ink}
-        strokeWidth="7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* glass glints */}
-      <path d="M45 31h14M30 51c-2 4-2 8-2 11" stroke={glass} strokeWidth="2.6" strokeLinecap="round" />
-      {/* code brackets */}
-      <path
-        d="M53 43l-9 8 9 8M67 43l9 8-9 8"
-        stroke={bracket}
         strokeWidth="6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      {/* glass glints */}
+      <path d="M44 31h18M74 31h3" stroke={glass} strokeWidth="3" strokeLinecap="round" />
+      <path d="M28 49c-3 4-3 9-3 14M25 68v3" stroke={glass} strokeWidth="3" strokeLinecap="round" />
+      {/* code brackets */}
+      <path
+        d="M54 42l-9 8 9 8M66 42l9 8-9 8"
+        stroke={bracket}
+        strokeWidth="5.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       {/* stem */}
-      <path d="M60 66v16" stroke={ink} strokeWidth="5" strokeLinecap="round" />
+      <path d="M60 64v14" stroke={ink} strokeWidth="4.5" strokeLinecap="round" />
       {/* leaves */}
-      <path d="M60 82c-10 0-19-6-22-16 10 0 19 6 22 16z" fill={ink} />
-      <path d="M60 82c10 0 19-6 22-16-10 0-19 6-22 16z" fill={ink} />
+      <path d="M60 76c-9 0-17-5-20-13 9 0 17 5 20 13z" fill={ink} />
+      <path d="M60 76c9 0 17-5 20-13-9 0-17 5-20 13z" fill={ink} />
       {/* roots */}
       <path
-        d="M46 98c-6 0-11 3-14 9M38 99l-6-4M40 102l-2 7"
+        d="M44 102c-7 0-12 3-15 9M35 103l-6-4M38 106l-3 7M42 108l-2 6"
         stroke={ink}
-        strokeWidth="3.4"
+        strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M74 98c6 0 11 3 14 9M82 99l6-4M80 102l2 7"
+        d="M76 102c7 0 12 3 15 9M85 103l6-4M82 106l3 7M78 108l2 6"
         stroke={ink}
-        strokeWidth="3.4"
+        strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* acorn: stem + cap + shell */}
-      <path d="M60 94v-4" stroke={ink} strokeWidth="4.5" strokeLinecap="round" />
-      <path d="M50 95c0-8 4-11 10-11s10 3 10 11" stroke={ink} strokeWidth="5" strokeLinecap="round" />
-      <path d="M50 95h20v7c0 10-4.5 17.5-10 22.5-5.5-5-10-12.5-10-22.5v-7z" fill={ink} />
-      <path d="M52 97h16" stroke={glass} strokeWidth="2.4" strokeLinecap="round" />
+      {/* acorn: outline cap (arch w/ legs); nut = stroked shield, filled on
+          the right half so the paper reads through on the left */}
+      <path d="M52 98v-6c0-8 3.5-11 8-11s8 3 8 11v6" stroke={ink} strokeWidth="4.5" strokeLinecap="round" />
+      <path d="M60 98h14v6c0 11-6 19-14 25z" fill={ink} />
+      <path
+        d="M46 98h28v6c0 11-6 19-14 25-8-6-14-14-14-25v-6z"
+        stroke={ink}
+        strokeWidth="4.5"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
