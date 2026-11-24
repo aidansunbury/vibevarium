@@ -36,12 +36,14 @@ export default Alchemy.Stack(
     // The monorepo root is the Docker build context (the control-plane
     // Dockerfile copies packages/ from it). From src/main-ecs.ts, up 3 levels.
     const controlPlaneContext = fileURLToPath(new URL("../../../", import.meta.url));
+    const controlPlaneDockerfile = fileURLToPath(new URL("../../control-plane/Dockerfile", import.meta.url));
 
     const databaseUrlArn = yield* requireEnv("DATABASE_URL_ARN");
     const casdoorAdminPasswordArn = yield* requireEnv("CASDOOR_ADMIN_PASSWORD_ARN");
 
     const ecs = yield* EcsInfra({
       controlPlaneContext,
+      controlPlaneDockerfile,
       domain,
       certificateArn,
       databaseUrlArn,

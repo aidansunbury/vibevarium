@@ -4,6 +4,8 @@ import * as Effect from "effect/Effect";
 export interface EcsInfraOptions {
   /** Docker build context for the control-plane image (the monorepo root). */
   readonly controlPlaneContext: string;
+  /** Absolute path to the control-plane Dockerfile (dockerfile resolves cwd-relative). */
+  readonly controlPlaneDockerfile: string;
   /** The domain (e.g. vibevarium.com) — drives the api./auth. hostnames. */
   readonly domain: string;
   /** ACM certificate ARN for the shared 443 listener (covers api. + auth.). */
@@ -153,7 +155,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
     const controlPlaneService = yield* AWS.ECS.Service("ControlPlaneService", {
       cluster,
       context: options.controlPlaneContext,
-      dockerfile: "packages/control-plane/Dockerfile",
+      dockerfile: options.controlPlaneDockerfile,
       port: 4100,
       desiredCount: 1,
       vpcId: network.vpcId,
