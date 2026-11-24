@@ -6,6 +6,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Option from "effect/Option";
 import { Acl } from "../acl/index.ts";
 import { SecretsProvider, SecretsWriteUnsupportedError } from "./secrets.ts";
+import { AppSecrets, AppSecretsError } from "./app-secrets.ts";
 
 type Response = HttpServerResponse.HttpServerResponse;
 
@@ -16,6 +17,9 @@ const json = (body: unknown, status = 200): Effect.Effect<Response, never, never
 
 const unsupported = (error: SecretsWriteUnsupportedError) =>
   json({ error: "secrets_read_only", error_description: error.message }, 503);
+
+const appStoreError = (error: AppSecretsError) =>
+  json({ error: "app_secrets_error", error_description: error.message }, error.status);
 
 /** A reference must be a lowercase secret path segment set (no leading slash, no spaces). */
 const refPattern = /^[a-z0-9][a-z0-9/_-]*$/;
@@ -51,6 +55,9 @@ export const secretsRoutes = (gated: Gated) =>
     Effect.gen(function*() {
       const secrets = yield* SecretsProvider;
       const acl = yield* Acl;
+      // App secrets go to the app's own Worker (Cloudflare Worker secrets). The
+      // service is optional — absent when the Cloudflare target isn't configured.
+      const appSecretsOption = yield* Effect.serviceOption(AppSecrets);
 
       /** Resolve the caller's sub and authorize platform vs app scope. */
       const authorize = (app: string | undefined) =>
@@ -77,13 +84,24 @@ export const secretsRoutes = (gated: Gated) =>
         new URL(url, "http://cp.local").searchParams.get("app") ?? undefined;
 
       // GET /secrets[?app=<name>] → list names + provenance (never values).
+      // App-scoped → the app's Worker secrets; platform-scoped → AWS SM.
       yield* router.add("GET", "/secrets", gated(Effect.gen(function*() {
         const request = yield* HttpServerRequest.HttpServerRequest;
         const app = appFromQuery(request.url);
         const auth = yield* authorize(app);
         if (!auth.allowed) return yield* denied(auth.reason);
+        if (app !== undefined) {
+          if (Option.isNone(appSecretsOption)) {
+            return yield* json({ error: "app_secrets_unavailable", error_description: "Cloudflare app-secret store is not configured" }, 503);
+          }
+          return yield* appSecretsOption.value.list(app).pipe(
+            Effect.map((list) => ({ secrets: list, app })),
+            Effect.catch((error: AppSecretsError) => appStoreError(error)),
+            Effect.flatMap((value) => json(value)),
+          );
+        }
         return yield* secrets.list().pipe(
-          Effect.map((list) => ({ secrets: list, app: app ?? null })),
+          Effect.map((list) => ({ secrets: list, app: null })),
           Effect.catch((error: SecretsWriteUnsupportedError) => unsupported(error)),
           Effect.flatMap((value) => json(value)),
         );
@@ -105,8 +123,18 @@ export const secretsRoutes = (gated: Gated) =>
         }
         const auth = yield* authorize(app);
         if (!auth.allowed) return yield* denied(auth.reason);
+        if (app !== undefined) {
+          if (Option.isNone(appSecretsOption)) {
+            return yield* json({ error: "app_secrets_unavailable", error_description: "Cloudflare app-secret store is not configured" }, 503);
+          }
+          return yield* appSecretsOption.value.put(app, reference, value).pipe(
+            Effect.map(() => ({ reference, app, set: true })),
+            Effect.catch((error: AppSecretsError) => appStoreError(error)),
+            Effect.flatMap((value) => json(value)),
+          );
+        }
         return yield* secrets.put(reference, value).pipe(
-          Effect.map(() => ({ reference, app: app ?? null, set: true })),
+          Effect.map(() => ({ reference, app: null, set: true })),
           Effect.catch((error: SecretsWriteUnsupportedError) => unsupported(error)),
           Effect.flatMap((value) => json(value)),
         );
@@ -124,8 +152,18 @@ export const secretsRoutes = (gated: Gated) =>
         }
         const auth = yield* authorize(app);
         if (!auth.allowed) return yield* denied(auth.reason);
+        if (app !== undefined) {
+          if (Option.isNone(appSecretsOption)) {
+            return yield* json({ error: "app_secrets_unavailable", error_description: "Cloudflare app-secret store is not configured" }, 503);
+          }
+          return yield* appSecretsOption.value.remove(app, reference).pipe(
+            Effect.map(() => ({ reference, app, deleted: true })),
+            Effect.catch((error: AppSecretsError) => appStoreError(error)),
+            Effect.flatMap((value) => json(value)),
+          );
+        }
         return yield* secrets.remove(reference).pipe(
-          Effect.map(() => ({ reference, app: app ?? null, deleted: true })),
+          Effect.map(() => ({ reference, app: null, deleted: true })),
           Effect.catch((error: SecretsWriteUnsupportedError) => unsupported(error)),
           Effect.flatMap((value) => json(value)),
         );

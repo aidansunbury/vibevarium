@@ -26,6 +26,7 @@ import { connectionRoutes } from "./connections/routes.ts";
 import { secretsRoutes } from "./integrations/secrets-routes.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
 import { SecretsProvider } from "./integrations/secrets.ts";
+import { AppSecrets } from "./integrations/app-secrets.ts";
 import { Integrations } from "./integrations/service.ts";
 import { bootSecretsReport } from "./secrets/boot.ts";
 import { RegisterAppInput, Registry } from "./registry/index.ts";
@@ -303,6 +304,24 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       .filter((part) => part.length > 0),
   }).pipe(Layer.provide(databaseLayer));
   const scaffoldLayer = Scaffold.layer(options.scaffold).pipe(Layer.provide(aclLayer));
+  // Per-app secrets → the app's own Worker secrets (Cloudflare). Built only
+  // when the Cloudflare target is configured; the CF API token resolves via
+  // the SecretsProvider (cloudflare-api-token). Absent otherwise — the routes
+  // report app_secrets_unavailable.
+  const appSecretsLayer = options.scaffold?.cloudflare === undefined
+    ? Layer.empty
+    : Layer.unwrap(Effect.gen(function*() {
+        const secrets = yield* SecretsProvider;
+        const token = yield* secrets.resolve("cloudflare-api-token");
+        if (Option.isNone(token)) {
+          yield* Effect.logWarning("[app-secrets] cloudflare-api-token unresolvable — app-secret store disabled");
+          return Layer.empty as Layer.Layer<AppSecrets>;
+        }
+        return AppSecrets.layer({
+          accountId: options.scaffold!.cloudflare!.accountId,
+          apiToken: token.value,
+        }) as Layer.Layer<AppSecrets>;
+      })).pipe(Layer.provide(secretsLayer));
   const provisioningLayer = Provisioning.layer.pipe(
     Layer.provide(databaseLayer),
     Layer.provide(configLayer),
@@ -354,6 +373,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     // the same GUI/bearer gate as the ACL routes.
     secretsRoutes(makeGated({ authEnabled, guiAuthEnabled })).pipe(
       Layer.provide(aclLayer),
+      Layer.provide(appSecretsLayer),
       Layer.provide(Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv))),
     ),
     registerManifestProviders,
