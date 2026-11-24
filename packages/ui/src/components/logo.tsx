@@ -67,15 +67,15 @@ function Logo({ className, ...props }: React.ComponentProps<"svg">) {
       {/* acorn: cap is a small floating arc (gap before the shield); the
           shield nut is a stroked outline filled on the right half, with
           paper accent ticks on the filled side */}
-      <path d="M53 89c0-6 3-9 7-9s7 3 7 9" stroke={ink} strokeWidth="4.5" strokeLinecap="round" />
-      <path d="M60 96h12v5c0 10-5 17-12 22z" fill={ink} />
+      <path d="M53 87c0-6 3-9 7-9s7 3 7 9" stroke={ink} strokeWidth="4.5" strokeLinecap="round" />
+      <path d="M60 94h12v5c0 10-5 17-12 22z" fill={ink} />
       <path
-        d="M48 96h24v5c0 10-5 17-12 22-7-5-12-12-12-22v-5z"
+        d="M48 94h24v5c0 10-5 17-12 22-7-5-12-12-12-22v-5z"
         stroke={ink}
         strokeWidth="4.5"
         strokeLinejoin="round"
       />
-      <path d="M65 101l4-3M66 107l3 3" stroke={glass} strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M65 99l4-3M66 105l3 3" stroke={glass} strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   );
 }
