@@ -13,6 +13,18 @@ RUN cd packages/control-plane/web \
   && pnpm install --ignore-workspace \
   && pnpm run build
 
+# ── Stage 1b: build the app template's SPA (shipped into generated apps by the
+# scaffold's materialize step). Its web/dist is gitignored, so it never reaches
+# the runtime image from source — it must be built here.
+FROM node:22-slim AS templatewebbuild
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
+WORKDIR /app
+COPY packages/template-cloudflare/web/ packages/template-cloudflare/web/
+COPY packages/ui/ packages/ui/
+RUN cd packages/template-cloudflare/web \
+  && pnpm install --ignore-workspace \
+  && pnpm run build
+
 # ── Stage 2: the control plane runtime
 FROM node:22-slim AS base
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
@@ -41,6 +53,9 @@ COPY packages/ packages/
 
 # Carry only the built web GUI (not its node_modules) into the runtime image.
 COPY --from=webbuild /app/packages/control-plane/web/dist packages/control-plane/web/dist
+# The app template's pre-built SPA — the scaffold's materialize ships it into
+# every generated app (the Worker's assets.directory serves it).
+COPY --from=templatewebbuild /app/packages/template-cloudflare/web/dist packages/template-cloudflare/web/dist
 
 WORKDIR /app/packages/control-plane
 
