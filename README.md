@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/branding/logo.svg" alt="the vibevarium mark — a glass vibevarium with a code-bracket sprout" width="96" height="96" />
+  <img src="assets/branding/logo.svg" alt="the vibevarium mark — a glass vibevarium with a code-bracket sprout" width="96" height="96" />
 </p>
 
 <h1 align="center">vibevarium</h1>
@@ -39,16 +39,10 @@ Fraunces serif display over Source Sans 3, squared letterpress edges,
 hairline + double rules, laid-paper grain — in the **Vellum** (light) /
 **Graphite** (dark) palette pair, WCAG-audited to AA/AAA.
 
-Explorations and the audit live in [docs/branding](./docs/branding/):
-
-- [vibevarium-brand-explorer.html](./docs/branding/vibevarium-brand-explorer.html) —
-  interactive design-system explorer (palettes × edges × type × logos)
-- [contrast-audit.mjs](./docs/branding/contrast-audit.mjs) — WCAG contrast
-  audit (`node docs/branding/contrast-audit.mjs`)
-
-The mark is a glass apothecary jar whose sprout leaves are `</>` — see
+The brand spec lives in [assets/branding/BRAND.md](./assets/branding/BRAND.md);
+the mark is a glass apothecary jar whose sprout leaves are `</>` — see
 `@vibevarium/ui`'s `Logo` / `LogoLockup` components and
-[docs/branding/logo.svg](./docs/branding/logo.svg).
+[assets/branding/logo.svg](./assets/branding/logo.svg).
 
 ## Layout
 
@@ -61,5 +55,6 @@ packages/
   cli/                 the vibevarium binary
   infra/               AWS infrastructure (Alchemy)
   auth, connections/   platform services
-docs/                  state of the project, decisions, brand
+docs/internal/         working notes (git-ignored — stays local, not public)
+assets/branding/       the brand spec + logo (tracked, public)
 ```
