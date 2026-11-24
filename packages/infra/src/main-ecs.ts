@@ -34,8 +34,8 @@ export default Alchemy.Stack(
     const certificateArn = yield* requireEnv("ACM_CERTIFICATE_ARN");
 
     // The monorepo root is the Docker build context (the control-plane
-    // Dockerfile copies packages/ from it).
-    const controlPlaneContext = fileURLToPath(new URL("../../", import.meta.url));
+    // Dockerfile copies packages/ from it). From src/main-ecs.ts, up 3 levels.
+    const controlPlaneContext = fileURLToPath(new URL("../../../", import.meta.url));
 
     const databaseUrlArn = yield* requireEnv("DATABASE_URL_ARN");
     const casdoorAdminPasswordArn = yield* requireEnv("CASDOOR_ADMIN_PASSWORD_ARN");

@@ -94,38 +94,6 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       tags: { Name: "vibevarium-postgres" },
     });
 
-    // --- IAM: task role with SM read+write on /vibevarium/prod/* ------------
-    const taskRole = yield* AWS.IAM.Role("TaskRole", {
-      assumeRolePolicyDocument: {
-        Version: "2012-10-17",
-        Statement: [{ Effect: "Allow", Principal: { Service: "ecs-tasks.amazonaws.com" }, Action: ["sts:AssumeRole"] }],
-      },
-      inlinePolicies: {
-        VibevariumSecrets: {
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Sid: "SecretsRead",
-              Effect: "Allow",
-              Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-              Resource: ["arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*"],
-            },
-            {
-              Sid: "SecretsGuiWrite",
-              Effect: "Allow",
-              Action: ["secretsmanager:PutSecretValue", "secretsmanager:CreateSecret", "secretsmanager:DeleteSecret", "secretsmanager:TagResource"],
-              Resource: [
-                "arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*",
-                "arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*-??????",
-              ],
-            },
-            { Sid: "SecretsGuiListAll", Effect: "Allow", Action: ["secretsmanager:ListSecrets"], Resource: "*" },
-          ],
-        },
-      },
-      tags: { Name: "vibevarium-ecs-task-role" },
-    });
-
     // --- ECS cluster ---------------------------------------------------------
     const cluster = yield* AWS.ECS.Cluster("Cluster", {
       tags: { Name: "vibevarium" },
@@ -150,6 +118,8 @@ export const EcsInfra = (options: EcsInfraOptions) =>
     });
 
     // --- casdoor service (registry image) → auth.<domain> ---------------------
+    // The Service synthesizes its own task + execution roles; SM access comes
+    // from the execution-role secrets policy built from the `secrets` prop.
     const casdoorService = yield* AWS.ECS.Service("CasdoorService", {
       cluster,
       image: "casbin/casdoor:latest",
@@ -159,7 +129,6 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       subnets: network.publicSubnetIds,
       securityGroups: [tasksSg.groupId],
       assignPublicIp: true,
-      role: taskRole.roleArn,
       env: {
         RUNNING_IN_DOCKER: "true",
         runmode: "prod",
@@ -191,7 +160,6 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       subnets: network.publicSubnetIds,
       securityGroups: [tasksSg.groupId],
       assignPublicIp: true,
-      role: taskRole.roleArn,
       env: {
         PORT: "4100",
         HOST: "0.0.0.0",
@@ -235,7 +203,6 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       dbEndpoint: db.endpointAddress,
       dbPort: db.endpointPort ?? 5432,
       dbMasterSecretArn: db.masterUserSecretArn,
-      taskRoleArn: taskRole.roleArn,
       clusterArn: cluster.clusterArn,
       casdoorServiceArn: casdoorService.serviceArn,
       controlPlaneServiceArn: controlPlaneService.serviceArn,
