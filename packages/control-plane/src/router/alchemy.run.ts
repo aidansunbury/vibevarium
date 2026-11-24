@@ -25,7 +25,7 @@ export default Alchemy.Stack(
         type: "AAAA",
         content: "100::",
         proxied: true,
-        comment: "Terrarium router placeholder (Worker is the origin)",
+        comment: "Vibevarium router placeholder (Worker is the origin)",
       });
     }
     return {

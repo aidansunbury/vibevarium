@@ -83,7 +83,7 @@ Ada opens expenses — no re-login (Logto's SSO session issues silently), but a
 
 This is per-app grants made protocol-native, and it's why a leaked token
 can't be replayed across apps: `aud` mismatch is a hard reject in
-`@terrarium/auth`.
+`@vibevarium/auth`.
 
 **Meta-MCP wrinkle (open design question):** the gateway forwards the caller's
 token to the child app, and the child checks `aud`. Options: multi-audience

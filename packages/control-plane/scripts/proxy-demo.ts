@@ -8,7 +8,7 @@
  * fake API, checks the audit row, revokes the grant → 403 grant_required.
  * Also exercises the user-token path through the proxy.
  */
-import { startDevIssuer } from "@terrarium/dev-issuer";
+import { startDevIssuer } from "@vibevarium/dev-issuer";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { controlPlaneServer } from "../src/server.ts";
@@ -18,7 +18,7 @@ import * as HttpServer from "effect/http/HttpServer";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 
-const CONTROL_AUDIENCE = "control.terrarium.local";
+const CONTROL_AUDIENCE = "control.vibevarium.local";
 const APP_SECRET = "demo-app-shared-secret";
 
 const report: Record<string, unknown> = {};
@@ -111,8 +111,8 @@ report.registerIntegration = await json(await fetch(`${cp}/integrations`, admin(
 
 // 3. App call WITHOUT a grant → 403 grant_required.
 const appHeaders = {
-  "x-terrarium-app": "metrics-dashboard",
-  "x-terrarium-app-secret": APP_SECRET,
+  "x-vibevarium-app": "metrics-dashboard",
+  "x-vibevarium-app-secret": APP_SECRET,
   "content-type": "application/json",
 };
 report.callBeforeGrant = await json(await fetch(`${cp}/proxy/snowflake/v1/query`, {
@@ -124,7 +124,7 @@ report.callBeforeGrant = await json(await fetch(`${cp}/proxy/snowflake/v1/query`
 // 4. Bad app secret → 401.
 report.callBadSecret = await json(await fetch(`${cp}/proxy/snowflake/v1/query`, {
   method: "POST",
-  headers: { ...appHeaders, "x-terrarium-app-secret": "wrong" },
+  headers: { ...appHeaders, "x-vibevarium-app-secret": "wrong" },
   body: JSON.stringify({ sql: "select 1" }),
 }));
 
@@ -146,7 +146,7 @@ report.callAsUser = await json(await fetch(`${cp}/proxy/snowflake/v1/query`, {
   method: "POST",
   headers: {
     authorization: `Bearer ${await mintToken(issuer.issuer, CONTROL_AUDIENCE)}`,
-    "x-terrarium-on-behalf-of-app": "metrics-dashboard",
+    "x-vibevarium-on-behalf-of-app": "metrics-dashboard",
     "content-type": "application/json",
   },
   body: JSON.stringify({ sql: "select 2" }),

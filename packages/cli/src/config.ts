@@ -4,7 +4,7 @@ import { join } from "node:path";
 import * as Predicate from "effect/Predicate";
 
 export const configDirectory =
-  process.env.TERRARIUM_CONFIG_DIR ?? join(homedir(), ".config", "terrarium");
+  process.env.TERRARIUM_CONFIG_DIR ?? join(homedir(), ".config", "vibevarium");
 export const authFile = join(configDirectory, "auth.json");
 export const appsFile = join(configDirectory, "apps.json");
 

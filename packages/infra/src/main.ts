@@ -32,7 +32,7 @@ const requireEnv = (name: string) =>
 const optionalEnv = (name: string, fallback: string) => process.env[name] ?? fallback;
 
 export default Alchemy.Stack(
-  "TerrariumInfra",
+  "VibevariumInfra",
   {
     providers: Layer.mergeAll(AWS.providers(), Cloudflare.providers()),
     state: Alchemy.localState(),

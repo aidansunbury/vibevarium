@@ -2,9 +2,9 @@
 # EC2 user-data: installs Docker, docker-compose plugin, AWS CLI, and psql.
 # The compose stack itself is pushed to the box by scripts/deploy.sh.
 set -euo pipefail
-exec > >(tee -a /var/log/terrarium-bootstrap.log) 2>&1
+exec > >(tee -a /var/log/vibevarium-bootstrap.log) 2>&1
 
-echo "=== Terrarium bootstrap $(date -Is) ==="
+echo "=== Vibevarium bootstrap $(date -Is) ==="
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -34,8 +34,8 @@ fi
 usermod -aG docker ubuntu || true
 
 # Working directory for the compose stack
-mkdir -p /opt/terrarium
-chown ubuntu:ubuntu /opt/terrarium
+mkdir -p /opt/vibevarium
+chown ubuntu:ubuntu /opt/vibevarium
 
 systemctl enable docker
 systemctl start docker

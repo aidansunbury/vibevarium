@@ -26,7 +26,7 @@ export const Dns = (options: DnsOptions) =>
       content: options.ip,
       proxied: false,
       ttl: 300,
-      comment: "Terrarium Casdoor OIDC server",
+      comment: "Vibevarium Casdoor OIDC server",
     });
 
     const platform = yield* Cloudflare.DNS.Record("PlatformA", {
@@ -36,7 +36,7 @@ export const Dns = (options: DnsOptions) =>
       content: options.ip,
       proxied: false,
       ttl: 300,
-      comment: "Terrarium control plane",
+      comment: "Vibevarium control plane",
     });
 
     // Casdoor serves the API, OIDC/discovery endpoints, and the admin console

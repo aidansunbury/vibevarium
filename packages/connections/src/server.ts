@@ -1,7 +1,7 @@
 import { createServer } from "node:http"
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer"
-import { Auth, CurrentActor, requireAuth } from "@terrarium/auth"
-import type { Actor } from "@terrarium/auth"
+import { Auth, CurrentActor, requireAuth } from "@vibevarium/auth"
+import type { Actor } from "@vibevarium/auth"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as ManagedRuntime from "effect/ManagedRuntime"
@@ -53,7 +53,7 @@ const errorResponse = (error: unknown) => {
       error: error.code,
       error_description: error.message,
       ...error.details
-    }, error.status, error.status === 401 ? { "www-authenticate": 'Basic realm="terrarium-app"' } : {})
+    }, error.status, error.status === 401 ? { "www-authenticate": 'Basic realm="vibevarium-app"' } : {})
   }
   return json({ error: "internal_error", error_description: "Internal connections error" }, 500)
 }
@@ -108,7 +108,7 @@ const consentHtml = (view: Awaited<ReturnType<ConnectionsService["consent"]>>) =
   const appName = view.grant.appId
   const scopes = view.grant.scopes.split(/\s+/).filter(Boolean)
   return `<!doctype html>
-<html><head><title>Terrarium connection consent</title></head><body>
+<html><head><title>Vibevarium connection consent</title></head><body>
 <h1>Connection consent</h1>
 <p><strong>App ${escapeHtml(appName)} wants your ${escapeHtml(view.client.displayName)} (${scopes.map(escapeHtml).join(", ")})</strong>.</p>
 <p>Connected account: ${escapeHtml(view.connection.providerAccountLabel)}</p>

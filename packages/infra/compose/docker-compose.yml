@@ -1,4 +1,4 @@
-# Terrarium auth + control plane stack.
+# Vibevarium auth + control plane stack.
 # DOMAIN is substituted by deploy.sh (envsubst / sed) — nothing hardcodes it.
 # DB credentials are injected at deploy time via .env (see deploy.sh).
 version: "3.9"
@@ -20,7 +20,7 @@ services:
       - casdoor
       - control-plane
     networks:
-      - terrarium
+      - vibevarium
 
   # Casdoor auth server (replaces Logto). Chosen for RFC 7591 DCR + RFC 7592
   # registration management + CIMD — per-app OIDC clients are created with one
@@ -45,7 +45,7 @@ services:
       # value is injected from AWS Secrets Manager at deploy time.
       initAdminPassword: ${CASDOOR_ADMIN_PASSWORD}
     networks:
-      - terrarium
+      - vibevarium
 
   control-plane:
     build:
@@ -56,7 +56,7 @@ services:
       PORT: "4100"
       HOST: "0.0.0.0"
       # Real Postgres on RDS. DATABASE_URL (incl. the password) is injected at
-      # boot from AWS Secrets Manager /terrarium/prod/database-url — see
+      # boot from AWS Secrets Manager /vibevarium/prod/database-url — see
       # SECRETS_PROVIDER=aws below + packages/control-plane/DB-SPIKE.md.
       # (DATABASE_URL is NOT set here; boot.ts fetches it into process.env.)
       DISCOVERY_INTERVAL_MS: "30000"
@@ -71,7 +71,7 @@ services:
       # Secrets (github key, cf token) resolve from AWS Secrets Manager.
       GIT_PROVIDER: github
       GITHUB_APP_INSTALLATION_ID: "184285119"
-      GITHUB_ORG: terrarium-sandbox
+      GITHUB_ORG: vibevarium-sandbox
       CLOUDFLARE_ACCOUNT_ID: 7bbaa8f97d6ababf1a5e29eb79491ce3
       CLOUDFLARE_WORKERS_SUBDOMAIN: modal-opencode-test
       CLOUDFLARE_ZONE_ID: c6ae3b555628f3c6c0fb3883c479dcc4
@@ -82,7 +82,7 @@ services:
       # no secret env vars here. Key NAMES are mapped in src/secrets/boot.ts.
       SECRETS_PROVIDER: aws
       AWS_REGION: us-east-1
-      SECRETS_PREFIX: /terrarium/prod/
+      SECRETS_PREFIX: /vibevarium/prod/
     volumes:
       - alchemy_home:/data
     # The PGlite volume is gone: state now lives in RDS. The old
@@ -90,10 +90,10 @@ services:
     # of the pre-RDS PGlite dir (docker run --rm -v … tar); it is no longer
     # mounted anywhere and can be dropped with `docker volume rm`.
     networks:
-      - terrarium
+      - vibevarium
 
 networks:
-  terrarium:
+  vibevarium:
     driver: bridge
 
 volumes:

@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 
 const CP = "https://platform.vibevarium.com";
-const SSH = ["-i", `${process.env.HOME}/Desktop/projects/terrarium/.secrets/terrarium-key.pem`, "-o", "ConnectTimeout=10", "ubuntu@107.23.2.162"];
+const SSH = ["-i", `${process.env.HOME}/Desktop/projects/vibevarium/.secrets/vibevarium-key.pem`, "-o", "ConnectTimeout=10", "ubuntu@107.23.2.162"];
 const DB_URL = "postgres://postgres:JINp5H_vg%28LhqL0Ti%5Bv%28Xb%2927%2Ab%3C@terrariuminfra-postgres-live-aidan-a2whqelgnf35juwv.cctumyw2o6uz.us-east-1.rds.amazonaws.com:5432/control_plane";
 const PSQL = `psql "${DB_URL}" -t -A -c`;
 const USERNAME = "clitest1";

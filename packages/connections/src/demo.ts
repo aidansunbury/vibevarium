@@ -1,12 +1,12 @@
 import * as Effect from "effect/Effect"
-import { DevAuth } from "@terrarium/auth"
-import { startDevIssuer } from "@terrarium/dev-issuer"
-import { startFakeOAuthProvider } from "@terrarium/fake-oauth"
+import { DevAuth } from "@vibevarium/auth"
+import { startDevIssuer } from "@vibevarium/dev-issuer"
+import { startFakeOAuthProvider } from "@vibevarium/fake-oauth"
 import { startConnectionsServer } from "./server.ts"
 
 const APP_ID = "metrics-dashboard"
 const APP_SECRET = "metrics-dashboard-dev-secret"
-const AUDIENCE = "terrarium-control-plane"
+const AUDIENCE = "vibevarium-control-plane"
 
 const appHeaders = {
   authorization: `Basic ${Buffer.from(`${APP_ID}:${APP_SECRET}`).toString("base64")}`,
@@ -58,7 +58,7 @@ export const runConnectionsDemo = async () => {
     port: 0,
     accessTokenTtlSeconds: 5,
     clients: [{
-      clientId: "terrarium-control-plane",
+      clientId: "vibevarium-control-plane",
       clientSecret: "dev-control-plane-secret",
       redirectUris: [`${connections.baseUrl}/connections/callback`]
     }]
@@ -71,7 +71,7 @@ export const runConnectionsDemo = async () => {
       tokenUrl: provider.tokenUrl,
       userinfoUrl: provider.userinfoUrl,
       apiBaseUrl: provider.apiBaseUrl,
-      clientId: "terrarium-control-plane",
+      clientId: "vibevarium-control-plane",
       clientSecret: "dev-control-plane-secret",
       defaultScopes: ["read:metrics"],
       responseMode: "form_post"
@@ -216,8 +216,8 @@ export const runConnectionsDemo = async () => {
         directProviderCall: { status: directResponse.status, body: directBody },
         proxyCall: {
           status: proxyResponse.status,
-          tokenRefreshed: proxyResponse.headers.get("x-terrarium-token-refreshed"),
-          grantId: proxyResponse.headers.get("x-terrarium-grant-id"),
+          tokenRefreshed: proxyResponse.headers.get("x-vibevarium-token-refreshed"),
+          grantId: proxyResponse.headers.get("x-vibevarium-grant-id"),
           body: proxyBody
         }
       },

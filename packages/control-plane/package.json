@@ -1,5 +1,5 @@
 {
-  "name": "@terrarium/control-plane",
+  "name": "@vibevarium/control-plane",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -39,12 +39,12 @@
     "postgres": "^4.1.1"
   },
   "devDependencies": {
-    "@terrarium/auth": "workspace:*",
-    "@terrarium/dev-issuer": "workspace:*",
-    "@terrarium/fake-oauth": "workspace:*",
-    "@terrarium/template": "workspace:*",
+    "@vibevarium/auth": "workspace:*",
+    "@vibevarium/dev-issuer": "workspace:*",
+    "@vibevarium/fake-oauth": "workspace:*",
+    "@vibevarium/template": "workspace:*",
     "@types/node": "^26.6.6",
-    "terrarium-tickets-cloudflare": "workspace:*",
+    "vibevarium-tickets-cloudflare": "workspace:*",
     "tsx": "^4.23.15",
     "vitest": "^3.2.4"
   }

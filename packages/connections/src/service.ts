@@ -1,4 +1,4 @@
-import type { Actor } from "@terrarium/auth"
+import type { Actor } from "@vibevarium/auth"
 import {
   buildAuthorizationUrl,
   createOAuthState,
@@ -413,8 +413,8 @@ export class ConnectionsService {
       responseHeaders.delete(name)
     }
     responseHeaders.set("cache-control", "no-store")
-    responseHeaders.set("x-terrarium-grant-id", usable.approved.grant.id)
-    responseHeaders.set("x-terrarium-token-refreshed", String(usable.refreshed))
+    responseHeaders.set("x-vibevarium-grant-id", usable.approved.grant.id)
+    responseHeaders.set("x-vibevarium-token-refreshed", String(usable.refreshed))
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,

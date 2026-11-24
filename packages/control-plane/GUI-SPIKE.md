@@ -39,13 +39,13 @@ through. The actor identity is in the header.
 
 ```sh
 # one command for the whole local platform (issuer + control plane + app + discovery):
-pnpm --filter @terrarium/control-plane dev          # → http://127.0.0.1:4100/
+pnpm --filter @vibevarium/control-plane dev          # → http://127.0.0.1:4100/
 
 # GUI iteration against a running control plane:
-pnpm --filter @terrarium/control-plane gui:dev      # vite dev server on :4101, /apps etc. proxied to :4100
+pnpm --filter @vibevarium/control-plane gui:dev      # vite dev server on :4101, /apps etc. proxied to :4100
 
 # production-ish: build the SPA; the server serves web/dist at /
-pnpm --filter @terrarium/control-plane gui:build && pnpm --filter @terrarium/control-plane start
+pnpm --filter @vibevarium/control-plane gui:build && pnpm --filter @vibevarium/control-plane start
 ```
 
 The server mount is `src/gui.ts`: static files from `GUI_DIR` (default
@@ -60,7 +60,7 @@ anyway). With no `web/dist` the mount is inert.
   RFC 8707 resource `https://mcp.vibevarium.com`, `prompt=consent` so
   `offline_access` yields a refresh token). `GET /auth/callback` exchanges the
   code with the GUI secret, verifies the ID token, and sets an httpOnly
-  SameSite=Lax session cookie (`terrarium_session`, HMAC-signed, server-side
+  SameSite=Lax session cookie (`vibevarium_session`, HMAC-signed, server-side
   in-memory Map). The SPA holds no token — every API call is `credentials:
   "same-origin"`. `GET /auth/me` returns the actor for the header; `POST
   /auth/logout` destroys the session and redirects to Logto end-session.
@@ -68,7 +68,7 @@ anyway). With no `web/dist` the mount is inert.
   the session cookie OR a bearer token) and `src/main.ts` (env:
   `LOGTO_GUI_APP_ID/SECRET`, `LOGTO_ISSUER`, `CONTROL_PLANE_BASE_URL`). Secret
   locally from repo-root `.env`; production AWS Secrets Manager
-  `/terrarium/prod/logto-gui-app-secret`. Proof: `scripts/logto-auth-demo.ts`.
+  `/vibevarium/prod/logto-gui-app-secret`. Proof: `scripts/logto-auth-demo.ts`.
 - **Dev fallback**: without `LOGTO_GUI_APP_SECRET` the auth flow is not mounted;
   the control plane falls back to bearer-token `requireAuth` when
   `CONTROL_PLANE_ISSUER` is set, else dev-open (header shows "auth off").
@@ -90,10 +90,10 @@ stay public.
 
 ## Screenshot description
 
-Running `pnpm --filter @terrarium/control-plane dev` and opening
+Running `pnpm --filter @vibevarium/control-plane dev` and opening
 `http://127.0.0.1:5100/` (alternate port during verification) shows:
 
-- **Header**: "Terrarium control plane — app gallery" on the left; on the right
+- **Header**: "Vibevarium control plane — app gallery" on the left; on the right
   the signed-in actor `Ada (user-ada)` and a "Log out" button (before login: a
   single "Log in (dev issuer)" button, and the body replaced by a
   token-required notice).

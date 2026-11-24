@@ -1,6 +1,6 @@
 /**
- * Icons used across Terrarium apps, re-exported so apps depend only on
- * @terrarium/ui (and the icon set stays consistent). Add icons here as needed.
+ * Icons used across Vibevarium apps, re-exported so apps depend only on
+ * @vibevarium/ui (and the icon set stays consistent). Add icons here as needed.
  */
 export {
   CheckIcon,

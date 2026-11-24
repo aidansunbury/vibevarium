@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RadarIcon, RefreshCwIcon } from "@terrarium/ui/lib/icons";
+import { RadarIcon, RefreshCwIcon } from "@vibevarium/ui/lib/icons";
 import { api, isUnauthenticated, type AppRow } from "../api";
-import { Badge } from "@terrarium/ui/components/badge";
-import { Button } from "@terrarium/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
+import { Badge } from "@vibevarium/ui/components/badge";
+import { Button } from "@vibevarium/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@vibevarium/ui/components/card";
 import {
   Table,
   TableBody,
@@ -12,8 +12,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@terrarium/ui/components/table";
-import { toast } from "@terrarium/ui/lib/toast";
+} from "@vibevarium/ui/components/table";
+import { toast } from "@vibevarium/ui/lib/toast";
 
 export const Route = createFileRoute("/")({ component: GalleryPage });
 

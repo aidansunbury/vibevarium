@@ -1,17 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trash2Icon } from "@terrarium/ui/lib/icons";
+import { Trash2Icon } from "@vibevarium/ui/lib/icons";
 import { api, type AppRow, type AppAcl } from "../api";
-import { Badge } from "@terrarium/ui/components/badge";
-import { Button } from "@terrarium/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
-import { Input } from "@terrarium/ui/components/input";
-import { Label } from "@terrarium/ui/components/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@terrarium/ui/components/select";
-import { Separator } from "@terrarium/ui/components/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@terrarium/ui/components/tabs";
-import { toast } from "@terrarium/ui/lib/toast";
+import { Badge } from "@vibevarium/ui/components/badge";
+import { Button } from "@vibevarium/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@vibevarium/ui/components/card";
+import { Input } from "@vibevarium/ui/components/input";
+import { Label } from "@vibevarium/ui/components/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@vibevarium/ui/components/select";
+import { Separator } from "@vibevarium/ui/components/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@vibevarium/ui/components/tabs";
+import { toast } from "@vibevarium/ui/lib/toast";
 import { Check, Loader2, X } from "lucide-react";
 
 export const Route = createFileRoute("/apps/$name")({ component: AppDetailPage });

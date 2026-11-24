@@ -14,7 +14,7 @@ import { attempt, ScaffoldError } from "./errors.ts";
 export interface CasdoorAdminOptions {
   /** Casdoor issuer origin, e.g. `https://auth.vibevarium.com` (no trailing slash). */
   readonly issuer: string;
-  /** Organization that dynamically-registered clients land in (default `terrarium`). */
+  /** Organization that dynamically-registered clients land in (default `vibevarium`). */
   readonly organization?: string | undefined;
 }
 
@@ -30,7 +30,7 @@ export interface RegisteredClient {
 /** The DCR endpoint; `organization` selects which org the client is created in. */
 const registerUrl = (options: CasdoorAdminOptions) => {
   const base = options.issuer.replace(/\/$/, "");
-  const org = options.organization ?? "terrarium";
+  const org = options.organization ?? "vibevarium";
   return `${base}/api/oauth/register?organization=${encodeURIComponent(org)}`;
 };
 

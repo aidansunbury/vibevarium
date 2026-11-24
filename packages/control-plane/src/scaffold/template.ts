@@ -58,7 +58,7 @@ export const materializeCloudflareTemplate = async (
     "CLOUDFLARE_ACCOUNT_ID=7bbaa8f97d6ababf1a5e29eb79491ce3",
     `WORKER_NAME=${name}`,
     `D1_DATABASE_NAME=${name}-data`,
-    `STACK_NAME=terrarium-${name}`,
+    `STACK_NAME=vibevarium-${name}`,
     "",
   ].join("\n");
   files["README.md"] = `# ${name}\n\n${files["README.md"]}`;

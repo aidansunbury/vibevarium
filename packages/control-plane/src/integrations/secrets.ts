@@ -24,14 +24,14 @@ const hasAwsCredentials = () =>
  */
 export class SecretsProvider extends Context.Service<SecretsProvider, {
   readonly resolve: (reference: string) => Effect.Effect<Option.Option<string>>;
-}>()("@terrarium/control-plane/integrations/SecretsProvider") {
+}>()("@vibevarium/control-plane/integrations/SecretsProvider") {
   static readonly envLayer = Layer.succeed(SecretsProvider, SecretsProvider.of({
     resolve: (reference) => Effect.sync(() => Option.fromUndefinedOr(process.env[reference])),
   }));
 
   /**
    * AWS Secrets Manager provider. References are secret names relative to
-   * `prefix` (e.g. `cloudflare-api-token` → `/terrarium/prod/cloudflare-api-token`).
+   * `prefix` (e.g. `cloudflare-api-token` → `/vibevarium/prod/cloudflare-api-token`).
    *
    * - Values are cached in memory with a TTL (default 60s) so proxy-time
    *   resolutions don't hammer SM; a miss refreshes the entry.
@@ -93,12 +93,12 @@ export class SecretsProvider extends Context.Service<SecretsProvider, {
 
   /**
    * Selects the provider from env: `SECRETS_PROVIDER=aws|env` (default env).
-   * AWS shape: `SECRETS_PREFIX` (default `/terrarium/prod/`), `AWS_REGION`.
+   * AWS shape: `SECRETS_PREFIX` (default `/vibevarium/prod/`), `AWS_REGION`.
    */
   static readonly layerFromEnv = (): Layer.Layer<SecretsProvider> => {
     if (process.env.SECRETS_PROVIDER === "aws") {
       return SecretsProvider.awsLayer({
-        prefix: process.env.SECRETS_PREFIX ?? "/terrarium/prod/",
+        prefix: process.env.SECRETS_PREFIX ?? "/vibevarium/prod/",
         region: process.env.AWS_REGION,
       });
     }

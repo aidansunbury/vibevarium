@@ -40,7 +40,7 @@ packages/template-cloudflare/
 ├── alchemy.run.ts          # one stack: Cloudflare + DomainCloudflare providers
 ├── src/
 │   ├── TicketsWorker.ts    # THE app: assets + API + MCP + D1 + auth seam
-│   ├── auth.ts             # vendored OIDC seam (from @terrarium/auth, no workspace dep)
+│   ├── auth.ts             # vendored OIDC seam (from @vibevarium/auth, no workspace dep)
 │   ├── TicketsApi.api.ts   # one Api declaration
 │   ├── Tickets.model.ts    # one Model
 │   ├── surfaces.ts         # toHttpApi + toMcp over one expose list
@@ -176,7 +176,7 @@ can take a couple of seconds while the view DO wakes — the Api polls; the
 client just awaits.
 
 **(b) In-memory Node server — pure domain iteration.** Unchanged, lives in
-`packages/template` (`pnpm --filter @terrarium/template demo`). No
+`packages/template` (`pnpm --filter @vibevarium/template demo`). No
 Cloudflare anything; for domain-logic work only.
 
 ## Auth seam design
@@ -222,7 +222,7 @@ Browser                     Worker (tickets.vibevarium.com)        Logto
    │ SPA boots → GET /auth/me ───────► 401 (no session)                │
    │ location = /auth/login                                            │
    │ GET /auth/login ─────────────────► 302 /oidc/auth?… ─────────────► │
-   │         sets signed terrarium_login cookie (PKCE verifier+state)  │
+   │         sets signed vibevarium_login cookie (PKCE verifier+state)  │
    │                            │ redirect_uri=<origin>/auth/callback  │
    │                            │ resource=https://mcp.vibevarium.com  │
    │                            │ code_challenge (S256), state         │
@@ -230,7 +230,7 @@ Browser                     Worker (tickets.vibevarium.com)        Logto
    │ GET /auth/callback?code&state ──► verifies signed pending cookie  │
    │                                 POST /oidc/token (code+verifier   │
    │                                   +client_secret+resource)        │
-   │                                 sets terrarium_session cookie ───►│ 302 → /
+   │                                 sets vibevarium_session cookie ───►│ 302 → /
    │ SPA: /auth/me 200 → app renders (no logged-out state anywhere)    │
    │ API calls carry the cookie; requireAuth verifies the session's    │
    │ embedded platform-audience access token via JWKS, same as bearer. │
@@ -238,8 +238,8 @@ Browser                     Worker (tickets.vibevarium.com)        Logto
 
 ### Session design: stateless signed cookies (HMAC-SHA256)
 
-Both the **pending login transaction** (`terrarium_login`, 10 min) and the
-**session** (`terrarium_session`, token lifetime) are
+Both the **pending login transaction** (`vibevarium_login`, 10 min) and the
+**session** (`vibevarium_session`, token lifetime) are
 `base64url(JSON).base64url(HMAC-SHA256(payload))`, keyed by the app client
 secret via WebCrypto. Why not the control plane's server-side Map, and not a
 Durable Object:
@@ -262,7 +262,7 @@ Durable Object:
 1. `Authorization: Bearer` — verified against JWKS with
    `aud ∈ [<app>.<domain>, https://mcp.<domain>]`. This is how the meta-MCP
    and CLI call the app — **unchanged**.
-2. `terrarium_session` cookie — opened, expiry-checked, and its embedded
+2. `vibevarium_session` cookie — opened, expiry-checked, and its embedded
    access token verified exactly like a bearer.
 
 No valid credential: API/fetch requests get **401 + WWW-Authenticate** (the
@@ -319,7 +319,7 @@ a generated app is broken without it (SPA can never log in):
 
    POST https://auth.vibevarium.com/api/applications
      Authorization: Bearer <mgmt token>
-     {"name":"Terrarium App: <name>","type":"Traditional",
+     {"name":"Vibevarium App: <name>","type":"Traditional",
       "oidcClientMetadata":{
         "redirectUris":["https://<name>.<domain>/auth/callback"],
         "postLogoutRedirectUris":["https://<name>.<domain>/"]}}
@@ -382,7 +382,7 @@ GET /auth/login                 → 302 https://auth.vibevarium.com/oidc/auth
                                   &redirect_uri=https://tickets.vibevarium.com/auth/callback
                                   &resource=https://mcp.vibevarium.com
                                   &code_challenge=…&code_challenge_method=S256&state=…
-                                  + Set-Cookie: terrarium_login=…; HttpOnly; Secure
+                                  + Set-Cookie: vibevarium_login=…; HttpOnly; Secure
 GET /TicketList/all  (no auth)  → 401, WWW-Authenticate: Bearer error="invalid_token"
 GET /TicketList/all  (Accept: text/html) → 302 /auth/login
 GET /mcp             (no auth)  → 401
@@ -393,7 +393,7 @@ Full scripted login (Logto Experience API as testUser, the proven scripted
 path — same driver as `packages/control-plane/scripts/logto-auth-demo.ts`):
 
 ```text
-/auth/callback?code&state       → 302 /, Set-Cookie: terrarium_session=…; HttpOnly; SameSite=Lax; Secure
+/auth/callback?code&state       → 302 /, Set-Cookie: vibevarium_session=…; HttpOnly; SameSite=Lax; Secure
 GET /auth/me (session cookie)   → 200 {"actor":{"sub":"egu6d81sqny6","name":"testUser"},"auth":"on"}
 GET /TicketList/all (cookie)    → 200 {"tickets":[…]}
 POST /OpenTicket (cookie)       → 200 {"reply":null,"stream":"Ticket/ce96724b-…","version":1}

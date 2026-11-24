@@ -5,7 +5,7 @@ const provider = await startFakeOAuthProvider({
   port: Number(process.env.PORT ?? 4040),
   issuer: process.env.PROVIDER_ISSUER,
   clients: [{
-    clientId: process.env.CLIENT_ID ?? "terrarium-control-plane",
+    clientId: process.env.CLIENT_ID ?? "vibevarium-control-plane",
     clientSecret: process.env.CLIENT_SECRET ?? "dev-control-plane-secret",
     redirectUris: (process.env.REDIRECT_URIS ?? "http://127.0.0.1:4020/connections/callback")
       .split(",").map((uri) => uri.trim())

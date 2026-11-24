@@ -36,7 +36,7 @@ export class Registry extends Context.Service<Registry, {
   readonly markUp: (name: string, seenAt: string) => Effect.Effect<void>;
   readonly markDown: (name: string, error: string) => Effect.Effect<void>;
   readonly setStatus: (name: string, status: AppStatus) => Effect.Effect<void>;
-}>()("@terrarium/control-plane/registry/Registry") {
+}>()("@vibevarium/control-plane/registry/Registry") {
   static readonly layer = Layer.effect(Registry)(Effect.gen(function*() {
     const { db } = yield* Database;
 

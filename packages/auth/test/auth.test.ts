@@ -15,9 +15,9 @@ import {
   InvalidTokenError,
   requireAuth,
   TokenExpiredError
-} from "@terrarium/auth"
-import { startDevIssuer } from "@terrarium/dev-issuer"
-import type { DevIssuer } from "@terrarium/dev-issuer"
+} from "@vibevarium/auth"
+import { startDevIssuer } from "@vibevarium/dev-issuer"
+import type { DevIssuer } from "@vibevarium/dev-issuer"
 
 let devIssuer: DevIssuer
 let authLayer: ReturnType<typeof Auth.layer>
@@ -56,7 +56,7 @@ const tamperSignature = (token: string) => {
   return parts.join(".")
 }
 
-describe("@terrarium/auth", () => {
+describe("@vibevarium/auth", () => {
   it("verifies a dev token and maps its claims to an Actor", async () => {
     const tokens = await Effect.runPromise(mint())
     const actor = await Effect.runPromise(verify(tokens.access_token).pipe(Effect.provide(authLayer)))

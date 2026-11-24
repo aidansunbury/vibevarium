@@ -136,7 +136,7 @@ export const startFakeOAuthProvider = async (options: FakeOAuthOptions): Promise
   if (users.length === 0) throw new Error("fake-oauth requires at least one user")
   const usersBySub = new Map(users.map((user) => [user.sub, user]))
   const clients = new Map((options.clients ?? [{
-    clientId: "terrarium-control-plane",
+    clientId: "vibevarium-control-plane",
     clientSecret: "dev-control-plane-secret",
     redirectUris: ["http://127.0.0.1:4020/connections/callback"]
   }]).map((client) => [client.clientId, client]))
@@ -236,7 +236,7 @@ ${fields.map(([key, value]) => hiddenInput(key, value)).join("\n")}
       return
     }
     sendHtml(response, 200, `<!doctype html>
-<html><head><title>Return to Terrarium</title></head><body>
+<html><head><title>Return to Vibevarium</title></head><body>
 <p>Authorization approved. Returning the authorization code to the control plane.</p>
 <form name="callback" method="post" action="${escapeHtml(input.redirectUri)}">
 ${hiddenInput("code", code)}${hiddenInput("state", input.state)}

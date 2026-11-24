@@ -36,7 +36,7 @@ type RemoteResult =
 export class Discovery extends Context.Service<Discovery, {
   readonly discoverApp: (app: AppRegistration) => Effect.Effect<DiscoveryResult>;
   readonly discoverAll: () => Effect.Effect<ReadonlyArray<DiscoveryResult>>;
-}>()("@terrarium/control-plane/discovery/Discovery") {
+}>()("@vibevarium/control-plane/discovery/Discovery") {
   static readonly layer = (options: {
     readonly timeoutMs: number;
     readonly headers?: Readonly<Record<string, string>> | undefined;
@@ -59,7 +59,7 @@ export class Discovery extends Context.Service<Discovery, {
           return { _tag: "ok", tools } as const;
         }).pipe(
           Effect.provide(McpClient.layerHttp({
-            name: "terrarium-discovery",
+            name: "vibevarium-discovery",
             version: "0.0.1",
             url: app.url,
             protocol: options.protocol ?? McpProtocol.v2025_11_25,

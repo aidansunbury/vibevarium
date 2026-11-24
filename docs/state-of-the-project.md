@@ -1,6 +1,6 @@
 # State of the project — 2026-11-23
 
-Where Terrarium actually stands: what's live and proven, what's built but not
+Where Vibevarium actually stands: what's live and proven, what's built but not
 deployed/polished, the open items, and the design decisions that are locked vs
 still open. Read this to re-orient; the other docs hold the depth.
 
@@ -13,7 +13,7 @@ still open. Read this to re-orient; the other docs hold the depth.
   auth-code login (session cookie), RDS Postgres for the store, secrets from AWS
   Secrets Manager (zero secret env vars on the box), TanStack GUI.
 - **Two authed apps**: `tickets.vibevarium.com` + `notes.vibevarium.com` —
-  real GitHub repos (terrarium-sandbox), Cloudflare Worker + Durable Objects +
+  real GitHub repos (vibevarium-sandbox), Cloudflare Worker + Durable Objects +
   D1 + React SPA, real OIDC login (per-app client, redirect-on-logout, no
   logged-out state), shadcn frontend.
 - **Meta-MCP**: `platform.vibevarium.com/mcp` aggregates both apps (10 tools:
@@ -54,7 +54,7 @@ still open. Read this to re-orient; the other docs hold the depth.
   templates vary starting shape, never the contract (domain package, Api
   declaration, auth middleware, deploy stack). Options (R2 bucket etc.) are
   feature flags within a template, not new templates.
-- **shadcn + Base UI** design system (`@terrarium/ui`), Tailwind v4.
+- **shadcn + Base UI** design system (`@vibevarium/ui`), Tailwind v4.
 - **TanStack Router + Query + Effect HttpApiClient** typed clients — no raw
   fetch strings in any frontend.
 - **Domain as a variable** (`TERRARIUM_DOMAIN=vibevarium.com`) — one knob re-

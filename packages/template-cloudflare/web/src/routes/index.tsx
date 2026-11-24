@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, isUnauthenticated, redirectToLogin, redirectToLogout } from "../client";
 import { useSession } from "./__root";
-import { Badge } from "@terrarium/ui/components/badge";
-import { Button } from "@terrarium/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@terrarium/ui/components/card";
-import { Input } from "@terrarium/ui/components/input";
-import { Label } from "@terrarium/ui/components/label";
+import { Badge } from "@vibevarium/ui/components/badge";
+import { Button } from "@vibevarium/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@vibevarium/ui/components/card";
+import { Input } from "@vibevarium/ui/components/input";
+import { Label } from "@vibevarium/ui/components/label";
 import {
   Table,
   TableBody,
@@ -14,10 +14,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@terrarium/ui/components/table";
-import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } from "@terrarium/ui/layout/shell";
-import { Toaster } from "@terrarium/ui/components/sonner";
-import { toast } from "@terrarium/ui/lib/toast";
+} from "@vibevarium/ui/components/table";
+import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } from "@vibevarium/ui/layout/shell";
+import { Toaster } from "@vibevarium/ui/components/sonner";
+import { toast } from "@vibevarium/ui/lib/toast";
 
 export const Route = createFileRoute("/")({
   component: TicketsPage,
@@ -100,7 +100,7 @@ function TicketsPage() {
       <ShellHeader>
         <ShellHeaderTitle>
           <span className="font-semibold">Tickets</span>
-          <span className="text-muted-foreground">a Terrarium app</span>
+          <span className="text-muted-foreground">a Vibevarium app</span>
         </ShellHeaderTitle>
         <ShellHeaderActions>
           {!session.authEnabled && <Badge variant="secondary">auth off</Badge>}

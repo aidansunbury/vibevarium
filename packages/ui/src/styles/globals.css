@@ -3,7 +3,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Terrarium design-system theme (shadcn/ui, Base UI primitives).
+ * Vibevarium design-system theme (shadcn/ui, Base UI primitives).
  *
  * The palette is neutral (zinc). Every color is a CSS variable in oklch so a
  * fork re-themes by overriding variables — no component edits. `--primary`

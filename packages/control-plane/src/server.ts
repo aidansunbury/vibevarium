@@ -1,5 +1,5 @@
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
-import { Auth, CurrentActor, requireAuth } from "@terrarium/auth";
+import { Auth, CurrentActor, requireAuth } from "@vibevarium/auth";
 import { McpProtocol, McpServer } from "effect/ai";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -353,7 +353,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     // The Effect MCP transport mounts on an internal-only path; the public
     // /mcp surface is the bearer gate + discovery docs in mcp-gate.ts.
     Layer.provide(McpServer.layerHttp({
-      name: "terrarium-meta-mcp",
+      name: "vibevarium-meta-mcp",
       version: "0.0.1",
       path: MCP_INTERNAL_PATH,
       protocols: [McpProtocol.v2025_11_25],
@@ -480,7 +480,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     | Connections
     | Database
     | SecretsProvider,
-    import("@terrarium/auth").DiscoveryError | import("effect/http/HttpServerError").ServeError,
+    import("@vibevarium/auth").DiscoveryError | import("effect/http/HttpServerError").ServeError,
     never
   >;
 };

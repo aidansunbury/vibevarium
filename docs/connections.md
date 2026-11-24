@@ -54,7 +54,7 @@ Feasible — this is a well-trodden pattern — but the sharp edges:
   the vault, and apps should default to the proxy so tokens rarely leave it.
 - **Provider ToS** — some providers restrict redistributing tokens to third
   parties. First-party internal apps under one company are fine; this only
-  bites if Terrarium ever becomes multi-customer SaaS.
+  bites if Vibevarium ever becomes multi-customer SaaS.
 - **Consent UX is on us** — the auth server (Logto etc.) handles SSO consent,
   but "app X wants your already-connected Datadog" is a second-order consent
   the control plane must render itself. It's a small UI, but it's the product

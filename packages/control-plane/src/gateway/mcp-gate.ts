@@ -27,7 +27,7 @@
  *     metadata (OIDC discovery or RFC 8414), for clients that expect the AS
  *     document on the resource host.
  */
-import { Auth, CurrentActor } from "@terrarium/auth";
+import { Auth, CurrentActor } from "@vibevarium/auth";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServer from "effect/http/HttpServer";

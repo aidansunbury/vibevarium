@@ -104,7 +104,7 @@ const flatConfig = Config.all({
 
   // Block marker keys (presence turns a whole optional block on).
   casdoorIssuer: Config.String("CASDOOR_ISSUER").pipe(Config.withDefault("")),
-  casdoorOrganization: Config.String("CASDOOR_ORGANIZATION").pipe(Config.withDefault("terrarium")),
+  casdoorOrganization: Config.String("CASDOOR_ORGANIZATION").pipe(Config.withDefault("vibevarium")),
   platformAudience: Config.option(Config.NonEmptyString("PLATFORM_OIDC_AUDIENCE")),
   controlPlaneIssuer: Config.option(Config.NonEmptyString("CONTROL_PLANE_ISSUER")),
   controlPlaneAudience: Config.option(Config.NonEmptyString("CONTROL_PLANE_AUDIENCE")),
@@ -132,7 +132,7 @@ const flatConfig = Config.all({
   githubAppPrivateKeyPath: Config.option(Config.NonEmptyString("GITHUB_APP_PRIVATE_KEY_PATH")),
   githubAppPrivateKey: Config.option(Config.NonEmptyString("GITHUB_APP_PRIVATE_KEY")),
   githubAppInstallationId: Config.option(Config.Int("GITHUB_APP_INSTALLATION_ID")),
-  githubOrg: Config.String("GITHUB_ORG").pipe(Config.withDefault("terrarium-sandbox")),
+  githubOrg: Config.String("GITHUB_ORG").pipe(Config.withDefault("vibevarium-sandbox")),
 
   workosClientId: Config.option(Config.NonEmptyString("WORKOS_CLIENT_ID")),
   workosApiKey: Config.option(Config.NonEmptyString("WORKOS_API_KEY")),
@@ -321,7 +321,7 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
     controlPlaneIssuer !== undefined
       ? {
           issuer: normalizeIssuer(controlPlaneIssuer),
-          audience: get(flat.controlPlaneAudience) ?? "control.terrarium.local",
+          audience: get(flat.controlPlaneAudience) ?? "control.vibevarium.local",
         }
       : guiAuth !== undefined
         ? { issuer: guiAuth.issuer, audience: platformAudience }
@@ -573,7 +573,7 @@ export const validateCapabilities = (
 // ---------------------------------------------------------------------------
 
 export class PlatformConfigService extends Context.Service<PlatformConfigService, PlatformConfig>()(
-  "@terrarium/control-plane/config/PlatformConfig",
+  "@vibevarium/control-plane/config/PlatformConfig",
 ) {
   /** Parse the declarative config and assemble the full PlatformConfig. A
    *  `Config` IS an `Effect<T, ConfigError>` that reads the ambient provider

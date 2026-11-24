@@ -1,7 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import { Auth, CurrentActor, requireAuth, type AuthConfig } from "@terrarium/auth";
+import { Auth, CurrentActor, requireAuth, type AuthConfig } from "@vibevarium/auth";
 import { McpProtocol, McpServer } from "effect/ai";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -75,7 +75,7 @@ const authConfigFromEnv = (appName: string, configured: TicketsServerOptions["au
   }
   return {
     issuer,
-    audience: process.env.TERRARIUM_AUDIENCE ?? `${appName}.terrarium.local`,
+    audience: process.env.TERRARIUM_AUDIENCE ?? `${appName}.vibevarium.local`,
   } satisfies AuthConfig;
 };
 

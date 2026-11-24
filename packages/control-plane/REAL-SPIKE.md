@@ -12,8 +12,8 @@ The new `packages/template-cloudflare` package follows `examples/cloudflare-doma
 
 Initial proof:
 
-- Worker: `https://terrarium-tickets-cloudflare.modal-opencode-test.workers.dev`
-- D1: `terrarium-tickets-cloudflare-data` / `e21eddcf-636b-431e-a8a7-3b8e138d8ef8`
+- Worker: `https://vibevarium-tickets-cloudflare.modal-opencode-test.workers.dev`
+- D1: `vibevarium-tickets-cloudflare-data` / `e21eddcf-636b-431e-a8a7-3b8e138d8ef8`
 
 ```json
 {"d1":"bound","rows":[{"value":"tickets-d1"}]}
@@ -30,7 +30,7 @@ The read passed `?stream=Ticket%2Fphase1-real-1&version=1`, proving read-your-wr
 An empty GitHub repository rejects Git Data blob creation with `409 Git Repository is empty`. The provider bootstraps a Contents ref, creates all blobs/tree/root commit, then force-updates `main` to the intended single initial commit.
 
 ```text
-Repository: https://github.com/terrarium-sandbox/terrarium-git-proof-76434
+Repository: https://github.com/vibevarium-sandbox/vibevarium-git-proof-76434
 Verified 1 commit: f5edc5292b07651bd603f9844d51af2170050fa0 Initial scaffold
 Worker source committed: true
 Cleanup: deleted
@@ -46,7 +46,7 @@ Cleanup: deleted
 
 ## Phase 4: hostname and router
 
-`src/router` is a small real Cloudflare stack with KV (`terrarium-router-apps`, id `7953882922294f5b84298ba7d8794fe4`) and routes. `gitprops.com/*` is deployed. The wildcard `*.gitprops.com/*` route was successfully created, not plan-gated, but wildcard DNS cannot be created with this OAuth grant: `GET /zones/15d5d22954d28f66f4e141a1668df477/dns_records` returns 403 with code `10000 Authentication error`. `dns_records.list` and `dns_records.create` therefore fail, so wildcard routing was disabled after proving route creation.
+`src/router` is a small real Cloudflare stack with KV (`vibevarium-router-apps`, id `7953882922294f5b84298ba7d8794fe4`) and routes. `gitprops.com/*` is deployed. The wildcard `*.gitprops.com/*` route was successfully created, not plan-gated, but wildcard DNS cannot be created with this OAuth grant: `GET /zones/15d5d22954d28f66f4e141a1668df477/dns_records` returns 403 with code `10000 Authentication error`. `dns_records.list` and `dns_records.create` therefore fail, so wildcard routing was disabled after proving route creation.
 
 The useful fallback is **native per-app Worker custom domains**, not per-app routes. Alchemy's `Cloudflare.Worker({ domain: { name, zoneId } })` creates DNS and a certificate through the Workers API, which this grant can use. The probe and the real `expenses.gitprops.com` both returned enabled attachments with certificate IDs. Public recursive DNS resolves the hostname. This is now the primary scaffold path and avoids the wildcard DNS scope entirely.
 
@@ -58,7 +58,7 @@ The `scripts/real-deploy-demo.ts` proof created, verified, and deleted `expenses
 
 ```json
 {
-  "repoUrl": "https://github.com/terrarium-sandbox/expenses",
+  "repoUrl": "https://github.com/vibevarium-sandbox/expenses",
   "workerUrl": "https://expenses.modal-opencode-test.workers.dev",
   "hostname": "expenses.gitprops.com",
   "discoveredTools": 4
@@ -66,7 +66,7 @@ The `scripts/real-deploy-demo.ts` proof created, verified, and deleted `expenses
 GitHub: 1 commit(s), 70f40b519c4858034d4be7488e9483d4b6b4d7b8, Initial scaffold; src/TicketsWorker.ts exists
 Router registry: {"apps":["expenses"]}
 Router command: {"reply":null,"stream":"Ticket/router-expenses-1","version":1}
-Router read: {"id":"router-expenses-1","title":"Command through the real Terrarium router","reporter":"real-deploy-demo","status":"open"}
+Router read: {"id":"router-expenses-1","title":"Command through the real Vibevarium router","reporter":"real-deploy-demo","status":"open"}
 {"name":"expenses","deleted":true,"workerDeleted":true,"d1Deleted":true,"repoDeleted":true}
 {
   "repo": "deleted",
@@ -95,7 +95,7 @@ The control plane accepts the existing local settings plus:
 | --- | --- |
 | `GIT_PROVIDER` | `github` for real mode; otherwise local |
 | `GITHUB_APP_INSTALLATION_ID` | installation id for `GITHUB_ORG` |
-| `GITHUB_ORG` | GitHub organization (`terrarium-sandbox` for the proof) |
+| `GITHUB_ORG` | GitHub organization (`vibevarium-sandbox` for the proof) |
 | `CLOUDFLARE_ACCOUNT_ID` | real account id |
 | `CLOUDFLARE_WORKERS_SUBDOMAIN` | account's workers.dev subdomain |
 | `CLOUDFLARE_ZONE_ID` | `gitprops.com` zone id |
@@ -122,7 +122,7 @@ Secrets come from `.env` / `.secrets/` or `CLOUDFLARE_API_TOKEN`; none are commi
 ```sh
 # from the repository root, after pnpm install and loading .env
 GIT_PROVIDER=github GITHUB_APP_INSTALLATION_ID=184285119 \
-GITHUB_ORG=terrarium-sandbox \
+GITHUB_ORG=vibevarium-sandbox \
 CLOUDFLARE_ACCOUNT_ID=7bbaa8f97d6ababf1a5e29eb79491ce3 \
 CLOUDFLARE_WORKERS_SUBDOMAIN=modal-opencode-test \
 CLOUDFLARE_ZONE_ID=15d5d22954d28f66f4e141a1668df477 \
@@ -130,12 +130,12 @@ ROUTER_KV_NAMESPACE_ID=7953882922294f5b84298ba7d8794fe4 \
 ALCHEMY_HOME=$PWD/.alchemy-home DISCOVERY_INTERVAL_MS=0 \
 DISCOVERY_TIMEOUT_MS=20000 CALL_TIMEOUT_MS=20000 \
 DATABASE_PATH=.data/real-control-plane PORT=4143 \
-pnpm --filter @terrarium/control-plane start
+pnpm --filter @vibevarium/control-plane start
 
 # in another shell
-pnpm --filter @terrarium/control-plane real:demo
+pnpm --filter @vibevarium/control-plane real:demo
 # retain the app instead of deleting it:
-SKIP_DELETE=1 pnpm --filter @terrarium/control-plane real:demo
+SKIP_DELETE=1 pnpm --filter @vibevarium/control-plane real:demo
 ```
 
 Validation: `tsrs --noEmit` is clean for control-plane, template-cloudflare, and router. `oxlint --type-aware` reports only `_tag` naming and demo/type-narrowing warnings.

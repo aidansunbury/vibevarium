@@ -17,7 +17,7 @@ From the repository root:
 
 ```sh
 pnpm install
-pnpm --filter @terrarium/cli demo
+pnpm --filter @vibevarium/cli demo
 pnpm exec tsrs --noEmit -p packages/cli/tsconfig.json
 pnpm exec oxlint --type-aware packages/cli
 ```
@@ -27,8 +27,8 @@ The demo is the test/proof. It boots the template and dev issuer on ephemeral po
 For separate persistent processes:
 
 ```sh
-pnpm --filter @terrarium/dev-issuer start  # http://127.0.0.1:4010
-pnpm --filter @terrarium/template start    # http://127.0.0.1:3000
+pnpm --filter @vibevarium/dev-issuer start  # http://127.0.0.1:4010
+pnpm --filter @vibevarium/template start    # http://127.0.0.1:3000
 
 cd packages/cli
 pnpm platform login
@@ -36,7 +36,7 @@ pnpm platform whoami
 pnpm platform tickets open-ticket --title "VPN access" --reporter ada
 pnpm platform tickets ticket-list get --key all
 
-pnpm platform:dynamic apps add tickets @terrarium/template http://127.0.0.1:3000
+pnpm platform:dynamic apps add tickets @vibevarium/template http://127.0.0.1:3000
 pnpm platform:dynamic tickets open-ticket --title "Dynamic VPN access" --reporter ada
 pnpm platform:dynamic tickets ticket-by-id get --key TICKET_ID
 pnpm platform logout
@@ -48,8 +48,8 @@ The package also publishes `platform` (`src/main.ts`) and `platform-dynamic` (`s
 
 Defaults:
 
-- `~/.config/terrarium/auth.json` — cached token, identity, issuer, audience, and millisecond expiry; written with mode `0600`.
-- `~/.config/terrarium/apps.json` — dynamic app manifest.
+- `~/.config/vibevarium/auth.json` — cached token, identity, issuer, audience, and millisecond expiry; written with mode `0600`.
+- `~/.config/vibevarium/apps.json` — dynamic app manifest.
 - `PLATFORM_TICKETS_URL=http://127.0.0.1:3000` — composed tickets base URL; `/rpc` is appended.
 - `PLATFORM_OIDC_ISSUER=http://127.0.0.1:4010` and `PLATFORM_OIDC_AUDIENCE=my-app`.
 - `PLATFORM_DEV_SUB=user-1` and `PLATFORM_DEV_NAME=Ada` control only the dev grant.
@@ -60,7 +60,7 @@ A minimal manifest entry is the shape requested by the spec:
 ```json
 {
   "tickets": {
-    "package": "@terrarium/template",
+    "package": "@vibevarium/template",
     "url": "http://127.0.0.1:3000"
   }
 }
@@ -71,7 +71,7 @@ With no other fields, the loader requires exactly one exported value with the ru
 ```json
 {
   "tickets": {
-    "package": "@terrarium/template",
+    "package": "@vibevarium/template",
     "url": "http://127.0.0.1:3000",
     "api": "TicketsApi",
     "expose": ["OpenTicket", "CloseTicket", "TicketById.get", "TicketList.get"]
@@ -118,7 +118,7 @@ Per-app URLs work because each `toCli` subtree is wrapped in its own `Command.pr
 4. **`toCli` has no per-app URL option.** URL selection lives in the RPC protocol service. Effect's `Command.provide` applies a layer to a whole command subtree and solves this cleanly; a single global protocol layer would target only one app.
 5. **The dynamic expose type collapses.** `Exposable<Cliable>` is `never` because the untyped Api's client is unknown. The dynamic adapter contains one explicit cast for its runtime string expose list and hides the resulting `any` service type behind a concrete command type. The composed path needs no cast.
 6. **Default dynamic exposure relies on runtime helpers.** `operationsOf` / `callName` from `ReadRpcs` derive all non-streaming names. A supported `toCli` default-exposure helper would avoid coupling the manifest loader to that runtime module.
-7. **Domain package entrypoints matter.** The composed CLI imports `@terrarium/template/TicketsApi.api` directly so it does not pull the template's HTTP/MCP server through the root barrel. Published app packages should expose a similarly small, pure domain entrypoint.
+7. **Domain package entrypoints matter.** The composed CLI imports `@vibevarium/template/TicketsApi.api` directly so it does not pull the template's HTTP/MCP server through the root barrel. Published app packages should expose a similarly small, pure domain entrypoint.
 
 ## Real OIDC login (implemented)
 
@@ -127,7 +127,7 @@ Per-app URLs work because each `toCli` subtree is wrapped in its own `Command.pr
 1. Reads issuer discovery (`https://auth.vibevarium.com/oidc` by default, `PLATFORM_OIDC_ISSUER` overrides).
 2. Generates state and a PKCE S256 verifier/challenge.
 3. Listens on `127.0.0.1:8919`, opens the browser at `/oidc/auth` (scope `openid profile offline_access member admin apps:read apps:write`, RFC 8707 `resource=https://mcp.vibevarium.com`, `prompt=consent` so `offline_access` yields a refresh token), and validates the callback state.
-4. Exchanges the code at `/oidc/token` — repeating the `resource` indicator, which is what makes Logto issue a JWT access token audience-restricted to the platform API — decodes the ID-token claims, and writes `CachedSession` (now v2, with `refreshToken` + `idToken`) to `~/.config/terrarium/auth.json` (0600).
+4. Exchanges the code at `/oidc/token` — repeating the `resource` indicator, which is what makes Logto issue a JWT access token audience-restricted to the platform API — decodes the ID-token claims, and writes `CachedSession` (now v2, with `refreshToken` + `idToken`) to `~/.config/vibevarium/auth.json` (0600).
 5. `requireSession` transparently refreshes via the `refresh_token` grant when the access token is expired; `platform logout` revokes the refresh token and clears the cache. `whoami` decodes the cached ID-token claims.
 
 The dev issuer is kept as an explicit fallback: `PLATFORM_AUTH_MODE=dev` uses the old `/dev/token` grant (the existing `scripts/demo.ts` runs this way). `ssoHeaders`/`ssoProtocolHttp`/per-app transport are unchanged. Proof against the live tenant: `scripts/login-demo.ts` (registers/signs in a test user via Logto's Experience API so no human click is needed).
@@ -144,7 +144,7 @@ ERROR
 
 ## Proof from the final demo run
 
-The full command was `pnpm --filter @terrarium/cli demo`. These are unedited command labels, ticket ids, and outputs from that run; only the bearer token is redacted.
+The full command was `pnpm --filter @vibevarium/cli demo`. These are unedited command labels, ticket ids, and outputs from that run; only the bearer token is redacted.
 
 ### One login, shared by both variants
 
@@ -154,8 +154,8 @@ Logged in as Ada (user-1); token expires 2026-11-21T02:29:42.106Z.
 
 auth.json mode: 0600
 
-$ platform-dynamic apps add tickets @terrarium/template http://127.0.0.1:41737
-Added tickets: @terrarium/template at http://127.0.0.1:41737
+$ platform-dynamic apps add tickets @vibevarium/template http://127.0.0.1:41737
+Added tickets: @vibevarium/template at http://127.0.0.1:41737
 
 $ platform-dynamic whoami
 {
@@ -234,7 +234,7 @@ Final `tsrs` and type-aware `oxlint` runs both completed with no output/errors. 
 
 ## Open questions
 
-- Should upstream HTTP RPC propagate per-call headers, or should Terrarium standardize a reusable authenticated protocol layer for every derived CLI?
+- Should upstream HTTP RPC propagate per-call headers, or should Vibevarium standardize a reusable authenticated protocol layer for every derived CLI?
 - Should the dynamic manifest and meta-MCP discovery directory be one registry record, including URL, package version/integrity, Api export, expose policy, and expected audience?
 - Who installs and upgrades dynamic domain packages, and how are they trusted? `apps add` deliberately does not solve this.
 - Should dynamic imports be lazy/failure-isolated so a broken package cannot block login, help, and healthy app subtrees?

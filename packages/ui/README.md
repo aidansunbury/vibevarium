@@ -1,6 +1,6 @@
-# @terrarium/ui
+# @vibevarium/ui
 
-The Terrarium design system: [shadcn/ui](https://ui.shadcn.com) component
+The Vibevarium design system: [shadcn/ui](https://ui.shadcn.com) component
 patterns built on [Base UI](https://base-ui.com) primitives (`@base-ui/react`,
 re-exported as `@base-ui-components/react`), with a Tailwind CSS v4 theme. It
 is consumed by the control-plane GUI (`packages/control-plane/web`) and by
@@ -17,7 +17,7 @@ src/
 ├── styles/globals.css   # Tailwind v4 theme: CSS variables (light + dark) + @theme inline
 ├── lib/
 │   ├── utils.ts         # cn() — clsx + tailwind-merge
-│   ├── icons.ts         # lucide-react re-exports (apps depend only on @terrarium/ui)
+│   ├── icons.ts         # lucide-react re-exports (apps depend only on @vibevarium/ui)
 │   └── toast.ts         # sonner `toast` re-export
 ├── components/          # shadcn-style components on Base UI primitives
 │   ├── button.tsx  card.tsx  input.tsx  label.tsx  badge.tsx  table.tsx
@@ -35,7 +35,7 @@ pnpm installs, not workspace members — see "Package wiring" below):
 // package.json
 {
   "dependencies": {
-    "@terrarium/ui": "file:../../ui",
+    "@vibevarium/ui": "file:../../ui",
     "tailwindcss": "^4",
     "@tailwindcss/vite": "^4",
     "react": "^19",
@@ -52,19 +52,19 @@ export default defineConfig({ plugins: [react(), tailwindcss()] });
 
 ```css
 /* src/index.css — one line pulls in the whole theme */
-@import "@terrarium/ui/styles.css";
+@import "@vibevarium/ui/styles.css";
 ```
 
 ```tsx
-import { Button } from "@terrarium/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@terrarium/ui/components/card";
-import { Shell, ShellBody, ShellHeader } from "@terrarium/ui/layout/shell";
-import { Toaster } from "@terrarium/ui/components/sonner";
-import { toast } from "@terrarium/ui/lib/toast";
+import { Button } from "@vibevarium/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@vibevarium/ui/components/card";
+import { Shell, ShellBody, ShellHeader } from "@vibevarium/ui/layout/shell";
+import { Toaster } from "@vibevarium/ui/components/sonner";
+import { toast } from "@vibevarium/ui/lib/toast";
 ```
 
-> **Import icons and `toast` from `@terrarium/ui`, not directly.** The web
-> packages install only `@terrarium/ui`; `lucide-react` and `sonner` are its
+> **Import icons and `toast` from `@vibevarium/ui`, not directly.** The web
+> packages install only `@vibevarium/ui`; `lucide-react` and `sonner` are its
 > transitive deps and aren't resolvable from app code (pnpm isolation). Add an
 > icon to `src/lib/icons.ts` when you need a new one.
 
@@ -96,7 +96,7 @@ The components come from the shadcn registry's **Base UI** variant (the
      them or map them onto our theme variables.
 
 3. **Export and use.** The package `exports` map already exposes
-   `./components/*`, so `@terrarium/ui/components/<component>` works with no
+   `./components/*`, so `@vibevarium/ui/components/<component>` works with no
    manifest change. Then reinstall the consumers (see below) so the new file is
    linked into their `node_modules`.
 
@@ -105,7 +105,7 @@ The components come from the shadcn registry's **Base UI** variant (the
 
 ### Reinstall after editing
 
-The web packages consume `@terrarium/ui` via a `file:` dependency, which pnpm
+The web packages consume `@vibevarium/ui` via a `file:` dependency, which pnpm
 **hardlinks** into their `node_modules` at install time. Edits to *existing*
 files show up immediately (same inode), but **new files require a reinstall**
 of each consumer:
@@ -144,7 +144,7 @@ customizable CLI name. A fork overrides variables *after* importing the theme,
 in its own `index.css`:
 
 ```css
-@import "@terrarium/ui/styles.css";
+@import "@vibevarium/ui/styles.css";
 
 :root {
   /* brand teal */

@@ -32,7 +32,7 @@ import { PlatformConfigService, validateCapabilities, type CapabilityReport } fr
 import { Scaffold } from "../scaffold/index.ts";
 import { ScaffoldError } from "../scaffold/errors.ts";
 import { SecretsProvider } from "../integrations/secrets.ts";
-import { CurrentActor, requireAuth } from "@terrarium/auth";
+import { CurrentActor, requireAuth } from "@vibevarium/auth";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import { isReservedAppName, RESERVED_APP_NAME } from "../reserved.ts";
 
@@ -121,7 +121,7 @@ export class Provisioning extends Context.Service<Provisioning, {
     readonly url: string;
     readonly status: "unknown" | "up" | "down";
   }>>;
-}>()("@terrarium/control-plane/provisioning/Provisioning") {
+}>()("@vibevarium/control-plane/provisioning/Provisioning") {
   static readonly layer = Layer.effect(Provisioning)(
     Effect.gen(function*() {
       const { db } = yield* Database;

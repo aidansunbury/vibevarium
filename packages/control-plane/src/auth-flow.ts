@@ -12,7 +12,7 @@
  * Env:
  *   CASDOOR_ISSUER / WORKOS_ISSUER   (the OIDC issuer; see config/index.ts)
  *   GUI_APP_ID / GUI_APP_SECRET        local: repo-root .env; production: AWS
- *                                      Secrets Manager at /terrarium/prod/gui-app-*
+ *                                      Secrets Manager at /vibevarium/prod/gui-app-*
  *   CONTROL_PLANE_BASE_URL  public origin used to build the redirect_uri
  *                         (default http://127.0.0.1:<port>)
  *   PLATFORM_OIDC_AUDIENCE  RFC 8707 resource (default https://mcp.vibevarium.com)
@@ -83,12 +83,12 @@ export class GuiAuth extends Context.Service<GuiAuth, {
   readonly destroySession: (id: string) => void;
   readonly rememberPending: (pending: PendingLogin & { readonly id: string }) => void;
   readonly takePending: (id: string) => PendingLogin | undefined;
-}>()("@terrarium/control-plane/GuiAuth") {
+}>()("@vibevarium/control-plane/GuiAuth") {
   static readonly layer = (options: AuthFlowOptions) =>
     Layer.effect(GuiAuth)(Effect.sync(() => {
       const sessions = new Map<string, Session>();
       const pending = new Map<string, PendingLogin>();
-      const secretKey = createHmac("sha256", options.clientSecret).update("terrarium-gui-session").digest();
+      const secretKey = createHmac("sha256", options.clientSecret).update("vibevarium-gui-session").digest();
       // Cookie value is `<id>.<hmac>` so a forged id without the server secret
       // is rejected before touching the Map.
       const sign = (id: string) =>
@@ -139,8 +139,8 @@ export class GuiAuth extends Context.Service<GuiAuth, {
     }));
 }
 
-const SESSION_COOKIE = "terrarium_session";
-const PENDING_COOKIE = "terrarium_login";
+const SESSION_COOKIE = "vibevarium_session";
+const PENDING_COOKIE = "vibevarium_login";
 
 const cookieOptions = "Path=/; HttpOnly; SameSite=Lax";
 

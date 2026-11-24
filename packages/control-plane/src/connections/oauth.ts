@@ -169,7 +169,7 @@ export const fetchProviderIdentity = async (
       authorization: `Bearer ${accessToken}`,
       accept: "application/json",
       // GitHub's API requires a UA header.
-      "user-agent": "terrarium-control-plane",
+      "user-agent": "vibevarium-control-plane",
     },
     cache: "no-store",
     signal: AbortSignal.timeout(10_000),

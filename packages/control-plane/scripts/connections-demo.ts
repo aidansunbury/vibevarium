@@ -17,7 +17,7 @@
  *      with it succeeds.
  *   4. Proxy: /proxy/connection/datadog/* attaches the token and forwards;
  *      after the fake provider's token TTL the proxy transparently refreshes
- *      (rotation — x-terrarium-token-refreshed: true).
+ *      (rotation — x-vibevarium-token-refreshed: true).
  *   5. Revocation: grant revoke → vend AND proxy 403 grant_required on the
  *      next call; re-approve, then connection revoke → all grants die.
  *   6. Audit: every proxied call wrote a proxy_audit row.
@@ -26,9 +26,9 @@
  * exercised by hand once GITHUB_OAUTH_CLIENT_ID/SECRET exist — this script
  * proves the entire mechanism end-to-end without external accounts.
  */
-import { DevAuth } from "@terrarium/auth";
-import { startDevIssuer } from "@terrarium/dev-issuer";
-import { startFakeOAuthProvider } from "@terrarium/fake-oauth";
+import { DevAuth } from "@vibevarium/auth";
+import { startDevIssuer } from "@vibevarium/dev-issuer";
+import { startFakeOAuthProvider } from "@vibevarium/fake-oauth";
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import * as Context from "effect/Context";
@@ -41,11 +41,11 @@ import { Connections } from "../src/connections/service.ts";
 
 const APP_ID = "metrics-dashboard";
 const APP_SECRET = "metrics-dashboard-shared-secret";
-const AUDIENCE = "control.terrarium.local";
+const AUDIENCE = "control.vibevarium.local";
 
 const appHeaders = {
-  "x-terrarium-app": APP_ID,
-  "x-terrarium-app-secret": APP_SECRET,
+  "x-vibevarium-app": APP_ID,
+  "x-vibevarium-app-secret": APP_SECRET,
   "content-type": "application/json",
 };
 
@@ -72,7 +72,7 @@ const report: Record<string, unknown> = {};
 // control plane layer builds. The fake provider's client registration needs
 // the control plane's callback URL, which is only known after boot, so the
 // provider starts after the control plane with that exact redirect URI.
-process.env.FAKE_DATADOG_CLIENT_ID = "terrarium-control-plane";
+process.env.FAKE_DATADOG_CLIENT_ID = "vibevarium-control-plane";
 process.env.FAKE_DATADOG_CLIENT_SECRET = "dev-control-plane-secret";
 process.env.CONNECTIONS_TOKEN_ENCRYPTION_KEY = "demo-token-encryption-key";
 
@@ -114,7 +114,7 @@ const provider = await startFakeOAuthProvider({
   port: 0,
   accessTokenTtlSeconds: 5,
   clients: [{
-    clientId: "terrarium-control-plane",
+    clientId: "vibevarium-control-plane",
     clientSecret: "dev-control-plane-secret",
     redirectUris: [`${cp}/connections/callback`],
   }],
@@ -163,7 +163,7 @@ const start = await startResponse.json() as { authorization_url: string; state: 
 assert.equal(startResponse.status, 200);
 const authorizeUrl = new URL(start.authorization_url);
 assert.equal(authorizeUrl.searchParams.get("code_challenge_method"), "S256");
-assert.equal(authorizeUrl.searchParams.get("client_id"), "terrarium-control-plane");
+assert.equal(authorizeUrl.searchParams.get("client_id"), "vibevarium-control-plane");
 assert.equal(authorizeUrl.searchParams.get("redirect_uri"), `${cp}/connections/callback`);
 
 // Provider consent (the browser part, scripted): approve as provider user ada.
@@ -252,7 +252,7 @@ const vendToken = async () => {
 };
 const proxyMetrics = async () =>
   fetch(`${cp}/proxy/datadog/metrics?site=dev`, {
-    headers: { "x-terrarium-app": APP_ID, "x-terrarium-app-secret": APP_SECRET },
+    headers: { "x-vibevarium-app": APP_ID, "x-vibevarium-app-secret": APP_SECRET },
   });
 
 const vend = await vendToken();
@@ -272,11 +272,11 @@ report.use = {
 // ---- 4. Proxy (with transparent refresh/rotation) ---------------------------
 const proxyResponse = await proxyMetrics();
 assert.equal(proxyResponse.status, 200);
-assert.equal(proxyResponse.headers.get("x-terrarium-token-refreshed"), "false");
+assert.equal(proxyResponse.headers.get("x-vibevarium-token-refreshed"), "false");
 report.use = { ...report.use as object, proxyCall: {
   status: proxyResponse.status,
-  tokenRefreshed: proxyResponse.headers.get("x-terrarium-token-refreshed"),
-  grantId: proxyResponse.headers.get("x-terrarium-grant-id"),
+  tokenRefreshed: proxyResponse.headers.get("x-vibevarium-token-refreshed"),
+  grantId: proxyResponse.headers.get("x-vibevarium-grant-id"),
   body: await proxyResponse.json(),
 } };
 
@@ -287,7 +287,7 @@ await sleep(4_200);
 const proxyRefreshed = await proxyMetrics();
 report.refreshRotation = {
   status: proxyRefreshed.status,
-  tokenRefreshed: proxyRefreshed.headers.get("x-terrarium-token-refreshed"),
+  tokenRefreshed: proxyRefreshed.headers.get("x-vibevarium-token-refreshed"),
   body: await proxyRefreshed.json(),
 };
 assert.equal(proxyRefreshed.status, 200);

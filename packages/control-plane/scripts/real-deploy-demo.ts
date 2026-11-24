@@ -16,7 +16,7 @@ const profile = JSON.parse(await readFile(`${root}/.alchemy-home/profiles/defaul
   values: { access: string };
 };
 const token = process.env.CLOUDFLARE_API_TOKEN ?? profile.values.access;
-const org = "terrarium-sandbox";
+const org = "vibevarium-sandbox";
 const octokit = new Octokit({
   authStrategy: createAppAuth,
   auth: {
@@ -68,7 +68,7 @@ console.log(`GitHub: ${commits.data.length} commit(s), ${commits.data[0]?.sha}, 
 const routerBase = process.env.DEMO_ROUTER_URL ?? `https://${name}.gitprops.com`;
 const routerHeaders = process.env.DEMO_ROUTER_URL === undefined ? {} : { "x-forwarded-host": `${name}.gitprops.com` };
 const registry = await retry(
-  () => fetch(`${process.env.DEMO_ROUTER_URL ?? "https://terrarium-router.modal-opencode-test.workers.dev"}/__registry`).then((response) => response.json() as Promise<{ apps: string[] }>),
+  () => fetch(`${process.env.DEMO_ROUTER_URL ?? "https://vibevarium-router.modal-opencode-test.workers.dev"}/__registry`).then((response) => response.json() as Promise<{ apps: string[] }>),
   (body) => body.apps.includes(name),
 );
 console.log(`Router registry: ${JSON.stringify(registry)}`);
@@ -88,7 +88,7 @@ const command = await fetch(`${routerBase}/OpenTicket`, {
   headers: { ...routerHeaders, "content-type": "application/json" },
   body: JSON.stringify({
     target: ticketId,
-    input: { title: "Command through the real Terrarium router", reporter: "real-deploy-demo" },
+    input: { title: "Command through the real Vibevarium router", reporter: "real-deploy-demo" },
   }),
 });
 const receipt = await command.json() as { stream: string; version: number };

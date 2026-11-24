@@ -1,5 +1,5 @@
 {
-  "name": "@terrarium/control-plane-web",
+  "name": "@vibevarium/control-plane-web",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "@tailwindcss/vite": "^4.3.5",
     "@tanstack/react-query": "^5.108.3",
     "@tanstack/react-router": "^1.170.46",
-    "@terrarium/ui": "file:../../ui",
+    "@vibevarium/ui": "file:../../ui",
     "effect": "^4.1.5",
     "lucide-react": "^1.77.0",
     "react": "^19.2.0",

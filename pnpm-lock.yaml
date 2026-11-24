@@ -55,7 +55,7 @@ importers:
       '@effect/platform-node':
         specifier: ^4.1.5
         version: 4.1.5(effect@4.1.5)
-      '@terrarium/dev-issuer':
+      '@vibevarium/dev-issuer':
         specifier: workspace:*
         version: link:../dev-issuer
 
@@ -67,7 +67,7 @@ importers:
       '@effect/platform-node':
         specifier: ^4.1.5
         version: 4.1.5(effect@4.1.5)
-      '@terrarium/template':
+      '@vibevarium/template':
         specifier: workspace:*
         version: link:../template
       alchemy:
@@ -77,12 +77,12 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5
     devDependencies:
-      '@terrarium/dev-issuer':
-        specifier: workspace:*
-        version: link:../dev-issuer
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      '@vibevarium/dev-issuer':
+        specifier: workspace:*
+        version: link:../dev-issuer
 
   packages/connections:
     dependencies:
@@ -102,18 +102,18 @@ importers:
         specifier: ^6.0.0
         version: 6.2.18
     devDependencies:
-      '@terrarium/auth':
-        specifier: workspace:*
-        version: link:../auth
-      '@terrarium/dev-issuer':
-        specifier: workspace:*
-        version: link:../dev-issuer
-      '@terrarium/fake-oauth':
-        specifier: workspace:*
-        version: link:../fake-oauth
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      '@vibevarium/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@vibevarium/dev-issuer':
+        specifier: workspace:*
+        version: link:../dev-issuer
+      '@vibevarium/fake-oauth':
+        specifier: workspace:*
+        version: link:../fake-oauth
 
   packages/control-plane:
     dependencies:
@@ -157,27 +157,27 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
     devDependencies:
-      '@terrarium/auth':
-        specifier: workspace:*
-        version: link:../auth
-      '@terrarium/dev-issuer':
-        specifier: workspace:*
-        version: link:../dev-issuer
-      '@terrarium/fake-oauth':
-        specifier: workspace:*
-        version: link:../fake-oauth
-      '@terrarium/template':
-        specifier: workspace:*
-        version: link:../template
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
-      terrarium-tickets-cloudflare:
+      '@vibevarium/auth':
         specifier: workspace:*
-        version: link:../template-cloudflare
+        version: link:../auth
+      '@vibevarium/dev-issuer':
+        specifier: workspace:*
+        version: link:../dev-issuer
+      '@vibevarium/fake-oauth':
+        specifier: workspace:*
+        version: link:../fake-oauth
+      '@vibevarium/template':
+        specifier: workspace:*
+        version: link:../template
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
+      vibevarium-tickets-cloudflare:
+        specifier: workspace:*
+        version: link:../template-cloudflare
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@26.6.6)(terser@5.51.4)(tsx@4.23.15)(yaml@2.9.1)
@@ -247,7 +247,7 @@ importers:
       '@effect/platform-node':
         specifier: ^4.1.5
         version: 4.1.5(effect@4.1.5)
-      '@terrarium/auth':
+      '@vibevarium/auth':
         specifier: workspace:*
         version: link:../auth
       alchemy:

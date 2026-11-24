@@ -50,7 +50,7 @@ CA bundle, since the RDS cert chain isn't the point of this verification).
 
 ## How local dev stays zero-setup
 
-`pnpm --filter @terrarium/control-plane demo` (and every other local entry
+`pnpm --filter @vibevarium/control-plane demo` (and every other local entry
 point) sets **no `DATABASE_URL`** → PGlite, embedded, no daemon, no
 credentials, no network. Nothing in the local loop changed; `DATABASE_PATH`
 still selects an on-disk PGlite dir when set (e.g. `scripts/dev.ts`).
@@ -61,7 +61,7 @@ The master credentials live in AWS Secrets Manager as the RDS-managed secret
 `rds!db-6f5a2477-…` (JSON `{username, password}`). From those parts we
 materialized **one** secret the control plane consumes directly:
 
-- SM: `/terrarium/prod/database-url` =
+- SM: `/vibevarium/prod/database-url` =
   `postgres://postgres:<url-encoded-pw>@<rds-endpoint>:5432/control_plane`
   (password URL-encoded — it contains `(`, `[`, `*`, `<`).
 
@@ -121,7 +121,7 @@ box).
 - `pnpm exec tsrs --noEmit -p packages/control-plane/tsconfig.json` — clean.
 - `pnpm exec oxlint --type-aware packages/control-plane` — warnings only (the
   one new `as unknown as` is the documented driver-type seam above).
-- `pnpm --filter @terrarium/control-plane demo` — green on PGlite (no
+- `pnpm --filter @vibevarium/control-plane demo` — green on PGlite (no
   `DATABASE_URL`).
 - Postgres branch proven end-to-end against a scratch RDS database
   (`cp_driver_test`, dropped after): `Database.layerFromEnv({ databaseUrl })`

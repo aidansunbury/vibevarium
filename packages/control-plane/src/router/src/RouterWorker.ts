@@ -7,7 +7,7 @@ export const AppWorkers: Record<string, ReturnType<typeof Cloudflare.Worker.look
   "APP_showcase2": Cloudflare.Worker.lookup({ name: "showcase2" }),};
 
 export const RouterDirectory = Cloudflare.KV.Namespace("TerrariumApps", {
-  title: "terrarium-router-apps",
+  title: "vibevarium-router-apps",
 });
 
 const ZoneId = "15d5d22954d28f66f4e141a1668df477";
@@ -15,7 +15,7 @@ const ZoneId = "15d5d22954d28f66f4e141a1668df477";
 export default class RouterWorker extends Cloudflare.Worker<RouterWorker>()(
   "RouterWorker",
   {
-    name: "terrarium-router",
+    name: "vibevarium-router",
     main: import.meta.url,
     env: AppWorkers,
     routes: [
@@ -31,16 +31,16 @@ export default class RouterWorker extends Cloudflare.Worker<RouterWorker>()(
         const name = incoming.hostname === "gitprops.com"
           ? ""
           : incoming.hostname.slice(0, -".gitprops.com".length);
-        if (name === "registry" || name === "router" || incoming.pathname === "/__registry" || name.startsWith("terrarium-router.")) {
+        if (name === "registry" || name === "router" || incoming.pathname === "/__registry" || name.startsWith("vibevarium-router.")) {
           const rows = yield* apps.list().pipe(Effect.orDie);
           return HttpServerResponse.jsonUnsafe({ apps: rows.keys.map((row: { name: string }) => row.name) });
         }
         if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) {
-          return HttpServerResponse.text("Not a Terrarium app hostname", { status: 404 });
+          return HttpServerResponse.text("Not a Vibevarium app hostname", { status: 404 });
         }
         const origin = yield* apps.get(name).pipe(Effect.orDie);
         if (origin === null) {
-          return yield* HttpServerResponse.json({ error: `No Terrarium app named ${name}` }, { status: 404 });
+          return yield* HttpServerResponse.json({ error: `No Vibevarium app named ${name}` }, { status: 404 });
         }
         const destination = new URL(incoming.pathname + incoming.search, "https://app.gitprops.invalid");
         const headers: Record<string, string> = { ...request.headers, host: incoming.hostname };

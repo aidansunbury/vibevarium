@@ -13,7 +13,7 @@ Cloudflare API token, Logto app credentials) before any config is read.
 `main.ts` starts with `await loadBootSecrets()`. When `SECRETS_PROVIDER=aws`:
 
 1. Every key in `AWS_BOOT_SECRETS` (SM name → env var name) is fetched with
-   `GetSecretValue` under `SECRETS_PREFIX` (default `/terrarium/prod/`) — one
+   `GetSecretValue` under `SECRETS_PREFIX` (default `/vibevarium/prod/`) — one
    parallel batch at boot, before the HTTP server or any layer builds.
 2. Values are injected into `process.env` **only when the var is unset** — a
    real environment variable always wins, so local overrides keep working.
@@ -70,18 +70,18 @@ The EC2 instance carries an instance profile
 {
   "Effect": "Allow",
   "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-  "Resource": ["arn:aws:secretsmanager:us-east-1:412215357683:secret:/terrarium/prod/*"]
+  "Resource": ["arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*"]
 }
 ```
 
 Path-scoped, not tag-scoped: SM resource ARNs embed the secret name, so the
-`/terrarium/prod/*` prefix is the least-privilege boundary. No static AWS keys
+`/vibevarium/prod/*` prefix is the least-privilege boundary. No static AWS keys
 anywhere — the SDK's default chain hits IMDSv2 (enforced on the instance).
 
 ## Adding a new secret
 
 1. Put it in SM under the prefix: name is lower-kebab-case, e.g.
-   `/terrarium/prod/stripe-secret-key`.
+   `/vibevarium/prod/stripe-secret-key`.
 2. If it's **boot config for the control plane itself**: add a row to
    `AWS_BOOT_SECRETS` in `src/secrets/boot.ts` (`"stripe-secret-key": "STRIPE_SECRET_KEY"`),
    and list the env var in the `/config-check` key table in `server.ts`.
@@ -93,7 +93,7 @@ anywhere — the SDK's default chain hits IMDSv2 (enforced on the instance).
 Naming convention: `<vendor>-<purpose>[-<qualifier>]`, lower-kebab-case —
 `logto-m2m-app-secret`, `github-app-private-key`, `cloudflare-api-token`.
 
-Boot config also includes the control-plane database: `/terrarium/prod/
+Boot config also includes the control-plane database: `/vibevarium/prod/
 database-url` is the full `postgres://…` URL for the RDS `control_plane` DB
 (built from the RDS-managed master secret, password URL-encoded), mapped to
 `DATABASE_URL` in `AWS_BOOT_SECRETS`. When unset, the control plane falls back
@@ -116,7 +116,7 @@ They are a third implementation of the same two seams, nothing else changes:
   (`SECRETS_PROVIDER=infisical|vault`).
 - **Boot**: a `loadBootSecrets` variant keyed off the same
   `SECRETS_PROVIDER` switch, fetching from the Infisical/Vault path that
-  mirrors `/terrarium/prod/`.
+  mirrors `/vibevarium/prod/`.
 - **Identity**: on AWS, Infisical/Vault should consume the same instance
   profile (Infisical AWS IAM auth, Vault AWS auth method) so no new static
   credential is introduced — same federated-identity-over-keys rule.

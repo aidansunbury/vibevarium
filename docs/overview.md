@@ -1,4 +1,4 @@
-# Terrarium
+# Vibevarium
 
 A platform for fleets of small, independently-deployed company apps ("vibe-coded
 apps") where every app is **agent-callable by default**: each app exposes its own

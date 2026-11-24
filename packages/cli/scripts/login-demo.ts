@@ -151,7 +151,7 @@ const run = async (env: NodeJS.ProcessEnv, args: ReadonlyArray<string>) => {
 };
 
 const demo = async () => {
-  const configDirectory = await mkdtemp(join("/tmp/opencode", "terrarium-cli-login-demo-"));
+  const configDirectory = await mkdtemp(join("/tmp/opencode", "vibevarium-cli-login-demo-"));
   const env = {
     ...process.env,
     TERRARIUM_CONFIG_DIR: configDirectory,

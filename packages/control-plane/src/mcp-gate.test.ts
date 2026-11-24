@@ -1,12 +1,12 @@
-import { fetchDevToken } from "@terrarium/auth";
-import { startDevIssuer } from "@terrarium/dev-issuer";
+import { fetchDevToken } from "@vibevarium/auth";
+import { startDevIssuer } from "@vibevarium/dev-issuer";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Scope from "effect/Scope";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startControlPlane } from "./server.ts";
 
-const AUDIENCE = "https://mcp.terrarium.test";
+const AUDIENCE = "https://mcp.vibevarium.test";
 
 const mcpInitialize = {
   jsonrpc: "2.0",
@@ -100,7 +100,7 @@ describe("meta-MCP gate", () => {
     const response = await postMcp(controlPlane.url, token.access_token);
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.result.serverInfo.name).toBe("terrarium-meta-mcp");
+    expect(body.result.serverInfo.name).toBe("vibevarium-meta-mcp");
     expect(body.result.protocolVersion).toBe("2025-11-25");
   });
 });

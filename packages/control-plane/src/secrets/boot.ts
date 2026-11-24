@@ -6,7 +6,7 @@ import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-sec
  * tokens at proxy time).
  *
  * When `SECRETS_PROVIDER=aws`, the keys in {@link AWS_BOOT_SECRETS} are fetched
- * from Secrets Manager under `SECRETS_PREFIX` (default `/terrarium/prod/`) and
+ * from Secrets Manager under `SECRETS_PREFIX` (default `/vibevarium/prod/`) and
  * set into `process.env` before `src/main.ts` reads its config — so every
  * existing `process.env.X` consumer (main.ts, router-directory.ts, …) works
  * unchanged in both modes. With any other value (default `env`) this is a
@@ -76,7 +76,7 @@ export const bootSecretsReport: BootSecretsReport = {
 export const loadBootSecrets = async (): Promise<void> => {
   if (process.env.SECRETS_PROVIDER !== "aws") return;
 
-  const prefix = process.env.SECRETS_PREFIX ?? "/terrarium/prod/";
+  const prefix = process.env.SECRETS_PREFIX ?? "/vibevarium/prod/";
   (bootSecretsReport as { prefix?: string }).prefix = prefix;
 
   if (!hasAwsCredentials()) {

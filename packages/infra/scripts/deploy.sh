@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Terrarium infrastructure deploy script.
+# Vibevarium infrastructure deploy script.
 #
 # Usage:
 #   cd packages/infra
@@ -31,7 +31,7 @@ REPO_ROOT="$(cd ../.. && pwd)"
 : "${AWS_PROFILE:?Set AWS_PROFILE (e.g. givefront-dev)}"
 export AWS_REGION="${AWS_REGION:-us-east-1}"
 
-echo "=== Terrarium infra deploy ==="
+echo "=== Vibevarium infra deploy ==="
 echo "  Domain:  $TERRARIUM_DOMAIN"
 echo "  Zone:    $CLOUDFLARE_ZONE_ID"
 echo "  Profile: $AWS_PROFILE"
@@ -48,7 +48,7 @@ echo ">>> Reading stack outputs…"
 # Alchemy writes local state under packages/infra/.alchemy (the deploy cwd),
 # keyed by the stage (default "live_<user>"). Discover the current stage's
 # output file rather than hardcoding a path.
-STATE_DIR=$(find "$INFRA_DIR/.alchemy/state/TerrariumInfra" -mindepth 1 -maxdepth 1 -type d ! -name '*.stale-*' | head -1)
+STATE_DIR=$(find "$INFRA_DIR/.alchemy/state/VibevariumInfra" -mindepth 1 -maxdepth 1 -type d ! -name '*.stale-*' | head -1)
 OUTPUT_FILE="$STATE_DIR/__stack_output__.json"
 if [ ! -f "$OUTPUT_FILE" ]; then
   echo "ERROR: no stack output file at $OUTPUT_FILE"
@@ -69,7 +69,7 @@ echo "  Secret ARN: $DB_SECRET_ARN"
 # Extract SSH private key from state (Redacted values are stored as the raw string)
 echo ">>> Extracting SSH key…"
 mkdir -p "$REPO_ROOT/.secrets"
-SSH_KEY="$REPO_ROOT/.secrets/terrarium-key.pem"
+SSH_KEY="$REPO_ROOT/.secrets/vibevarium-key.pem"
 # The key is stored as a Redacted value: a {"__redacted__": "<pem>"} wrapper.
 # Unwrap to the raw PEM; fall back to the KeyPair resource state if absent.
 jq -r '.sshPrivateKey.__redacted__ // .sshPrivateKey // empty' "$OUTPUT_FILE" > "$SSH_KEY"
@@ -137,8 +137,8 @@ REMOTE
 
 # ── 7. Push compose + build context ───────────────────────────────────────
 echo ">>> Copying compose files to the box…"
-ssh $SSH_OPTS "$SSH_USER@$EIP" "mkdir -p /opt/terrarium"
-scp $SSH_OPTS -r "$INFRA_DIR/compose/" "$SSH_USER@$EIP:/opt/terrarium/"
+ssh $SSH_OPTS "$SSH_USER@$EIP" "mkdir -p /opt/vibevarium"
+scp $SSH_OPTS -r "$INFRA_DIR/compose/" "$SSH_USER@$EIP:/opt/vibevarium/"
 
 # Substitute DOMAIN in compose + Caddyfile, write .env
 # CASDOOR_ADMIN_PASSWORD is generated once, persisted to AWS Secrets Manager,
@@ -146,13 +146,13 @@ scp $SSH_OPTS -r "$INFRA_DIR/compose/" "$SSH_USER@$EIP:/opt/terrarium/"
 # first database creation, so this is only effective on a fresh install).
 echo ">>> Ensuring Casdoor admin password in Secrets Manager…"
 CASDOOR_ADMIN_PASSWORD=$(aws secretsmanager get-secret-value \
-  --secret-id /terrarium/prod/casdoor-admin-password \
+  --secret-id /vibevarium/prod/casdoor-admin-password \
   --region "$AWS_REGION" --profile "$AWS_PROFILE" \
   --query 'SecretString' --output text 2>/dev/null || true)
 if [ -z "$CASDOOR_ADMIN_PASSWORD" ]; then
   CASDOOR_ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -d '=+/' | cut -c1-24)
   aws secretsmanager create-secret \
-    --name /terrarium/prod/casdoor-admin-password \
+    --name /vibevarium/prod/casdoor-admin-password \
     --secret-string "$CASDOOR_ADMIN_PASSWORD" \
     --region "$AWS_REGION" --profile "$AWS_PROFILE" >/dev/null
   echo "  generated + stored new Casdoor admin password"
@@ -162,7 +162,7 @@ fi
 
 ssh $SSH_OPTS "$SSH_USER@$EIP" bash -s <<REMOTE
 set -euo pipefail
-cd /opt/terrarium/compose
+cd /opt/vibevarium/compose
 sed -i "s/\\\${DOMAIN}/$TERRARIUM_DOMAIN/g" Caddyfile
 cat > .env <<ENVEOF
 DOMAIN=$TERRARIUM_DOMAIN
@@ -180,7 +180,7 @@ REMOTE
 # because control-plane imports from sibling packages.
 echo ">>> Copying workspace build context…"
 cd "$REPO_ROOT"
-tar czf /tmp/terrarium-workspace.tgz \
+tar czf /tmp/vibevarium-workspace.tgz \
   --exclude='node_modules' \
   --exclude='.alchemy' \
   --exclude='.git' \
@@ -192,20 +192,20 @@ tar czf /tmp/terrarium-workspace.tgz \
   --exclude='.env.*' \
   package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc \
   packages/
-scp $SSH_OPTS /tmp/terrarium-workspace.tgz "$SSH_USER@$EIP:/tmp/"
+scp $SSH_OPTS /tmp/vibevarium-workspace.tgz "$SSH_USER@$EIP:/tmp/"
 ssh $SSH_OPTS "$SSH_USER@$EIP" bash -s <<'REMOTE'
 set -euo pipefail
-mkdir -p /opt/terrarium/compose/control-plane
-cd /opt/terrarium/compose/control-plane
-tar xzf /tmp/terrarium-workspace.tgz
-rm /tmp/terrarium-workspace.tgz
+mkdir -p /opt/vibevarium/compose/control-plane
+cd /opt/vibevarium/compose/control-plane
+tar xzf /tmp/vibevarium-workspace.tgz
+rm /tmp/vibevarium-workspace.tgz
 REMOTE
 
 # ── 8. docker compose up ─────────────────────────────────────────────────
 echo ">>> docker compose up…"
 ssh $SSH_OPTS "$SSH_USER@$EIP" bash -s <<'REMOTE'
 set -euo pipefail
-cd /opt/terrarium/compose
+cd /opt/vibevarium/compose
 docker compose pull caddy casdoor
 docker compose up -d --build
 echo "=== Services ==="

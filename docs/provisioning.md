@@ -20,7 +20,7 @@ Alchemy is the deploy substrate. Its first-party provider packages:
 - Plus non-"major-cloud" targets: Fly.io, Railway, Neon, Turso, PlanetScale,
   Docker, Kubernetes, Hetzner, DigitalOcean.
 
-**Terrarium answer:** Cloudflare and AWS are the clean "say AWS deployment or
+**Vibevarium answer:** Cloudflare and AWS are the clean "say AWS deployment or
 Cloudflare deployment" targets. GCP is a credible third. Azure is a DIY gap.
 
 > Doctrine (providers.md): deployment is **multi-target, not hot-swappable.** We
