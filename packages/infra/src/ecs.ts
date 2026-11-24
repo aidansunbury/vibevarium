@@ -8,6 +8,10 @@ export interface EcsInfraOptions {
   readonly domain: string;
   /** ACM certificate ARN for the shared 443 listener (covers api. + auth.). */
   readonly certificateArn: string;
+  /** Full SM ARN of the control-plane DATABASE_URL secret. */
+  readonly databaseUrlArn: string;
+  /** Full SM ARN of the casdoor admin password secret. */
+  readonly casdoorAdminPasswordArn: string;
   /** RDS instance class. */
   readonly dbInstanceClass?: string;
 }
@@ -164,11 +168,11 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         origin: `https://auth.${options.domain}`,
       },
       secrets: {
-        // dataSourceName: full postgres DSN for the casdoor db. The deploy
-        // script writes this (RDS endpoint + master password, dbname=casdoor)
-        // to SM at /vibevarium/prod/casdoor-database-url.
-        dataSourceName: "/vibevarium/prod/casdoor-database-url",
-        initAdminPassword: "/vibevarium/prod/casdoor-admin-password",
+        // dataSourceName: full postgres DSN for the casdoor db (RDS master
+        // secret → the deploy writes a casdoor-db DSN to SM). initAdminPassword
+        // sets built-in/admin on first run.
+        dataSourceName: options.databaseUrlArn,
+        initAdminPassword: options.casdoorAdminPasswordArn,
       },
       loadBalancer: {
         listener,
@@ -212,7 +216,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         DISCOVERY_INTERVAL_MS: "30000",
       },
       secrets: {
-        DATABASE_URL: "vibevarium/prod/database-url",
+        DATABASE_URL: options.databaseUrlArn,
       },
       loadBalancer: {
         listener,

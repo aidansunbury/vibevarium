@@ -9,6 +9,8 @@ import { EcsInfra } from "./ecs.ts";
 //
 //   TERRARIUM_DOMAIN       — root domain (e.g. vibevarium.com)
 //   ACM_CERTIFICATE_ARN    — ACM cert covering api.<domain> + auth.<domain>
+//   DATABASE_URL_ARN       — full SM ARN of the control-plane DATABASE_URL secret
+//   CASDOOR_ADMIN_PASSWORD_ARN — full SM ARN of the casdoor admin password secret
 //   AWS_PROFILE            — AWS CLI profile (e.g. givefront-dev)
 //   AWS_REGION             — AWS region (e.g. us-east-1)
 
@@ -35,10 +37,15 @@ export default Alchemy.Stack(
     // Dockerfile copies packages/ from it).
     const controlPlaneContext = fileURLToPath(new URL("../../", import.meta.url));
 
+    const databaseUrlArn = yield* requireEnv("DATABASE_URL_ARN");
+    const casdoorAdminPasswordArn = yield* requireEnv("CASDOOR_ADMIN_PASSWORD_ARN");
+
     const ecs = yield* EcsInfra({
       controlPlaneContext,
       domain,
       certificateArn,
+      databaseUrlArn,
+      casdoorAdminPasswordArn,
     });
 
     return {
