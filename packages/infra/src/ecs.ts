@@ -16,6 +16,8 @@ export interface EcsInfraOptions {
   readonly casdoorDatabaseUrlArn: string;
   /** Full SM ARN of the casdoor admin password secret. */
   readonly casdoorAdminPasswordArn: string;
+  /** Full SM ARN of the Cloudflare API token. */
+  readonly cloudflareApiTokenArn: string;
   /** RDS instance class. */
   readonly dbInstanceClass?: string;
 }
@@ -140,16 +142,6 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         dbName: "casdoor",
         origin: `https://auth.${options.domain}`,
       },
-      env: {
-        RUNNING_IN_DOCKER: "true",
-        runmode: "prod",
-        driverName: "postgres",
-        dbName: "casdoor",
-        origin: `https://auth.${options.domain}`,
-        // The DSN for the casdoor db on THIS stack's RDS. Written to SM at
-        // deploy (RDS endpoint + master password) and injected via secrets below.
-        DUMMY2: "",
-      },
       secrets: {
         dataSourceName: options.casdoorDatabaseUrlArn,
         initAdminPassword: options.casdoorAdminPasswordArn,
@@ -194,12 +186,14 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         AWS_REGION: "us-east-1",
         SECRETS_PREFIX: "/vibevarium/prod/",
         DISCOVERY_INTERVAL_MS: "30000",
-        DISCOVERY_INTERVAL_MS: "30000",
       },
       secrets: {
         // Full postgres:// DSN for THIS stack's RDS (deploy script reads the
         // master password from the RDS-managed secret and writes this).
         DATABASE_URL: options.ecsDatabaseUrlArn,
+        // RouterDirectory reads CLOUDFLARE_API_TOKEN from env (Fargate has no
+        // Alchemy profile file).
+        CLOUDFLARE_API_TOKEN: options.cloudflareApiTokenArn,
       },
       healthCheckPath: "/health",
       loadBalancer: {
