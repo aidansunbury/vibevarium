@@ -62,6 +62,8 @@ export const buildAuthorizationUrl = (input: {
   readonly state: string;
   readonly codeChallenge: string;
   readonly scopes?: string | undefined;
+  /** Provider-specific extras (e.g. Linear's `actor`). */
+  readonly extraParams?: Readonly<Record<string, string>> | undefined;
 }) => {
   const url = new URL(input.provider.authorizeUrl);
   url.searchParams.set("response_type", "code");
@@ -75,6 +77,9 @@ export const buildAuthorizationUrl = (input: {
   // when the provider actually wants form_post.
   if (input.provider.responseMode !== "query") {
     url.searchParams.set("response_mode", input.provider.responseMode);
+  }
+  for (const [name, value] of Object.entries(input.extraParams ?? {})) {
+    url.searchParams.set(name, value);
   }
   return url.toString();
 };

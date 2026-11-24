@@ -53,6 +53,21 @@ export interface ProviderManifestEntry {
   readonly clientSecretRef: string;
   readonly defaultScopes: ReadonlyArray<string>;
   readonly responseMode?: "query" | "form_post" | undefined;
+  /**
+   * Separator used when joining scopes into the authorize URL's `scope` param
+   * (default " "). Linear wants comma-separated; the token response is always
+   * normalized back to space-separated for storage.
+   */
+  readonly scopeSeparator?: string | undefined;
+  /**
+   * Extra query params on the authorize URL (e.g. Linear's `actor`).
+   */
+  readonly authorizeParams?: Readonly<Record<string, string>> | undefined;
+  /**
+   * Provider-specific identity fetch. Default: GET userinfoUrl with a bearer
+   * token and read OIDC/GitHub-shaped fields. Linear's identity is GraphQL.
+   */
+  readonly fetchIdentity?: ((accessToken: string) => Promise<{ readonly sub: string; readonly label: string }>) | undefined;
 }
 
 export interface ProxyCallInput {
@@ -147,6 +162,17 @@ interface UsableToken {
 
 const fail = (status: number, code: string, message: string, details?: Record<string, unknown>) =>
   Effect.fail(new ConnectionError({ status, code, message, ...(details === undefined ? {} : { details }) }));
+
+/**
+ * Per-provider behavior that can't be a DB row (functions + wire quirks).
+ * Keyed by provider name, populated by registerProvider from the manifest.
+ */
+interface ProviderHooks {
+  readonly scopeSeparator: string;
+  readonly authorizeParams: Readonly<Record<string, string>>;
+  readonly fetchIdentity?: ((accessToken: string) => Promise<{ readonly sub: string; readonly label: string }>) | undefined;
+}
+const manifestHooks = new Map<string, ProviderHooks>();
 
 export class Connections extends Context.Service<Connections, {
   readonly registerProvider: (entry: ProviderManifestEntry) => Effect.Effect<void, ConnectionError>;
@@ -264,6 +290,11 @@ export class Connections extends Context.Service<Connections, {
         yield* Effect.promise(() =>
           db.insert(oauthProviders).values(values).onConflictDoUpdate({ target: oauthProviders.name, set: values })
         );
+        manifestHooks.set(entry.name, {
+          scopeSeparator: entry.scopeSeparator ?? " ",
+          authorizeParams: entry.authorizeParams ?? {},
+          ...(entry.fetchIdentity === undefined ? {} : { fetchIdentity: entry.fetchIdentity }),
+        });
       });
 
       const listProviders = Effect.fnUntraced(function*() {
@@ -319,7 +350,8 @@ export class Connections extends Context.Service<Connections, {
             redirectUri,
             state,
             codeChallenge: createPkceChallenge(verifier),
-            scopes: requestedScopes.join(" "),
+            scopes: requestedScopes.join(manifestHooks.get(provider)?.scopeSeparator ?? " "),
+            extraParams: manifestHooks.get(provider)?.authorizeParams ?? {},
           }),
           state,
           expires_at: new Date(expiresAt).toISOString(),
@@ -349,8 +381,11 @@ export class Connections extends Context.Service<Connections, {
               ? new ConnectionError({ status: 400, code: "authorization_code_exchange_failed", message: cause.message })
               : new ConnectionError({ status: 502, code: "provider_unreachable", message: "Could not reach the provider token endpoint" }),
         });
+        const identityFetch = manifestHooks.get(session.provider)?.fetchIdentity;
         const identity = yield* Effect.tryPromise({
-          try: () => fetchProviderIdentity(row.value, token.accessToken),
+          try: () => identityFetch === undefined
+            ? fetchProviderIdentity(row.value, token.accessToken)
+            : identityFetch(token.accessToken),
           catch: (cause) => new ConnectionError({
             status: 502,
             code: "provider_identity_failed",

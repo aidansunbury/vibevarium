@@ -22,7 +22,7 @@ import { MCP_INTERNAL_PATH, mcpGateRoutes } from "./gateway/mcp-gate.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
 import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
-import { Connections, GITHUB_PROVIDER } from "./connections/index.ts";
+import { Connections, GITHUB_PROVIDER, LINEAR_PROVIDER } from "./connections/index.ts";
 import { connectionRoutes } from "./connections/routes.ts";
 import { secretsRoutes } from "./integrations/secrets-routes.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
@@ -268,12 +268,16 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const registerManifestProviders = Layer.effectDiscard(Effect.gen(function*() {
     const connections = yield* Connections;
     const secrets = yield* SecretsProvider;
-    const githubConfigured = Option.isSome(yield* secrets.resolve(GITHUB_PROVIDER.clientIdRef)) &&
-      Option.isSome(yield* secrets.resolve(GITHUB_PROVIDER.clientSecretRef));
-    if (githubConfigured) {
-      yield* connections.registerProvider(GITHUB_PROVIDER).pipe(Effect.ignore);
-    } else {
-      yield* Effect.logInfo("[connections] GitHub provider not registered (GITHUB_OAUTH_CLIENT_ID/SECRET unset) — see CONNECTIONS-SPIKE.md");
+    for (const provider of [GITHUB_PROVIDER, LINEAR_PROVIDER]) {
+      const configured = Option.isSome(yield* secrets.resolve(provider.clientIdRef)) &&
+        Option.isSome(yield* secrets.resolve(provider.clientSecretRef));
+      if (configured) {
+        yield* connections.registerProvider(provider).pipe(Effect.ignore);
+      } else {
+        yield* Effect.logInfo(
+          `[connections] ${provider.displayName} provider not registered (${provider.clientIdRef}/${provider.clientSecretRef} unset) — see CONNECTIONS-SPIKE.md`,
+        );
+      }
     }
   })).pipe(Layer.provide(connectionsLayer), Layer.provide(secretsLayer));
 
@@ -429,6 +433,8 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         ["WORKOS_CLIENT_ID", process.env.WORKOS_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_ID", process.env.GITHUB_OAUTH_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_SECRET", process.env.GITHUB_OAUTH_CLIENT_SECRET],
+        ["LINEAR_OAUTH_CLIENT_ID", process.env.LINEAR_OAUTH_CLIENT_ID],
+        ["LINEAR_OAUTH_CLIENT_SECRET", process.env.LINEAR_OAUTH_CLIENT_SECRET],
         ["CONNECTIONS_TOKEN_ENCRYPTION_KEY", process.env.CONNECTIONS_TOKEN_ENCRYPTION_KEY],
       ] as const;
       const fromSecrets = new Set(bootSecretsReport.resolved);
