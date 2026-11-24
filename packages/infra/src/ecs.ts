@@ -2,8 +2,8 @@ import * as AWS from "@alchemy.run/aws";
 import * as Effect from "effect/Effect";
 
 export interface EcsInfraOptions {
-  /** The control-plane image URI (built + pushed to ECR by the deploy script). */
-  readonly controlPlaneImage: string;
+  /** Docker build context for the control-plane image (the monorepo root). */
+  readonly controlPlaneContext: string;
   /** The domain (e.g. vibevarium.com) — drives the api./auth. hostnames. */
   readonly domain: string;
   /** ACM certificate ARN for the shared 443 listener (covers api. + auth.). */
@@ -176,10 +176,11 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       },
     });
 
-    // --- control-plane service (our ECR image) → api.<domain> -----------------
+    // --- control-plane service (built from our Dockerfile → ECR) → api.<domain>
     const controlPlaneService = yield* AWS.ECS.Service("ControlPlaneService", {
       cluster,
-      image: options.controlPlaneImage,
+      context: options.controlPlaneContext,
+      dockerfile: "packages/control-plane/Dockerfile",
       port: 4100,
       desiredCount: 1,
       vpcId: network.vpcId,

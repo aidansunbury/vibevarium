@@ -1,0 +1,53 @@
+import * as AWS from "@alchemy.run/aws";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import { fileURLToPath } from "node:url";
+import { EcsInfra } from "./ecs.ts";
+
+// ECS Fargate stack for the Vibevarium auth server + control plane.
+// Deploy alongside the EC2 stack, verify healthy, cut DNS over, retire EC2.
+//
+//   TERRARIUM_DOMAIN       — root domain (e.g. vibevarium.com)
+//   ACM_CERTIFICATE_ARN    — ACM cert covering api.<domain> + auth.<domain>
+//   AWS_PROFILE            — AWS CLI profile (e.g. givefront-dev)
+//   AWS_REGION             — AWS region (e.g. us-east-1)
+
+const requireEnv = (name: string) =>
+  Effect.gen(function* () {
+    const value = process.env[name];
+    if (!value) {
+      return yield* Effect.die(new Error(`Missing required env var: ${name}`));
+    }
+    return value;
+  });
+
+export default Alchemy.Stack(
+  "VibevariumEcs",
+  {
+    providers: AWS.providers(),
+    state: Alchemy.localState(),
+  },
+  Effect.gen(function* () {
+    const domain = yield* requireEnv("TERRARIUM_DOMAIN");
+    const certificateArn = yield* requireEnv("ACM_CERTIFICATE_ARN");
+
+    // The monorepo root is the Docker build context (the control-plane
+    // Dockerfile copies packages/ from it).
+    const controlPlaneContext = fileURLToPath(new URL("../../", import.meta.url));
+
+    const ecs = yield* EcsInfra({
+      controlPlaneContext,
+      domain,
+      certificateArn,
+    });
+
+    return {
+      domain,
+      albDnsName: ecs.albDnsName,
+      clusterArn: ecs.clusterArn,
+      dbEndpoint: ecs.dbEndpoint,
+      apiUrl: `https://api.${domain}`,
+      authUrl: `https://auth.${domain}`,
+    };
+  }),
+);
