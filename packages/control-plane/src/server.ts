@@ -273,7 +273,8 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       const configured = Option.isSome(yield* secrets.resolve(provider.clientIdRef)) &&
         Option.isSome(yield* secrets.resolve(provider.clientSecretRef));
       if (configured) {
-        yield* connections.registerProvider(provider).pipe(Effect.ignore);
+        yield* connections.registerProvider(provider);
+        yield* Effect.logInfo(`[connections] ${provider.displayName} provider registered`);
       } else {
         // Direct startControlPlane callers bypass main.ts config validation;
         // retain a visible warning for that programmatic use case.
