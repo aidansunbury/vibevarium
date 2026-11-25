@@ -12,7 +12,8 @@ const run = async (file: string, args: string[], timeout = 120_000) => {
     const { stdout } = await execFileAsync(file, args, { timeout, maxBuffer: 16 * 1024 * 1024 });
     return stdout.trim();
   } catch (error: any) {
-    throw new Error(`${file} ${args.join(" ")} failed: ${error?.stderr ?? error?.message ?? error}`);
+    const safeArgs = args.map((arg, index) => args[index - 1] === "--secret-string" ? "<redacted>" : arg);
+    throw new Error(`${file} ${safeArgs.join(" ")} failed: ${error?.stderr ?? error?.message ?? error}`);
   }
 };
 const aws = (args: string[], timeout?: number) => run("aws", args, timeout);

@@ -40,7 +40,11 @@ export default Alchemy.Stack(
               "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
             },
             StringLike: {
-              "token.actions.githubusercontent.com:sub": `repo:${owner}/${repository}:*`,
+              "token.actions.githubusercontent.com:sub": [
+                `repo:${owner}/${repository}:*`,
+                // GitHub's current OIDC subject format uses stable numeric owner/repo IDs.
+                "repo:aidansunbury@64103161/vibevarium@1465974306:*",
+              ],
             },
           },
         }],
