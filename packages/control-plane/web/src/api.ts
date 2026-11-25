@@ -223,14 +223,14 @@ export type CapabilityStatus = typeof CapabilityStatus.Type;
 export const ProvisioningOptions = Schema.Struct({
   defaultTarget: Schema.Literals(["cloudflare", "aws"]),
   defaultDatabase: Schema.Literals(["cf-d1", "planetscale-hyperdrive"]),
-  authProvider: Schema.Literals(["logto", "workos"]),
+  authProvider: Schema.Literals(["casdoor", "workos"]),
   deployTargets: Schema.Struct({ cloudflare: CapabilityStatus, aws: CapabilityStatus }),
   database: Schema.Struct({
     "cf-d1": CapabilityStatus,
     "planetscale-hyperdrive": CapabilityStatus,
   }),
   features: Schema.Struct({ r2: CapabilityStatus, hyperdrive: CapabilityStatus }),
-  authProviders: Schema.Struct({ logto: CapabilityStatus, workos: CapabilityStatus }),
+  authProviders: Schema.Struct({ casdoor: CapabilityStatus, workos: CapabilityStatus }),
 });
 export type ProvisioningOptions = typeof ProvisioningOptions.Type;
 
