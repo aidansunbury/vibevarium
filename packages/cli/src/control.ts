@@ -177,7 +177,7 @@ const job = Command.make(
 ).pipe(Command.withDescription("Provision job status by jobId"));
 
 // ---------------------------------------------------------------------------
-// control events … (docs/events.md)
+// control events … (docs/internal/events.md)
 // ---------------------------------------------------------------------------
 const eventsSources = Command.make("sources", {}, () =>
   Effect.gen(function* () {
@@ -227,7 +227,7 @@ const eventsSubscribe = Command.make(
       const json = yield* controlRequest("POST", "/events/subscriptions", body);
       yield* printJson(json);
     }),
-).pipe(Command.withDescription("Subscribe an app to a webhook source (docs/events.md)"));
+).pipe(Command.withDescription("Subscribe an app to a webhook source (docs/internal/events.md)"));
 
 const eventsUnsubscribe = Command.make(
   "unsubscribe",
@@ -258,7 +258,7 @@ const eventsDeliveries = Command.make(
 
 const events = Command.make("events").pipe(
   Command.withSubcommands([eventsSources, eventsSubscriptions, eventsSubscribe, eventsUnsubscribe, eventsDeliveries]),
-  Command.withDescription("Central webhook firehose: sources, subscriptions, deliveries (docs/events.md)"),
+  Command.withDescription("Central webhook firehose: sources, subscriptions, deliveries (docs/internal/events.md)"),
 );
 
 // ---------------------------------------------------------------------------

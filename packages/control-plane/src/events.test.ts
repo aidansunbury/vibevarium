@@ -14,7 +14,7 @@ import { startControlPlane } from "./server.ts";
 const tempDb = () => mkdtempSync(join(tmpdir(), `vv-events-${randomUUID()}-`));
 
 /**
- * End-to-end events proof (docs/events.md), auth disabled (local-dev mode):
+ * End-to-end events proof (docs/internal/events.md), auth disabled (local-dev mode):
  * register a source + a receiver app + a subscription, POST a signed event to
  * the ingress, and assert the fan-out delivery arrives at the app's
  * /hooks/platform endpoint with a valid platform signature.

@@ -1,5 +1,5 @@
 /**
- * Events HTTP routes (docs/events.md).
+ * Events HTTP routes (docs/internal/events.md).
  *
  * Two surfaces:
  * - INGRESS: `POST /events/:source` — public, verified by the source's own

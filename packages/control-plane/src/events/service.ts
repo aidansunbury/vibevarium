@@ -1,5 +1,5 @@
 /**
- * Events (docs/events.md): the control plane's central webhook firehose.
+ * Events (docs/internal/events.md): the control plane's central webhook firehose.
  *
  * Providers POST their whole event stream once to `/events/:source` (verified
  * against a per-source secret resolved through the SecretsProvider seam). The

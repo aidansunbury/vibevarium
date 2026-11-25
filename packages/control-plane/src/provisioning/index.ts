@@ -1,5 +1,5 @@
 /**
- * Job-based async app provisioning (docs/provisioning.md §3).
+ * Job-based async app provisioning (docs/internal/provisioning.md §3).
  *
  * `POST /provisioning` validates the spec against the platform's *capability
  * report* (only options that are enabled AND credential-backed are accepted),
@@ -12,7 +12,7 @@
  * Cloudflare is the real deploy path; the AWS target is validated and
  * selectable but its deploy step fails *honestly* ("not yet implemented")
  * rather than silently pretending — that is the concrete next chunk
- * (docs/provisioning.md §6).
+ * (docs/internal/provisioning.md §6).
  */
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";

@@ -1,5 +1,5 @@
 /**
- * JobRunner proof (docs/jobs.md): the unified durable-async engine.
+ * JobRunner proof (docs/internal/jobs.md): the unified durable-async engine.
  *
  * - enqueue writes a jobs row + its planned job_steps rows.
  * - drainOnce runs the registered handler and marks the job succeeded.

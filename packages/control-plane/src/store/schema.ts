@@ -150,7 +150,7 @@ export type ConnectionRow = typeof connections.$inferSelect;
 export type ConnectionGrantRow = typeof connectionGrants.$inferSelect;
 export type OAuthSessionRow = typeof oauthSessions.$inferSelect;
 
-// --- Jobs (docs/jobs.md): the unified durable-async primitive ---------------
+// --- Jobs (docs/internal/jobs.md): the unified durable-async primitive ---------------
 // One jobs row = one unit of durable background work (provision an app,
 // deliver a webhook). The JobRunner drains due rows and dispatches on `kind`;
 // a job's payload carries its input, and its job_steps rows checkpoint each
@@ -258,7 +258,7 @@ export type AppAclRow = typeof appAcl.$inferSelect;
 export type AppAclMemberRow = typeof appAclMembers.$inferSelect;
 export type PlatformRoleRow = typeof platformRoles.$inferSelect;
 
-// --- Events (docs/events.md): provider webhook sources + per-app subscriptions ---
+// --- Events (docs/internal/events.md): provider webhook sources + per-app subscriptions ---
 // The control plane owns a central ingress per source; providers POST their
 // firehose there once, and the dispatcher fans each event out to every
 // subscription whose structured match fits. Source secrets are NEVER stored

@@ -1,6 +1,6 @@
 /**
  * Centralized platform configuration — the single source of truth for every
- * runtime knob the control plane reads (docs/provisioning.md §2).
+ * runtime knob the control plane reads (docs/internal/provisioning.md §2).
  *
  * Productionized config in two parts:
  *
@@ -150,7 +150,7 @@ const flatConfig = Config.all({
   workosApiKey: Config.option(Config.NonEmptyString("WORKOS_API_KEY")),
   workosIssuer: Config.String("WORKOS_ISSUER").pipe(Config.withDefault("https://api.workos.com")),
 
-  // Events (docs/events.md): optional feature. Absent config → the EventBus
+  // Events (docs/internal/events.md): optional feature. Absent config → the EventBus
   // runs as a NoopEventBus and ingress/CRUD report events_not_configured.
   eventsEnabled: Config.Boolean("EVENTS_ENABLED").pipe(Config.withDefault(false)),
   eventsMaxAttempts: Config.Int("EVENTS_MAX_ATTEMPTS").pipe(Config.withDefault(8)),
@@ -262,7 +262,7 @@ export interface PlatformConfig {
   readonly issuer: string | undefined;
 
   /**
-   * Events feature (docs/events.md). Undefined when EVENTS_ENABLED is not
+   * Events feature (docs/internal/events.md). Undefined when EVENTS_ENABLED is not
    * true — the control plane then mounts a NoopEventBus and every events
    * surface reports events_not_configured (503 on ingress, empty elsewhere).
    */

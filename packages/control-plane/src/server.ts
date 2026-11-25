@@ -307,7 +307,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       }))
     : GuiAuth.layer(options.guiAuth);
 
-  // Provisioning (docs/provisioning.md): the config service + job engine. The
+  // Provisioning (docs/internal/provisioning.md): the config service + job engine. The
   // config layer parses env (Effect Config) once; provisioning consumes it,
   // the store, the scaffold pipeline, and the SecretsProvider for capability
   // validation. One shared scaffold layer serves both the legacy /scaffold
@@ -343,7 +343,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
           apiToken: token.value,
         }) as Layer.Layer<AppSecrets>;
       })).pipe(Layer.provide(secretsLayer));
-  // JobRunner (docs/jobs.md): the single durable-async engine. One worker
+  // JobRunner (docs/internal/jobs.md): the single durable-async engine. One worker
   // drains the jobs table and dispatches on kind; the built-in handlers
   // (provision + deliver_webhook) resolve their services here, then the worker
   // runs against the jobs table. The boot reaper makes execution survive a
@@ -383,7 +383,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     Layer.provide(secretsLayer),
   );
 
-  // Events (docs/events.md): optional feature. The Events service always
+  // Events (docs/internal/events.md): optional feature. The Events service always
   // loads (so routes/MCP/CLI can list empty state); when options.events is
   // undefined it runs with enabled:false and publish() returns
   // events_not_configured.

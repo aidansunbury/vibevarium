@@ -1,5 +1,5 @@
 /**
- * Platform event hooks seam (docs/events.md), vendored into generated apps.
+ * Platform event hooks seam (docs/internal/events.md), vendored into generated apps.
  *
  * Off by default. Setting TERRARIUM_EVENTS_SECRET turns it on: the app exposes
  * `POST /hooks/platform`, where the control plane delivers events the app

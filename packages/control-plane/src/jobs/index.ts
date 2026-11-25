@@ -1,5 +1,5 @@
 /**
- * JobRunner (docs/jobs.md): the control plane's single durable-async engine.
+ * JobRunner (docs/internal/jobs.md): the control plane's single durable-async engine.
  *
  * One `jobs` row = one unit of background work (provision an app, deliver a
  * webhook). A handler registered per `kind` runs the work; `job_steps` rows

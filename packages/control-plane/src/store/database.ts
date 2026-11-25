@@ -154,7 +154,7 @@ const BOOT_DDL = `
   );
   CREATE INDEX IF NOT EXISTS oauth_sessions_expiry_idx ON oauth_sessions(expires_at);
 
-  -- Jobs (docs/jobs.md): the unified durable-async engine. One jobs row per
+  -- Jobs (docs/internal/jobs.md): the unified durable-async engine. One jobs row per
   -- unit of background work (provision, deliver_webhook); job_steps checkpoint
   -- each step so a restarted process resumes where the dead one stopped. The
   -- legacy provisioning_jobs + event_deliveries tables both fold into these.
@@ -219,7 +219,7 @@ const BOOT_DDL = `
     created_at timestamptz NOT NULL DEFAULT now()
   );
 
-  -- Events (docs/events.md): central webhook ingress sources + per-app
+  -- Events (docs/internal/events.md): central webhook ingress sources + per-app
   -- subscriptions + the delivery outbox. Source secrets are references
   -- resolved by the SecretsProvider, never stored.
   CREATE TABLE IF NOT EXISTS webhook_sources (

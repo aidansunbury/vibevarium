@@ -1,5 +1,5 @@
 /**
- * The JobRunner's built-in handlers (docs/jobs.md).
+ * The JobRunner's built-in handlers (docs/internal/jobs.md).
  *
  * - `provision` — the multi-step app-creation saga. Steps are planned at
  *   enqueue time (repo → oidc → deploy → router → directory, plus optional
@@ -86,7 +86,7 @@ export const provisionHandler = Effect.gen(function*() {
         yield* markStep("repo", "failed", "AWS deployer not yet implemented");
         return {
           kind: "dead",
-          error: "AWS deployment target is validated but not yet implemented — see docs/provisioning.md §6",
+          error: "AWS deployment target is validated but not yet implemented — see docs/internal/provisioning.md §6",
         } satisfies Outcome;
       }
 

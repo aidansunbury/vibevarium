@@ -19,3 +19,4 @@ docs/internal/
 # Published design docs referenced by the code (events firehose + jobs engine).
 !docs/internal/events.md
 !docs/internal/jobs.md
+!docs/internal/provisioning.md

@@ -108,7 +108,7 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
         ...(process.env.TERRARIUM_CLIENT_SECRET === undefined
           ? {}
           : { TERRARIUM_CLIENT_SECRET: process.env.TERRARIUM_CLIENT_SECRET }),
-        // Platform event delivery secret (docs/events.md): the control plane
+        // Platform event delivery secret (docs/internal/events.md): the control plane
         // signs each /hooks/platform delivery with it. Provisioned by the
         // scaffold; unset → the events seam is off.
         ...(process.env.TERRARIUM_EVENTS_SECRET === undefined
@@ -147,7 +147,7 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
     const flowConfig = authFlowConfigFromEnv(env as Record<string, unknown>);
     const flowService = flowConfig === undefined ? undefined : AuthFlow.make(flowConfig);
 
-    // The events seam (docs/events.md): /hooks/platform receives platform-
+    // The events seam (docs/internal/events.md): /hooks/platform receives platform-
     // signed event deliveries when the app has subscriptions. Off unless the
     // scaffold provisioned TERRARIUM_EVENTS_SECRET.
     const eventsSecret = eventsSecretFromEnv(env as Record<string, unknown>);
@@ -188,7 +188,7 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
 
         // Public operational + discovery routes.
         if (path === "/health") return HttpServerResponse.text("ok");
-        // Platform event delivery (docs/events.md): platform-signed, not
+        // Platform event delivery (docs/internal/events.md): platform-signed, not
         // user-auth — the signature authenticates the control plane. The app
         // authorizes what it does with each verified event.
         if (path === "/hooks/platform") {
