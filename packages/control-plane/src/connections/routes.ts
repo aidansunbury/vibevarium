@@ -71,6 +71,7 @@ const page = (title: string, body: string) => `<!doctype html>
   button[value="deny"] { background: #fff; border-color: #d6d3d1; color: #44403c; }
   .error { color: #b91c1c; }
   a { color: #1c1917; }
+  .dashboard-link { display: inline-block; margin-top: 1rem; border-radius: 8px; padding: 0.625rem 1rem; background: #1c1917; color: #fff; font-size: 0.95rem; font-weight: 500; text-decoration: none; }
 </style></head><body><main>${body}</main></body></html>`;
 
 const htmlResponse = (markup: string, status = 200) =>
@@ -147,18 +148,21 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
           : "";
         const params = request.method === "POST" ? new URLSearchParams(body) : url.searchParams;
         const accept = request.headers.accept ?? "";
+        const guiAuth = yield* GuiAuth;
+        const guiOrigin = (guiAuth.options.guiOrigin ?? guiAuth.options.baseUrl).replace(/\/+$/, "");
+        const dashboardLink = `<p><a class="dashboard-link" href="${escapeHtml(guiOrigin === "" ? "/" : `${guiOrigin}/`)}">Back to dashboard</a></p>`;
         return yield* connections.completeConnection(params).pipe(
           Effect.map((connection) =>
             accept.includes("text/html")
               ? htmlResponse(page("Connected", `
 <h1>Connected ${escapeHtml(connection.provider)}</h1>
 <p>Account: <strong>${escapeHtml(connection.provider_account.label)}</strong></p>
-<p>You can close this tab and return to the app.</p>`))
+<p>You can close this tab and return to the app.</p>${dashboardLink}`))
               : HttpServerResponse.jsonUnsafe(connection, { status: 200 })
           ),
           Effect.catch((error: ConnectionError) =>
             accept.includes("text/html")
-              ? Effect.succeed(htmlResponse(page("Connection failed", `<h1>Connection failed</h1><p class="error">${escapeHtml(error.message)}</p>`), error.status))
+              ? Effect.succeed(htmlResponse(page("Connection failed", `<h1>Connection failed</h1><p class="error">${escapeHtml(error.message)}</p>${dashboardLink}`), error.status))
               : errorJson(error)
           ),
         );

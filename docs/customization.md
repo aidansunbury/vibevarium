@@ -116,6 +116,7 @@ Providers are **data, not code** — add one entry to
 export const SLACK_PROVIDER: ProviderManifestEntry = {
   name: "slack",
   displayName: "Slack",
+  logoUrl: "/provider-logos/slack.svg", // optional; public URL or GUI public/ path
   authorizeUrl: "https://slack.com/oauth/v2/authorize",
   tokenUrl: "https://slack.com/api/oauth.v2.access",
   userinfoUrl: "https://slack.com/api/auth.test",

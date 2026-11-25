@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../api";
+import { api, errorMessage } from "../api";
 import { Badge } from "@vibevarium/ui/components/badge";
 import { Button } from "@vibevarium/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@vibevarium/ui/components/card";
@@ -20,8 +20,6 @@ import { toast } from "@vibevarium/ui/lib/toast";
 import { KeyRoundIcon, Trash2Icon } from "@vibevarium/ui/lib/icons";
 
 export const Route = createFileRoute("/secrets")({ component: SecretsPage });
-
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 function SecretsPage() {
   const queryClient = useQueryClient();
@@ -44,7 +42,7 @@ function SecretsPage() {
       invalidate();
       toast.success(`Set secret ${form.reference}`);
     },
-    onError: (error) => toast.error(message(error)),
+    onError: (error) => toast.error(errorMessage(error)),
   });
 
   const remove = useMutation({
@@ -53,7 +51,7 @@ function SecretsPage() {
       invalidate();
       toast.success(`Deleted ${reference}`);
     },
-    onError: (error) => toast.error(message(error)),
+    onError: (error) => toast.error(errorMessage(error)),
   });
 
   const rows = secrets.data?.secrets ?? [];
@@ -85,10 +83,10 @@ function SecretsPage() {
           </p>
         </div>
 
-        {secrets.isError && <p className="text-sm text-destructive">⚠ {message(secrets.error)}</p>}
+        {secrets.isError && <p className="text-sm text-destructive">⚠ {errorMessage(secrets.error)}</p>}
         {secrets.isPending ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : rows.length === 0 ? (
+        ) : secrets.isError ? null : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No secrets in this scope.</p>
         ) : (
           <Table>

@@ -64,10 +64,19 @@ const ErrorBody = Schema.Struct({
   error_description: Schema.optional(Schema.String),
 });
 const Unauthorized = ErrorBody.pipe(HttpApiSchema.status(401));
+const Forbidden = ErrorBody.pipe(HttpApiSchema.status(403));
 
 export const isApiError = (error: unknown): error is ApiError =>
   error instanceof ApiError ||
   (typeof error === "object" && error !== null && (error as { _tag?: string })._tag === "ApiError");
+
+export const errorMessage = (error: unknown): string => {
+  if (typeof error === "object" && error !== null && "error_description" in error) {
+    const description = error.error_description;
+    if (typeof description === "string") return description;
+  }
+  return error instanceof Error ? error.message : String(error);
+};
 
 // --- response schemas (mirror the hand-written routes) ------------------------
 
@@ -177,6 +186,7 @@ export type GrantPair = typeof GrantPair.Type;
 export const ProviderView = Schema.Struct({
   name: Schema.String,
   displayName: Schema.String,
+  logoUrl: Schema.optional(Schema.String),
   defaultScopes: Schema.Array(Schema.String),
   configured: Schema.Boolean,
 });
@@ -483,7 +493,7 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.get("secrets", "/secrets", {
         query: Schema.Struct({ app: Schema.optional(Schema.String) }),
         success: Schema.Struct({ secrets: Schema.Array(SecretMeta), app: Schema.NullOr(Schema.String) }),
-        error: Unauthorized,
+        error: [Unauthorized, Forbidden],
       }))
       .add(HttpApiEndpoint.put("putSecret", "/secrets", {
         payload: Schema.Struct({
@@ -492,7 +502,7 @@ const OpsApi = HttpApi.make("ControlPlane")
           app: Schema.optional(Schema.String),
         }),
         success: Schema.Unknown,
-        error: Unauthorized,
+        error: [Unauthorized, Forbidden],
       }))
       .add(HttpApiEndpoint["delete"]("deleteSecret", "/secrets", {
         payload: Schema.Struct({
@@ -500,7 +510,7 @@ const OpsApi = HttpApi.make("ControlPlane")
           app: Schema.optional(Schema.String),
         }),
         success: Schema.Unknown,
-        error: Unauthorized,
+        error: [Unauthorized, Forbidden],
       })),
   );
 

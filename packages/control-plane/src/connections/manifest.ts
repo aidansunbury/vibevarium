@@ -22,6 +22,7 @@ const LinearViewerSchema = Schema.Struct({
 export const GITHUB_PROVIDER: ProviderManifestEntry = {
   name: "github",
   displayName: "GitHub",
+  logoUrl: "/provider-logos/github.svg",
   authorizeUrl: "https://github.com/login/oauth/authorize",
   tokenUrl: "https://github.com/login/oauth/access_token",
   userinfoUrl: "https://api.github.com/user",
@@ -69,6 +70,7 @@ const fetchLinearIdentity = async (accessToken: string): Promise<{ readonly sub:
 export const LINEAR_PROVIDER: ProviderManifestEntry = {
   name: "linear",
   displayName: "Linear",
+  logoUrl: "/provider-logos/linear.svg",
   authorizeUrl: "https://linear.app/oauth/authorize",
   tokenUrl: "https://api.linear.app/oauth/token",
   userinfoUrl: "https://api.linear.app/graphql",

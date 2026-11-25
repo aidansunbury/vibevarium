@@ -43,6 +43,8 @@ export class ConnectionError extends Schema.TaggedError<ConnectionError>()("Conn
 export interface ProviderManifestEntry {
   readonly name: string;
   readonly displayName: string;
+  /** Public or root-relative image shown next to the provider in the dashboard. */
+  readonly logoUrl?: string | undefined;
   readonly authorizeUrl: string;
   readonly tokenUrl: string;
   readonly userinfoUrl: string;
@@ -170,6 +172,7 @@ const fail = (status: number, code: string, message: string, details?: Record<st
 interface ProviderHooks {
   readonly scopeSeparator: string;
   readonly authorizeParams: Readonly<Record<string, string>>;
+  readonly logoUrl?: string | undefined;
   readonly fetchIdentity?: ((accessToken: string) => Promise<{ readonly sub: string; readonly label: string }>) | undefined;
 }
 const manifestHooks = new Map<string, ProviderHooks>();
@@ -179,6 +182,7 @@ export class Connections extends Context.Service<Connections, {
   readonly listProviders: () => Effect.Effect<ReadonlyArray<{
     readonly name: string;
     readonly displayName: string;
+    readonly logoUrl?: string | undefined;
     readonly defaultScopes: ReadonlyArray<string>;
     readonly configured: boolean;
   }>>;
@@ -293,6 +297,7 @@ export class Connections extends Context.Service<Connections, {
         manifestHooks.set(entry.name, {
           scopeSeparator: entry.scopeSeparator ?? " ",
           authorizeParams: entry.authorizeParams ?? {},
+          ...(entry.logoUrl === undefined ? {} : { logoUrl: entry.logoUrl }),
           ...(entry.fetchIdentity === undefined ? {} : { fetchIdentity: entry.fetchIdentity }),
         });
       });
@@ -300,12 +305,16 @@ export class Connections extends Context.Service<Connections, {
       const listProviders = Effect.fnUntraced(function*() {
         const rows = yield* Effect.promise(() => db.select().from(oauthProviders));
         return yield* Effect.forEach(rows, (row) =>
-          Effect.map(secrets.resolve(row.clientSecretRef), (secret) => ({
-            name: row.name,
-            displayName: row.displayName,
-            defaultScopes: scopeList(row.defaultScopes),
-            configured: Option.isSome(secret),
-          }))
+          Effect.map(secrets.resolve(row.clientSecretRef), (secret) => {
+            const logoUrl = manifestHooks.get(row.name)?.logoUrl;
+            return {
+              name: row.name,
+              displayName: row.displayName,
+              ...(logoUrl === undefined ? {} : { logoUrl }),
+              defaultScopes: scopeList(row.defaultScopes),
+              configured: Option.isSome(secret),
+            };
+          })
         );
       });
 

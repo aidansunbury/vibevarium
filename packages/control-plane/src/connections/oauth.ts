@@ -22,7 +22,7 @@ const TokenErrorSchema = Schema.Struct({
 });
 
 const UserInfoSchema = Schema.Struct({
-  sub: Schema.String,
+  sub: Schema.optional(Schema.String),
   name: Schema.optional(Schema.String),
   email: Schema.optional(Schema.String),
   // GitHub's /user is not OIDC-shaped: id + login instead of sub.

@@ -114,7 +114,16 @@ function ConnectionsPage() {
                 const connection = connectionFor(provider.name);
                 return (
                   <TableRow key={provider.name}>
-                    <TableCell className="font-medium">{provider.displayName}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {provider.logoUrl !== undefined && (
+                          <span className="flex size-6 shrink-0 items-center justify-center rounded-md border bg-white p-1">
+                            <img src={provider.logoUrl} alt="" className="size-full" />
+                          </span>
+                        )}
+                        {provider.displayName}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {connection?.provider_account.label ?? "—"}
                     </TableCell>
