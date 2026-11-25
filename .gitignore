@@ -14,4 +14,5 @@ apps/*/
 .data/
 *.pem
 **/:memory:/
+# Internal notes stay local, not public. To publish one: `!docs/internal/foo.md`.
 docs/internal/

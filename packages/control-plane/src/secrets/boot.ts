@@ -38,6 +38,8 @@ const AWS_BOOT_SECRETS = {
   // meta-OAuth provider + the AES-256-GCM key for tokens at rest.
   "github-oauth-client-id": "GITHUB_OAUTH_CLIENT_ID",
   "github-oauth-client-secret": "GITHUB_OAUTH_CLIENT_SECRET",
+  "linear-oauth-client-id": "LINEAR_OAUTH_CLIENT_ID",
+  "linear-oauth-client-secret": "LINEAR_OAUTH_CLIENT_SECRET",
   "connections-token-encryption-key": "CONNECTIONS_TOKEN_ENCRYPTION_KEY",
   // Control-plane database (DB-SPIKE.md): the full postgres:// URL for RDS.
   // When unset the box falls back to embedded PGlite via DATABASE_PATH.

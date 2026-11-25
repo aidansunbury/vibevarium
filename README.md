@@ -1,16 +1,23 @@
 <p align="center">
-  <img src="docs/branding/logo.svg" alt="the vibevarium mark — a glass vibevarium with a code-bracket sprout" width="96" height="96" />
+  <img src="assets/branding/logo.svg" alt="the vibevarium mark — a glass vibevarium with a code-bracket sprout" width="96" height="96" />
 </p>
 
 <h1 align="center">vibevarium</h1>
 
 <p align="center">
-  <em>your enclosed little garden of apps — grown, not built.</em>
+  <em>the self-hostable home for your internal apps.</em>
 </p>
 
 <p align="center">
-  A platform where every vibe-coded app is a self-contained living world:<br/>
-  its own repo, its own deploy, its own auth — all raised from one control plane.
+  Open-source infrastructure you run yourself — not a hosted product.<br/>
+  Every app gets its own repo, its own deploy, its own auth, all raised<br/>
+  from one control plane in <em>your</em> cloud. Your garden, your rules.
+</p>
+
+<p align="center">
+  <a href="./docs/setup.md"><strong>Self-hosting guide</strong></a> ·
+  <a href="./docs/customization.md">Customization</a> ·
+  <a href="https://vibevarium.com">vibevarium.com</a>
 </p>
 
 ---
@@ -23,14 +30,27 @@ automatic discovery by the platform. Apps are grown from a single template —
 React SPA + typed Effect backend — so the contract never varies, only the
 starting shape.
 
-- **Control plane** (`platform.vibevarium.com`) — provision, inspect, and prune
-  apps; the meta-MCP aggregates every app's tools into one gateway.
+- **Control plane** (`platform.$TERRARIUM_DOMAIN`) — provision, inspect, and
+  prune apps; the meta-MCP aggregates every app's tools into one gateway.
 - **Auth** — OIDC-only boundary; one platform token opens the gateway and
-  every app, with per-app grants revocable in the control plane.
+  every app, with per-app grants revocable in the control plane. Swap the
+  provider (Casdoor, WorkOS, your SSO) with config, not code.
 - **CLI** — the `vibevarium` binary composes app CLIs (and dynamically imports
   MCP tool schemas) so agents and humans share one interface.
-- **Connections** — connect a provider once, vend per-app tokens through a
-  unified credential-holding proxy, revoke with a cascade.
+- **Connections** — connect a provider (GitHub, Linear, …) once, vend per-app
+  tokens through a unified credential-holding proxy, revoke with a cascade.
+
+## Run your own
+
+There is no vibevarium cloud. The software is the product: fork the repo,
+bring your own AWS + Cloudflare + GitHub, and deploy.
+
+- **[docs/setup.md](./docs/setup.md)** — three paths: local dev
+  (zero-infrastructure, emulators prove every flow), AWS production (EC2 + RDS
+  + Secrets Manager, one `deploy.sh`), and an experimental Cloudflare-hosted
+  control plane.
+- **[docs/customization.md](./docs/customization.md)** — the domain knob,
+  auth-provider swaps, connections, secrets, theming, templates.
 
 ## Brand
 
@@ -39,16 +59,10 @@ Fraunces serif display over Source Sans 3, squared letterpress edges,
 hairline + double rules, laid-paper grain — in the **Vellum** (light) /
 **Graphite** (dark) palette pair, WCAG-audited to AA/AAA.
 
-Explorations and the audit live in [docs/branding](./docs/branding/):
-
-- [vibevarium-brand-explorer.html](./docs/branding/vibevarium-brand-explorer.html) —
-  interactive design-system explorer (palettes × edges × type × logos)
-- [contrast-audit.mjs](./docs/branding/contrast-audit.mjs) — WCAG contrast
-  audit (`node docs/branding/contrast-audit.mjs`)
-
-The mark is a glass apothecary jar whose sprout leaves are `</>` — see
+The brand spec lives in [assets/branding/BRAND.md](./assets/branding/BRAND.md);
+the mark is a glass apothecary jar whose sprout leaves are `</>` — see
 `@vibevarium/ui`'s `Logo` / `LogoLockup` components and
-[docs/branding/logo.svg](./docs/branding/logo.svg).
+[assets/branding/logo.svg](./assets/branding/logo.svg).
 
 ## Layout
 
@@ -61,5 +75,7 @@ packages/
   cli/                 the vibevarium binary
   infra/               AWS infrastructure (Alchemy)
   auth, connections/   platform services
-docs/                  state of the project, decisions, brand
+docs/                  public guides (setup, customization)
+docs/internal/         working notes (git-ignored — stays local, not public)
+assets/branding/       the brand spec + logo (tracked, public)
 ```

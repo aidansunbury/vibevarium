@@ -1,0 +1,171 @@
+# Setting up your own vibevarium
+
+vibevarium is **self-hosted** — there is no hosted service to sign up for. This
+guide takes you from a fork to a running instance: a control plane on your own
+infrastructure, an auth server you own, and your first app grown end-to-end.
+
+There are three ways to run it, depending on what you're doing:
+
+| Path | What it's for | What you need |
+|---|---|---|
+| **Local dev** | Hacking on vibevarium itself, trying the flows | Just this repo + Node |
+| **AWS production** | A real instance for your company | AWS + Cloudflare + GitHub + a domain |
+| **Cloudflare-hosted control plane** | Everything on the edge, no EC2 | Cloudflare + GitHub + a domain |
+
+If you're evaluating, start with **local dev** — it's zero-infrastructure and
+proves every flow (auth, scaffold, connections, the proxy) with emulators.
+
+---
+
+## Path 1 — Local dev
+
+Everything runs on your machine with embedded databases and a dev OIDC issuer.
+No cloud accounts needed.
+
+### Prerequisites
+
+- Node.js ≥ 22 (the repo uses `--experimental-strip-types`)
+- pnpm 10 (`npm i -g pnpm` or `mise use pnpm@10.28.2`)
+
+### Run it
+
+```bash
+git clone https://github.com/<you>/vibevarium.git
+cd vibevarium
+pnpm install
+pnpm --dir packages/control-plane dev
+```
+
+That boots the control plane with:
+
+- **PGlite** (embedded Postgres) for state — zero setup, data in `.data/`
+- A **dev OIDC issuer** on `127.0.0.1:4010` that mints real RS256 JWTs
+- A **fake OAuth provider** so you can run the connections flow without
+  touching GitHub/Linear
+
+The GUI is at `http://127.0.0.1:4100` (or the port it prints). Sign in with a
+dev token from `http://127.0.0.1:4010/dev/token?sub=you&name=You`.
+
+### Prove the flows
+
+```bash
+# The meta-OAuth flow, end-to-end against the fake provider:
+pnpm --dir packages/control-plane connections:demo
+
+# The integration proxy (company-shared credentials):
+pnpm --dir packages/control-plane proxy:demo
+```
+
+To test real GitHub/Linear connections locally, create OAuth apps with callback
+`http://127.0.0.1:4100/connections/callback` and drop the credentials in a
+repo-root `.env` (`GITHUB_OAUTH_CLIENT_ID=…` etc. — see
+[customization.md](./customization.md#connections)).
+
+---
+
+## Path 2 — AWS production
+
+The reference deployment: the control plane on one EC2 instance, Postgres on
+RDS, secrets in AWS Secrets Manager, TLS via Caddy, DNS in Cloudflare.
+
+### What you'll need
+
+| Thing | Why |
+|---|---|
+| An **AWS account** + profile (`aws configure sso`) | EC2, RDS, Secrets Manager, IAM |
+| A **Cloudflare account** + zone for your domain | DNS + per-app Workers |
+| A **GitHub org** + a GitHub App | App repos are created here |
+| A **domain** you can point at the box | e.g. `internal.yourcompany.com` |
+
+### 1. Configure
+
+```bash
+cp .env.example .env   # then edit
+```
+
+The knobs that matter:
+
+```bash
+TERRARIUM_DOMAIN=internal.yourcompany.com   # one knob re-domains everything
+CLOUDFLARE_ZONE_ID=…                         # from the Cloudflare dashboard
+AWS_PROFILE=your-sso-profile
+```
+
+### 2. Deploy the infrastructure
+
+```bash
+cd packages/infra
+source ../../.env
+bash scripts/deploy.sh
+```
+
+One script does everything: VPC + EC2 + RDS + Elastic IP + DNS records
+(`auth.` and `platform.` on your domain), creates the databases, pushes the
+compose stack, and brings it up. At the end it prints verification URLs:
+
+```bash
+curl https://auth.$TERRARIUM_DOMAIN/api/.well-known/openid-configuration
+curl https://platform.$TERRARIUM_DOMAIN/health
+curl https://platform.$TERRARIUM_DOMAIN/config-check   # which config came from SM (names only)
+```
+
+### 3. Fill the secrets
+
+Everything secret lives in **AWS Secrets Manager** under
+`/vibevarium/prod/` — never in env files on the box. The control plane reads
+them at boot via its instance profile (no static AWS keys anywhere). The full
+list, and how to add your own, is in [customization.md](./customization.md#secrets).
+
+### 4. Grow your first app
+
+Sign in to `https://platform.$TERRARIUM_DOMAIN`, hit **scaffold** (or
+`vibevarium grow my-app` from the CLI), and a few minutes later the app is
+live: repo in your GitHub org, Cloudflare Worker + D1, its own hostname, its
+own OIDC client, discovered by the gateway automatically.
+
+---
+
+## Path 3 — Cloudflare-hosted control plane
+
+For a fully edge-native instance: the control plane itself as a Cloudflare
+Worker, no EC2 at all.
+
+> **Status: experimental.** The control plane is a Node + Postgres app and the
+> EC2 path is the proven one. The Cloudflare path works for the stateless
+> routes (gateway, proxy) but the store needs either a Postgres-compatible
+> edge database or Durable Objects. Treat this as the direction, not the
+> default.
+
+```bash
+cd packages/control-plane
+CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_ZONE_ID=… \
+  pnpm router:deploy    # the router worker
+# then the control-plane worker itself:
+alchemy deploy --config src/router/alchemy.run.ts
+```
+
+The pieces that move to Cloudflare: the router (wildcard hostname → app),
+per-app Workers (unchanged — they were always Workers), and eventually the
+control plane's stateless tier. Auth still runs wherever your OIDC issuer
+lives (Casdoor/WorkOS/your SSO).
+
+If you want this path today, start from `src/router/alchemy.run.ts` and expect
+to port the store — and open an issue; this is an active direction.
+
+---
+
+## After setup
+
+- **Customize**: [customization.md](./customization.md) — theming, auth
+  providers, connections, secrets, the domain knob.
+- **The CLI**: `vibevarium` — `grow`, `ls`, and it composes every app's own
+  CLI so humans and agents share one interface.
+- **Connections**: connect GitHub/Linear once, vend per-app tokens through the
+  credential proxy, revoke with a cascade.
+
+## Getting help
+
+- Issues: <https://github.com/aidansunbury/vibevarium/issues>
+- The control plane's `/config-check` endpoint shows which config resolved and
+  from where (names only, never values) — the first place to look when
+  something's "unset".
