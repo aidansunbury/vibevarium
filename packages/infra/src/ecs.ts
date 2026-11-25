@@ -1,4 +1,6 @@
 import * as AWS from "@alchemy.run/aws";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 
 export interface EcsInfraOptions {
@@ -8,6 +10,8 @@ export interface EcsInfraOptions {
   readonly controlPlaneDockerfile: string;
   /** The domain (e.g. vibevarium.com) — drives the api./auth. hostnames. */
   readonly domain: string;
+  /** Cloudflare zone that owns the API and auth records. */
+  readonly zoneId: string;
   /** ACM certificate ARN for the shared 443 listener (covers api. + auth.). */
   readonly certificateArn: string;
   /** Full SM ARN of THIS stack's control-plane DATABASE_URL (written at deploy). */
@@ -20,6 +24,8 @@ export interface EcsInfraOptions {
   readonly cloudflareApiTokenArn: string;
   /** Managed policy ARN granting the task role SM read+write on /vibevarium/prod/*. */
   readonly secretsPolicyArn: string;
+  /** Commit SHA reported by the control plane for deployment verification. */
+  readonly deployedGitSha: string;
   /** RDS instance class. */
   readonly dbInstanceClass?: string;
 }
@@ -107,6 +113,32 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       tags: { Name: "vibevarium" },
     });
 
+    const databaseInitSecretPolicy = yield* AWS.IAM.Policy("DatabaseInitSecretRead", {
+      policyDocument: {
+        Version: "2012-10-17",
+        Statement: [{
+          Effect: "Allow",
+          Action: ["secretsmanager:GetSecretValue"],
+          Resource: db.masterUserSecretArn,
+        }],
+      },
+    });
+    const databaseInitTask = yield* AWS.ECS.Task("DatabaseInitTask", {
+      image: "postgres:16-alpine",
+      env: {
+        PGHOST: db.endpointAddress,
+        PGUSER: "postgres",
+        PGDATABASE: "postgres",
+      },
+      container: {
+        secrets: [{
+          name: "PGPASSWORD",
+          valueFrom: Output.interpolate`${db.masterUserSecretArn}:password::`,
+        }],
+      },
+      executionRoleManagedPolicyArns: [databaseInitSecretPolicy.policyArn],
+    });
+
     // --- Shared public ALB + 443 listener ------------------------------------
     const alb = yield* AWS.ELBv2.LoadBalancer("Alb", {
       type: "application",
@@ -123,6 +155,25 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       defaultActions: [
         { type: "fixedResponse", statusCode: "404", contentType: "text/plain", messageBody: "no route" },
       ],
+    });
+
+    yield* Cloudflare.DNS.Record("ApiDns", {
+      zoneId: options.zoneId,
+      name: `api.${options.domain}`,
+      type: "CNAME",
+      content: alb.dnsName,
+      proxied: false,
+      ttl: 300,
+      comment: "Vibevarium control-plane API",
+    });
+    yield* Cloudflare.DNS.Record("AuthDns", {
+      zoneId: options.zoneId,
+      name: `auth.${options.domain}`,
+      type: "CNAME",
+      content: alb.dnsName,
+      proxied: false,
+      ttl: 300,
+      comment: "Vibevarium Casdoor OIDC server",
     });
 
     // --- casdoor service (registry image) → auth.<domain> ---------------------
@@ -198,6 +249,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         AWS_REGION: "us-east-1",
         SECRETS_PREFIX: "/vibevarium/prod/",
         DISCOVERY_INTERVAL_MS: "30000",
+        DEPLOYED_GIT_SHA: options.deployedGitSha,
       },
       secrets: {
         // Full postgres:// DSN for THIS stack's RDS (deploy script reads the
@@ -226,6 +278,8 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       dbEndpoint: db.endpointAddress,
       dbPort: db.endpointPort ?? 5432,
       dbMasterSecretArn: db.masterUserSecretArn,
+      databaseInitTaskDefinitionArn: databaseInitTask.taskDefinitionArn,
+      databaseInitContainerName: databaseInitTask.containerName,
       clusterArn: cluster.clusterArn,
       casdoorServiceArn: casdoorService.serviceArn,
       controlPlaneServiceArn: controlPlaneService.serviceArn,

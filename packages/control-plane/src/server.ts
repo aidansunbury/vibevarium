@@ -455,6 +455,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         };
       }
       const body: Record<string, unknown> = {
+        deployedGitSha: process.env.DEPLOYED_GIT_SHA ?? null,
         secretsProvider: process.env.SECRETS_PROVIDER === "aws" && hasAwsCredentialsForCheck()
           ? "aws"
           : "env",
