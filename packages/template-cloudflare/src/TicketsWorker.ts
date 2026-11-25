@@ -20,6 +20,7 @@ import {
   logoutRoute,
   meRoute,
 } from "./auth-flow.ts";
+import { eventsSecretFromEnv, platformHookRoute } from "./hooks.ts";
 import { TicketsApi } from "./TicketsApi.api.ts";
 import { TicketsModel } from "./Tickets.model.ts";
 import { TicketsHttp, TicketsMcp } from "./surfaces.ts";
@@ -62,6 +63,7 @@ const workerFirstPaths = [
   "/auth/*",
   "/health",
   "/d1-health",
+  "/hooks/*",
 ];
 
 export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
@@ -106,6 +108,12 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
         ...(process.env.TERRARIUM_CLIENT_SECRET === undefined
           ? {}
           : { TERRARIUM_CLIENT_SECRET: process.env.TERRARIUM_CLIENT_SECRET }),
+        // Platform event delivery secret (docs/internal/events.md): the control plane
+        // signs each /hooks/platform delivery with it. Provisioned by the
+        // scaffold; unset → the events seam is off.
+        ...(process.env.TERRARIUM_EVENTS_SECRET === undefined
+          ? {}
+          : { TERRARIUM_EVENTS_SECRET: process.env.TERRARIUM_EVENTS_SECRET }),
       },
   },
   Effect.gen(function*() {
@@ -138,6 +146,11 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
     // only when the per-app OIDC client is configured alongside the issuer.
     const flowConfig = authFlowConfigFromEnv(env as Record<string, unknown>);
     const flowService = flowConfig === undefined ? undefined : AuthFlow.make(flowConfig);
+
+    // The events seam (docs/internal/events.md): /hooks/platform receives platform-
+    // signed event deliveries when the app has subscriptions. Off unless the
+    // scaffold provisioned TERRARIUM_EVENTS_SECRET.
+    const eventsSecret = eventsSecretFromEnv(env as Record<string, unknown>);
 
     /**
      * Wrap an API surface with auth when it is on. requireAuth needs Auth (and
@@ -175,6 +188,12 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
 
         // Public operational + discovery routes.
         if (path === "/health") return HttpServerResponse.text("ok");
+        // Platform event delivery (docs/internal/events.md): platform-signed, not
+        // user-auth — the signature authenticates the control plane. The app
+        // authorizes what it does with each verified event.
+        if (path === "/hooks/platform") {
+          return yield* platformHookRoute(eventsSecret, (_envelope) => Effect.void).pipe(Effect.orDie);
+        }
         if (path === "/auth/status") {
           return yield* HttpServerResponse.json({
             enabled: authConfig !== undefined,

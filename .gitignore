@@ -16,3 +16,7 @@ apps/*/
 **/:memory:/
 # Internal notes stay local, not public. To publish one: `!docs/internal/foo.md`.
 docs/internal/
+# Published design docs referenced by the code (events firehose + jobs engine).
+!docs/internal/events.md
+!docs/internal/jobs.md
+!docs/internal/provisioning.md

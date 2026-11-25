@@ -40,6 +40,7 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
     ...(config.discoveryM2M === undefined ? {} : { discoveryM2M: config.discoveryM2M }),
     ...(config.oidc === undefined ? {} : { oidc: config.oidc }),
     ...(config.guiAuth === undefined ? {} : { guiAuth: config.guiAuth }),
+    ...(config.events === undefined ? {} : { events: config.events }),
     appSecrets: config.appSecrets,
     guiDir: config.guiDir ?? join(packageRoot, "web", "dist"),
     scaffold: {

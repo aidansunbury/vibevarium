@@ -9,7 +9,7 @@ export default defineConfig({
     port: 4101,
     proxy: {
       // Dev mode: the SPA calls the control plane's API through the vite proxy.
-      "^/(apps|directory|discover|scaffold|integrations|connections|grants|proxy|whoami|mcp|health|auth)": {
+      "^/(apps|directory|discover|scaffold|integrations|connections|grants|proxy|whoami|mcp|health|auth|events)": {
         target: "http://127.0.0.1:4100",
         changeOrigin: false,
       },

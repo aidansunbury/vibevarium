@@ -21,4 +21,5 @@ export {
   Trash2Icon,
   TriangleAlertIcon,
   XIcon,
+  ZapIcon,
 } from "lucide-react";

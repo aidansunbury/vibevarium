@@ -133,6 +133,45 @@ export const AuditRow = Schema.Struct({
 export type AuditRow = typeof AuditRow.Type;
 
 export const GrantPair = Schema.Struct({ app: Schema.String, integration: Schema.String });
+
+export const EventSourceView = Schema.Struct({
+  name: Schema.String,
+  displayName: Schema.String,
+  verification: Schema.String,
+  eventTypeHeader: Schema.NullOr(Schema.String),
+  enabled: Schema.Boolean,
+  secretConfigured: Schema.Boolean,
+  createdAt: Schema.String,
+});
+export type EventSourceView = typeof EventSourceView.Type;
+
+export const EventSubscriptionView = Schema.Struct({
+  id: Schema.String,
+  app: Schema.String,
+  source: Schema.String,
+  eventTypes: Schema.Array(Schema.String),
+  scopes: Schema.Array(Schema.String),
+  filter: Schema.NullOr(Schema.Array(Schema.Unknown)),
+  status: Schema.String,
+  deliveryConfigured: Schema.Boolean,
+  createdBy: Schema.NullOr(Schema.String),
+  createdAt: Schema.String,
+});
+export type EventSubscriptionView = typeof EventSubscriptionView.Type;
+
+export const EventDeliveryView = Schema.Struct({
+  id: Schema.String,
+  subscriptionId: Schema.String,
+  eventId: Schema.NullOr(Schema.String),
+  source: Schema.String,
+  eventType: Schema.String,
+  status: Schema.String,
+  attempts: Schema.String,
+  lastError: Schema.NullOr(Schema.String),
+  lastStatus: Schema.NullOr(Schema.String),
+  createdAt: Schema.String,
+});
+export type EventDeliveryView = typeof EventDeliveryView.Type;
 export type GrantPair = typeof GrantPair.Type;
 
 export const ProviderView = Schema.Struct({
@@ -410,6 +449,36 @@ const OpsApi = HttpApi.make("ControlPlane")
       })),
   )
   .add(
+    HttpApiGroup.make("events", { topLevel: true })
+      .add(HttpApiEndpoint.get("eventSources", "/events/sources", {
+        success: Schema.Struct({ sources: Schema.Array(EventSourceView) }),
+      }))
+      .add(HttpApiEndpoint.get("eventSubscriptions", "/events/subscriptions", {
+        query: Schema.Struct({ app: Schema.optional(Schema.String), source: Schema.optional(Schema.String) }),
+        success: Schema.Struct({ subscriptions: Schema.Array(EventSubscriptionView) }),
+      }))
+      .add(HttpApiEndpoint.post("subscribeEvent", "/events/subscriptions", {
+        payload: Schema.Struct({
+          app: Schema.String,
+          source: Schema.String,
+          eventTypes: Schema.optional(Schema.Array(Schema.String)),
+          scopes: Schema.optional(Schema.Array(Schema.String)),
+        }),
+        success: EventSubscriptionView,
+      }))
+      .add(HttpApiEndpoint["delete"]("unsubscribeEvent", "/events/subscriptions/:id", {
+        params: { id: Schema.String },
+        success: Schema.Unknown,
+      }))
+      .add(HttpApiEndpoint.get("eventDeliveries", "/events/deliveries", {
+        query: Schema.Struct({
+          subscriptionId: Schema.optional(Schema.String),
+          status: Schema.optional(Schema.String),
+        }),
+        success: Schema.Struct({ deliveries: Schema.Array(EventDeliveryView) }),
+      })),
+  )
+  .add(
     HttpApiGroup.make("secrets", { topLevel: true })
       .add(HttpApiEndpoint.get("secrets", "/secrets", {
         query: Schema.Struct({ app: Schema.optional(Schema.String) }),
@@ -536,6 +605,30 @@ export const api = {
   grants: () => clientPromise.then((client) => run(client.grants())),
   revokeGrant: (grantId: string) =>
     clientPromise.then((client) => run(client.revokeGrant({ payload: { grantId } }))),
+
+  eventSources: () => clientPromise.then((client) => run(client.eventSources())),
+  eventSubscriptions: (opts: { app?: string; source?: string } = {}) =>
+    clientPromise.then((client) =>
+      run(client.eventSubscriptions({
+        query: {
+          ...(opts.app === undefined ? {} : { app: opts.app }),
+          ...(opts.source === undefined ? {} : { source: opts.source }),
+        },
+      }))
+    ),
+  subscribeEvent: (input: { app: string; source: string; eventTypes?: Array<string>; scopes?: Array<string> }) =>
+    clientPromise.then((client) => run(client.subscribeEvent({ payload: input }))),
+  unsubscribeEvent: (id: string) =>
+    clientPromise.then((client) => run(client.unsubscribeEvent({ params: { id } }))),
+  eventDeliveries: (opts: { subscriptionId?: string; status?: string } = {}) =>
+    clientPromise.then((client) =>
+      run(client.eventDeliveries({
+        query: {
+          ...(opts.subscriptionId === undefined ? {} : { subscriptionId: opts.subscriptionId }),
+          ...(opts.status === undefined ? {} : { status: opts.status }),
+        },
+      }))
+    ),
 
   secrets: (app?: string) =>
     clientPromise.then((client) => run(client.secrets({ query: app === undefined ? {} : { app } }))),

@@ -154,18 +154,44 @@ const BOOT_DDL = `
   );
   CREATE INDEX IF NOT EXISTS oauth_sessions_expiry_idx ON oauth_sessions(expires_at);
 
-  -- Provisioning jobs (docs/provisioning.md §3): durable async app provisions.
-  CREATE TABLE IF NOT EXISTS provisioning_jobs (
+  -- Jobs (docs/internal/jobs.md): the unified durable-async engine. One jobs row per
+  -- unit of background work (provision, deliver_webhook); job_steps checkpoint
+  -- each step so a restarted process resumes where the dead one stopped. The
+  -- legacy provisioning_jobs + event_deliveries tables both fold into these.
+  CREATE TABLE IF NOT EXISTS jobs (
     id text PRIMARY KEY,
+    kind text NOT NULL,
     name text NOT NULL,
-    spec jsonb NOT NULL,
-    status text NOT NULL DEFAULT 'running',
-    steps jsonb NOT NULL,
+    payload jsonb NOT NULL,
+    status text NOT NULL DEFAULT 'pending',
+    attempts text NOT NULL DEFAULT '0',
+    next_attempt_at timestamptz NOT NULL DEFAULT now(),
     result jsonb,
     error text,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+  CREATE INDEX IF NOT EXISTS jobs_drain_idx ON jobs(status, next_attempt_at);
+  CREATE INDEX IF NOT EXISTS jobs_kind_idx ON jobs(kind);
+  CREATE INDEX IF NOT EXISTS jobs_name_idx ON jobs(name);
+
+  CREATE TABLE IF NOT EXISTS job_steps (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id text NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    step_id text NOT NULL,
+    label text NOT NULL,
+    ordinal text NOT NULL,
+    state text NOT NULL DEFAULT 'pending',
+    detail text,
+    attempt text NOT NULL DEFAULT '0',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS job_steps_job_idx ON job_steps(job_id);
+
+  -- Drop the superseded per-feature job tables (idempotent; safe on fresh + old DBs).
+  DROP TABLE IF EXISTS provisioning_jobs;
+  DROP TABLE IF EXISTS event_deliveries;
 
   -- App ACLs (docs/previews-and-acl.md Part 2): the control plane owns the
   -- policy; enforcement lives at the app/router/gateway at request time.
@@ -192,6 +218,38 @@ const BOOT_DDL = `
     role text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
   );
+
+  -- Events (docs/internal/events.md): central webhook ingress sources + per-app
+  -- subscriptions + the delivery outbox. Source secrets are references
+  -- resolved by the SecretsProvider, never stored.
+  CREATE TABLE IF NOT EXISTS webhook_sources (
+    name text PRIMARY KEY,
+    display_name text NOT NULL,
+    secret_ref text NOT NULL,
+    verification text NOT NULL DEFAULT 'hmac-sha256',
+    event_type_header text,
+    enabled boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+
+  CREATE TABLE IF NOT EXISTS event_subscriptions (
+    id uuid PRIMARY KEY,
+    app text NOT NULL REFERENCES registry_apps(name) ON DELETE CASCADE,
+    source text NOT NULL REFERENCES webhook_sources(name) ON DELETE CASCADE,
+    event_types jsonb NOT NULL DEFAULT '[]',
+    scopes jsonb NOT NULL DEFAULT '[]',
+    filter jsonb,
+    status text NOT NULL DEFAULT 'active',
+    delivery_secret_ref text,
+    max_attempts text,
+    retry_schedule text,
+    created_by text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS event_subscriptions_source_idx ON event_subscriptions(source, status);
+  CREATE INDEX IF NOT EXISTS event_subscriptions_app_idx ON event_subscriptions(app);
 `;
 
 export class Database extends Context.Service<Database, {
