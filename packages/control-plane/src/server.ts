@@ -22,7 +22,7 @@ import { MCP_INTERNAL_PATH, mcpGateRoutes } from "./gateway/mcp-gate.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
 import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
-import { CONNECTION_PROVIDER_MANIFEST, Connections } from "./connections/index.ts";
+import { Connections } from "./connections/index.ts";
 import { connectionRoutes } from "./connections/routes.ts";
 import { secretsRoutes } from "./integrations/secrets-routes.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
@@ -35,11 +35,13 @@ import { Acl } from "./acl/index.ts";
 import { aclRoutes } from "./acl/routes.ts";
 import { Scaffold, type ScaffoldOptions } from "./scaffold/index.ts";
 import { Database } from "./store/database.ts";
-import { PlatformConfigService, type ConnectionProvider } from "./config/index.ts";
+import { PlatformConfigService } from "./config/index.ts";
 import { Provisioning } from "./provisioning/index.ts";
 import { Handlers, JobRunner } from "./jobs/index.ts";
 import { deliverWebhookHandler, provisionHandler } from "./jobs/handlers.ts";
 import { Events } from "./events/service.ts";
+import { connectionsConfig as defaultConnectionsConfig } from "./config/connections.config.ts";
+import { ConnectionsConfigService, validateConnectionsConfig, type ConnectionsConfig } from "./config/connections-schema.ts";
 import { eventsRoutes } from "./events/routes.ts";
 
 export interface ControlPlaneOptions {
@@ -75,9 +77,9 @@ export interface ControlPlaneOptions {
   readonly appSecrets?: Readonly<Record<string, string>> | undefined;
   /** Connections provider-token refresh skew (ms). Overrides the 60s default; demos set it low to prove rotation. */
   readonly connectionsRefreshSkewMs?: number | undefined;
-  /** OAuth providers enabled for this deployment. Defaults to none. */
-  readonly connectionProviders?: ReadonlyArray<ConnectionProvider> | undefined;
-  /** Events feature config (docs/internal/events.md). Undefined → NoopEventBus: ingress 503s, CRUD lists empty. */
+  /** Static OAuth, proxied-secret, and webhook catalog. Defaults to config/connections.config.ts. */
+  readonly connectionsConfig?: ConnectionsConfig | undefined;
+  /** Webhook delivery worker retry/polling settings. Sources are enabled by their presence in connectionsConfig. */
   readonly events?: {
     readonly maxAttempts: number;
     readonly retryScheduleMs: ReadonlyArray<number>;
@@ -267,34 +269,16 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const authEnabled = options.oidc !== undefined || options.guiAuth !== undefined;
   const guiAuthEnabled = options.guiAuth !== undefined;
 
-  // Connections: only providers enabled in TERRARIUM_CONNECTION_PROVIDERS are
-  // registered. main.ts validates their credentials before starting the server.
+  // One validated static catalog drives OAuth, proxied secrets, and webhooks.
+  const validatedConnectionsConfig = validateConnectionsConfig(options.connectionsConfig ?? defaultConnectionsConfig);
+  const connectionsConfigLayer = ConnectionsConfigService.layer(validatedConnectionsConfig);
   const connectionsBaseUrl = options.guiAuth?.baseUrl ?? `http://127.0.0.1:${options.port ?? 4100}`;
   const secretsLayer = Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv));
   const connectionsLayer = Connections.layer({ baseUrl: connectionsBaseUrl, refreshSkewMs: options.connectionsRefreshSkewMs }).pipe(
     Layer.provide(databaseLayer),
     Layer.provide(secretsLayer),
+    Layer.provide(connectionsConfigLayer),
   );
-  const registerManifestProviders = Layer.effectDiscard(Effect.gen(function*() {
-    const connections = yield* Connections;
-    const secrets = yield* SecretsProvider;
-    for (const name of options.connectionProviders ?? []) {
-      const provider = CONNECTION_PROVIDER_MANIFEST[name];
-      const configured = Option.isSome(yield* secrets.resolve(provider.clientIdRef)) &&
-        Option.isSome(yield* secrets.resolve(provider.clientSecretRef));
-      if (configured) {
-        yield* connections.registerProvider(provider);
-        yield* Effect.logInfo(`[connections] ${provider.displayName} provider registered`);
-      } else {
-        // Direct startControlPlane callers bypass main.ts config validation;
-        // retain a visible warning for that programmatic use case.
-        yield* Effect.logWarning(
-          `[connections] ${provider.displayName} provider enabled but ${provider.clientIdRef}/${provider.clientSecretRef} are not resolvable`,
-        );
-      }
-    }
-  })).pipe(Layer.provide(connectionsLayer), Layer.provide(secretsLayer));
-
   // When the GUI login flow is off, provide a stub so route types stay uniform.
   const guiAuthLayer = options.guiAuth === undefined
     ? Layer.succeed(GuiAuth, GuiAuth.of({
@@ -364,6 +348,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     Layer.provide(scaffoldLayer),
     Layer.provide(databaseLayer),
     Layer.provide(secretsLayer),
+    Layer.provide(connectionsConfigLayer),
   );
   const jobRunnerWorkerLayer = JobRunner.worker(runnerConfig).pipe(
     Layer.provide(handlersLayer),
@@ -383,15 +368,13 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     Layer.provide(secretsLayer),
   );
 
-  // Events (docs/internal/events.md): optional feature. The Events service always
-  // loads (so routes/MCP/CLI can list empty state); when options.events is
-  // undefined it runs with enabled:false and publish() returns
-  // events_not_configured.
-  const eventsEnabled = options.events !== undefined;
+  // Events service always loads; an empty webhook catalog disables ingress.
+  const eventsEnabled = Object.keys(validatedConnectionsConfig.webhooks).length > 0;
   const eventsLayer = Events.layer({ enabled: eventsEnabled }).pipe(
     Layer.provide(databaseLayer),
     Layer.provide(secretsLayer),
     Layer.provide(jobRunnerLayer),
+    Layer.provide(connectionsConfigLayer),
   );
 
   const routes = Layer.mergeAll(
@@ -410,7 +393,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       Layer.provide(eventsLayer),
       Layer.provide(aclLayer),
       Layer.provide(secretsLayer),
-      Layer.provide(databaseLayer),
+      Layer.provide(connectionsConfigLayer),
     ),
     jobRunnerWorkerLayer,
     authFlowRoutes,
@@ -423,8 +406,9 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     integrationRoutes({
       authEnabled,
       appSecrets: options.appSecrets ?? {},
-    }).pipe(
+    }, makeGated({ authEnabled, guiAuthEnabled })).pipe(
       Layer.provide(Integrations.layer),
+      Layer.provide(connectionsConfigLayer),
       // The unified /proxy/:target/* dispatches to provider connections when
       // the target is a registered provider.
       Layer.provide(connectionsLayer),
@@ -439,16 +423,12 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       Layer.provide(connectionsLayer),
       Layer.provide(secretsLayer),
     ),
-    // Set-only secrets surface (docs/redeployment-plan.md §3): list names +
-    // provenance, set/overwrite/delete — never read a value back. ACL-gated
-    // (platform secrets → superadmin; app secrets → app admin). Mounted under
-    // the same GUI/bearer gate as the ACL routes.
+    // App-scoped Worker secrets only. Platform secret values are externally
+    // provisioned and can only be resolved by statically configured consumers.
     secretsRoutes(makeGated({ authEnabled, guiAuthEnabled })).pipe(
       Layer.provide(aclLayer),
       Layer.provide(appSecretsLayer),
-      Layer.provide(Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv))),
     ),
-    registerManifestProviders,
     scheduledDiscovery(options.discoveryIntervalMs ?? 30_000),
   ).pipe(
     // The Effect MCP transport mounts on an internal-only path; the public
@@ -496,7 +476,6 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         ["GUI_APP_ID", process.env.GUI_APP_ID],
         ["GUI_APP_SECRET", process.env.GUI_APP_SECRET],
         ["WORKOS_CLIENT_ID", process.env.WORKOS_CLIENT_ID],
-        ["TERRARIUM_CONNECTION_PROVIDERS", process.env.TERRARIUM_CONNECTION_PROVIDERS],
         ["GITHUB_OAUTH_CLIENT_ID", process.env.GITHUB_OAUTH_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_SECRET", process.env.GITHUB_OAUTH_CLIENT_SECRET],
         ["LINEAR_OAUTH_CLIENT_ID", process.env.LINEAR_OAUTH_CLIENT_ID],

@@ -74,9 +74,10 @@ runtime environment variables.
    `aws secretsmanager create-secret --name /vibevarium/prod/STRIPE_SECRET_KEY --secret-string …`
 2. If it's **boot config**, add a row to `AWS_BOOT_SECRETS` in
    `packages/control-plane/src/secrets/boot.ts` and redeploy.
-3. If it's an **integration token** (used by the proxy), nothing to redeploy —
-   integrations reference it by name and it's resolved per-call with a 60s
-   cache.
+3. If it's an **integration or webhook token**, add a named reference to
+   `secrets` in `packages/control-plane/src/config/connections.config.ts` and
+   point the consumer at its stable slug. Values resolve on demand with a 60s
+   cache; only the metadata change needs a redeploy.
 
 Verify what's resolving (names only, never values):
 `curl https://api.$TERRARIUM_DOMAIN/config-check`
@@ -100,36 +101,69 @@ https://platform.$TERRARIUM_DOMAIN/connections/callback
 - **Linear**: Settings → API → OAuth applications → New. Scopes are
   comma-separated (`read,write`); identity is GraphQL.
 
-Then put the client id/secret in Secrets Manager (table above) and enable the
-provider with `TERRARIUM_CONNECTION_PROVIDERS=github,linear` (or a comma-separated
-subset). Enabled providers require both OAuth credentials, and enabling any
-provider requires `CONNECTIONS_TOKEN_ENCRYPTION_KEY`. Startup fails before the
-server listens if any secret required by the enabled configuration is missing;
-disabled providers require no credentials.
+Put the client id/secret in Secrets Manager (table above), then register the
+provider in `packages/control-plane/src/config/connections.config.ts`. Presence
+in the file enables it; there is no separate provider-enable environment list.
+Providers with missing external values appear as **not configured** in the UI
+and cannot start an OAuth flow; they do not prevent zero-infrastructure local
+development from booting. `CONNECTIONS_TOKEN_ENCRYPTION_KEY` is required as soon
+as any OAuth client credential resolves, and token writes are rejected without it.
 
-### Adding a brand-new provider
+### One validated connection catalog
 
-Providers are **data, not code** — add one entry to
-`packages/control-plane/src/connections/manifest.ts`:
+The same TypeScript file declares OAuth providers, shared proxied secrets,
+webhook sources, and app-to-webhook-delivery credential mappings. Effect Schema
+validates its shape and every credential-slug reference before the server starts.
 
 ```ts
-export const SLACK_PROVIDER: ProviderManifestEntry = {
-  name: "slack",
-  displayName: "Slack",
-  authorizeUrl: "https://slack.com/oauth/v2/authorize",
-  tokenUrl: "https://slack.com/api/oauth.v2.access",
-  userinfoUrl: "https://slack.com/api/auth.test",
-  apiBaseUrl: "https://slack.com/api",
-  clientIdRef: "SLACK_OAUTH_CLIENT_ID",
-  clientSecretRef: "SLACK_OAUTH_CLIENT_SECRET",
-  defaultScopes: ["channels:read"],
-  responseMode: "query",
-};
+secrets: {
+  "slack-oauth-client": { ref: "SLACK_OAUTH_CLIENT_SECRET" },
+  "open-ai-api": { ref: "OPENAI_API_KEY" },
+  "oauth-token-encryption": { ref: "CONNECTIONS_TOKEN_ENCRYPTION_KEY" },
+  "github-webhook-ingress": { ref: "GITHUB_WEBHOOK_SECRET" },
+},
+oauthTokenEncryption: "oauth-token-encryption",
+oauthProviders: {
+  slack: {
+    displayName: "Slack",
+    logoUrl: "/provider-logos/slack.svg", // local GUI asset or remote URL
+    authorizeUrl: "https://slack.com/oauth/v2/authorize",
+    tokenUrl: "https://slack.com/api/oauth.v2.access",
+    userinfoUrl: "https://slack.com/api/auth.test",
+    apiBaseUrl: "https://slack.com/api",
+    clientIdRef: "SLACK_OAUTH_CLIENT_ID",
+    clientSecret: "slack-oauth-client",
+    defaultScopes: ["channels:read"],
+    responseMode: "query",
+  },
+},
+proxiedSecrets: {
+  openai: {
+    displayName: "OpenAI",
+    logoUrl: "https://example.com/openai.svg",
+    baseUrl: "https://api.openai.com",
+    secret: "open-ai-api",
+    authHeader: "authorization_bearer",
+  },
+},
+webhooks: {
+  github: {
+    displayName: "GitHub",
+    logoUrl: "/provider-logos/github.svg",
+    secret: "github-webhook-ingress",
+    verification: "hmac-sha256",
+    eventTypeHeader: "x-github-event",
+  },
+},
 ```
 
-The generic flow handles OIDC/GitHub-shaped identity. If a provider's identity
-endpoint is unusual (Linear's GraphQL, say), pass a `fetchIdentity` hook in the
-manifest entry — see `LINEAR_PROVIDER` for the pattern.
+The config contains **references, never secret values**. Runtime DB records use
+the stable object-key slugs for grants and subscriptions. Static definitions
+cannot be created or changed through the UI/API; the Connections page manages
+only OAuth connections, app grants, webhook subscriptions, and audit state.
+
+Per-app Worker secrets are different: manage those from the app's own detail
+page under **Access**. There is no global platform-secret UI or API.
 
 ## Theming
 

@@ -19,6 +19,8 @@ import {
   type OAuthSessionRow,
 } from "../store/schema.ts";
 import { SecretsProvider } from "../integrations/secrets.ts";
+import { ConnectionsConfigService } from "../config/connections-schema.ts";
+import { fetchLinearIdentity } from "./manifest.ts";
 import {
   buildAuthorizationUrl,
   createOAuthState,
@@ -43,6 +45,8 @@ export class ConnectionError extends Schema.TaggedError<ConnectionError>()("Conn
 export interface ProviderManifestEntry {
   readonly name: string;
   readonly displayName: string;
+  /** Public or root-relative image shown next to the provider in the dashboard. */
+  readonly logoUrl?: string | undefined;
   readonly authorizeUrl: string;
   readonly tokenUrl: string;
   readonly userinfoUrl: string;
@@ -128,7 +132,9 @@ class TokenCipher {
   }
 
   seal(value: string): string {
-    if (this.#key === undefined) return value;
+    if (this.#key === undefined) {
+      throw new Error("Cannot store provider tokens without CONNECTIONS_TOKEN_ENCRYPTION_KEY");
+    }
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", this.#key, iv);
     const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
@@ -170,15 +176,16 @@ const fail = (status: number, code: string, message: string, details?: Record<st
 interface ProviderHooks {
   readonly scopeSeparator: string;
   readonly authorizeParams: Readonly<Record<string, string>>;
+  readonly logoUrl?: string | undefined;
   readonly fetchIdentity?: ((accessToken: string) => Promise<{ readonly sub: string; readonly label: string }>) | undefined;
 }
-const manifestHooks = new Map<string, ProviderHooks>();
 
 export class Connections extends Context.Service<Connections, {
   readonly registerProvider: (entry: ProviderManifestEntry) => Effect.Effect<void, ConnectionError>;
   readonly listProviders: () => Effect.Effect<ReadonlyArray<{
     readonly name: string;
     readonly displayName: string;
+    readonly logoUrl?: string | undefined;
     readonly defaultScopes: ReadonlyArray<string>;
     readonly configured: boolean;
   }>>;
@@ -237,15 +244,47 @@ export class Connections extends Context.Service<Connections, {
     Layer.effect(Connections)(Effect.gen(function*() {
       const { db } = yield* Database;
       const secrets = yield* SecretsProvider;
+      const connectionsConfig = yield* ConnectionsConfigService;
+      const providerEntries: ReadonlyArray<ProviderManifestEntry> = Object.entries(connectionsConfig.config.oauthProviders).map(
+        ([name, provider]) => {
+          const { clientSecret, identity, ...definition } = provider;
+          return {
+            ...definition,
+            name,
+            clientSecretRef: connectionsConfig.secretRef(clientSecret)!,
+            ...(identity === "linear" ? { fetchIdentity: fetchLinearIdentity } : {}),
+          };
+        },
+      );
+      const configuredProviders = new Set(providerEntries.map((provider) => provider.name));
+      const manifestHooks = new Map<string, ProviderHooks>();
       const baseUrl = options.baseUrl.replace(/\/+$/, "");
       const refreshSkewMs = options.refreshSkewMs ?? DEFAULT_REFRESH_SKEW_MS;
 
       // Token-at-rest encryption key resolved through the SecretsProvider seam:
-      // env var locally, Secrets Manager in prod. Unset → plaintext (dev only,
+      // env var locally, Secrets Manager in prod. Unset → OAuth start is disabled; if credentials already resolve, boot fails.
       // surfaced loudly at boot).
-      const cipherKey = yield* secrets.resolve("CONNECTIONS_TOKEN_ENCRYPTION_KEY").pipe(Effect.map(Option.getOrUndefined));
+      const cipherKey = yield* secrets.resolve(
+        connectionsConfig.config.oauthTokenEncryption === undefined
+          ? "CONNECTIONS_TOKEN_ENCRYPTION_KEY"
+          : connectionsConfig.secretRef(connectionsConfig.config.oauthTokenEncryption)!,
+      ).pipe(Effect.map(Option.getOrUndefined));
       if (cipherKey === undefined) {
-        yield* Effect.logWarning("[connections] CONNECTIONS_TOKEN_ENCRYPTION_KEY is unset — provider tokens are stored UNENCRYPTED (dev only)");
+        const credentialStates = yield* Effect.forEach(providerEntries, (provider) =>
+          Effect.map(
+            Effect.all([
+              secrets.resolve(provider.clientIdRef),
+              secrets.resolve(provider.clientSecretRef),
+            ]),
+            ([clientId, clientSecret]) => Option.isSome(clientId) && Option.isSome(clientSecret),
+          )
+        );
+        if (credentialStates.some(Boolean)) {
+          return yield* Effect.die(new Error(
+            "CONNECTIONS_TOKEN_ENCRYPTION_KEY is required whenever OAuth client credentials are resolvable",
+          ));
+        }
+        yield* Effect.logWarning("[connections] OAuth credentials are unconfigured; connections are disabled until credentials and CONNECTIONS_TOKEN_ENCRYPTION_KEY are set");
       }
       const cipher = new TokenCipher(cipherKey);
 
@@ -257,6 +296,7 @@ export class Connections extends Context.Service<Connections, {
         PartitionedSemaphore.withPermit(refreshLocks, connectionId)(work);
 
       const providerRow = Effect.fnUntraced(function*(name: string) {
+        if (!configuredProviders.has(name)) return Option.none<OAuthProviderRow>();
         const rows = yield* Effect.promise(() =>
           db.select().from(oauthProviders).where(eq(oauthProviders.name, name)).limit(1)
         );
@@ -293,19 +333,30 @@ export class Connections extends Context.Service<Connections, {
         manifestHooks.set(entry.name, {
           scopeSeparator: entry.scopeSeparator ?? " ",
           authorizeParams: entry.authorizeParams ?? {},
+          ...(entry.logoUrl === undefined ? {} : { logoUrl: entry.logoUrl }),
           ...(entry.fetchIdentity === undefined ? {} : { fetchIdentity: entry.fetchIdentity }),
         });
       });
 
+      for (const entry of providerEntries) {
+        yield* registerProvider(entry);
+      }
+
       const listProviders = Effect.fnUntraced(function*() {
-        const rows = yield* Effect.promise(() => db.select().from(oauthProviders));
-        return yield* Effect.forEach(rows, (row) =>
-          Effect.map(secrets.resolve(row.clientSecretRef), (secret) => ({
-            name: row.name,
-            displayName: row.displayName,
-            defaultScopes: scopeList(row.defaultScopes),
-            configured: Option.isSome(secret),
-          }))
+        return yield* Effect.forEach(providerEntries, (provider) =>
+          Effect.map(
+            Effect.all([
+              secrets.resolve(provider.clientIdRef),
+              secrets.resolve(provider.clientSecretRef),
+            ]),
+            ([clientId, clientSecret]) => ({
+              name: provider.name,
+              displayName: provider.displayName,
+              ...(provider.logoUrl === undefined ? {} : { logoUrl: provider.logoUrl }),
+              defaultScopes: provider.defaultScopes,
+              configured: Option.isSome(clientId) && Option.isSome(clientSecret),
+            }),
+          )
         );
       });
 
@@ -315,6 +366,9 @@ export class Connections extends Context.Service<Connections, {
         scopes: ReadonlyArray<string> | undefined,
       ) {
         const row = yield* providerRow(provider);
+        if (cipherKey === undefined) {
+          return yield* fail(503, "token_encryption_not_configured", "CONNECTIONS_TOKEN_ENCRYPTION_KEY must be configured before starting OAuth");
+        }
         if (Option.isNone(row)) return yield* fail(404, "unknown_provider", `Unknown provider: ${provider}`);
         const creds = yield* resolveClientCredentials(row.value);
         const requestedScopes = scopes === undefined || scopes.length === 0
@@ -361,6 +415,9 @@ export class Connections extends Context.Service<Connections, {
       const completeConnection = Effect.fnUntraced(function*(params: URLSearchParams) {
         const providerError = params.get("error");
         if (providerError !== null) return yield* fail(400, "provider_authorization_failed", providerError);
+        if (cipherKey === undefined) {
+          return yield* fail(503, "token_encryption_not_configured", "CONNECTIONS_TOKEN_ENCRYPTION_KEY must be configured before completing OAuth");
+        }
         const state = params.get("state");
         const code = params.get("code");
         if (state === null || code === null) return yield* fail(400, "invalid_callback", "code and state are required");
@@ -620,6 +677,9 @@ export class Connections extends Context.Service<Connections, {
 
       const usableToken = (appId: string, provider: string): Effect.Effect<UsableToken, ConnectionError> =>
         Effect.gen(function*() {
+          if (!configuredProviders.has(provider)) {
+            return yield* fail(404, "unknown_provider", `Unknown provider: ${provider}`);
+          }
           const selected = yield* approvedGrantForApp(appId, provider);
           if (selected === undefined) {
             return yield* fail(403, "grant_required", "No approved, active grant covers this app and provider");

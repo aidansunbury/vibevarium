@@ -133,10 +133,10 @@ routes.
 
 ## The one manual step: the GitHub OAuth App
 
-The GitHub provider is registered at boot when `github` is enabled in
-`TERRARIUM_CONNECTION_PROVIDERS`. Its client ID and secret must then resolve
-(env locally, Secrets Manager `/vibevarium/prod/GITHUB_OAUTH_CLIENT_*` in prod),
-or startup fails. Creating that OAuth App is the only thing a human must do in a dashboard:
+The GitHub provider is registered at boot from `oauthProviders.github` in
+`config/connections.config.ts`. Its client ID and secret resolve through the
+configured slugs (env locally, Secrets Manager in prod); missing values are
+shown as unconfigured in the UI. Creating that OAuth App is the only provider-dashboard step:
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
    (for an org-owned app: the org's page → Settings → Developer settings).
@@ -155,8 +155,8 @@ or startup fails. Creating that OAuth App is the only thing a human must do in a
      under `/vibevarium/prod/`.
 5. Also set `CONNECTIONS_TOKEN_ENCRYPTION_KEY` (any 32+ byte random string;
    `openssl rand -base64 32`) so tokens are encrypted at rest.
-6. Set `TERRARIUM_CONNECTION_PROVIDERS=github` and restart the control plane.
-   The provider registers silently once its required secrets resolve.
+6. Keep the `github` entry in `connections.config.ts` and restart the control
+   plane. Its configured secret slugs are validated before startup.
 
 Then the live flow is: sign into the GUI → Connections panel → **Connect** on
 GitHub → approve on GitHub's screen → back on the control plane. An app with a
@@ -194,11 +194,10 @@ Run it: `node --experimental-strip-types packages/control-plane/scripts/connecti
 
 ## GUI
 
-`web/src/ConnectionsPanel.tsx` (mounted in `App.tsx`): the user's connections
-per provider (account, status, scopes, connect/revoke buttons — connect
-full-page-redirects to the provider authorize URL), grants grouped per app with
-revoke, and a proxy-audit viewer. The consent screen itself is server-rendered
-HTML at `/grants/consent` (no React; requires the user's session).
+`web/src/routes/connections.tsx` composes OAuth providers and grants, shared
+proxied-secret grants, and webhook sources/subscriptions on one page. OAuth
+connect full-page-redirects to the provider authorize URL. The consent screen
+itself is server-rendered HTML at `/grants/consent` (no React; requires the user's session).
 
 ## Not done
 

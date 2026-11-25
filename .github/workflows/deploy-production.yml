@@ -50,7 +50,9 @@ jobs:
       - name: Validate
         run: |
           pnpm typecheck
-          pnpm --dir packages/control-plane exec vitest run src/config.test.ts src/secrets.test.ts src/mcp-gate.test.ts
+          pnpm --dir packages/control-plane exec vitest run src/config.test.ts src/config/connections-schema.test.ts src/secrets.test.ts src/mcp-gate.test.ts src/connections/oauth.test.ts src/connections/routes.test.ts src/integrations/static-definitions.test.ts src/events.test.ts src/jobs.test.ts
+          pnpm --dir packages/control-plane/web build
+          pnpm --dir packages/control-plane/web exec tsc --noEmit
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

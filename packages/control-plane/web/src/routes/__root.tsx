@@ -16,12 +16,9 @@ import { Shell, ShellBody, ShellHeader, ShellHeaderActions, ShellHeaderTitle } f
 import { LogoLockup } from "@vibevarium/ui/components/logo";
 import { Toaster } from "@vibevarium/ui/components/sonner";
 import {
-  KeyRoundIcon,
   LayoutGridIcon,
   LinkIcon,
-  PlugIcon,
   PlusIcon,
-  ZapIcon,
 } from "@vibevarium/ui/lib/icons";
 
 export interface RouterContext {
@@ -38,10 +35,7 @@ export const useSession = (): Session => Route.useRouteContext().session;
 const NAV = [
   { to: "/", label: "Apps", icon: LayoutGridIcon },
   { to: "/scaffold", label: "Provision", icon: PlusIcon },
-  { to: "/secrets", label: "Secrets", icon: KeyRoundIcon },
-  { to: "/integrations", label: "Integrations", icon: PlugIcon },
   { to: "/connections", label: "Connections", icon: LinkIcon },
-  { to: "/events", label: "Events", icon: ZapIcon },
 ] as const;
 
 function RootLayout() {

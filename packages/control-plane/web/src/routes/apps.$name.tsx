@@ -13,6 +13,7 @@ import { Separator } from "@vibevarium/ui/components/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@vibevarium/ui/components/tabs";
 import { toast } from "@vibevarium/ui/lib/toast";
 import { Check, Loader2, X } from "lucide-react";
+import { AppSecretsPanel } from "../components/app-secrets-panel";
 
 export const Route = createFileRoute("/apps/$name")({ component: AppDetailPage });
 
@@ -255,7 +256,8 @@ function AppDetailPage() {
               {acl.isPending && <p className="text-sm text-muted-foreground">Loading access…</p>}
               {acl.isError && <p className="text-sm text-destructive">⚠ {message(acl.error)}</p>}
               {acl.data !== undefined && (
-                <AccessPanel
+                <>
+                  <AccessPanel
                   acl={acl.data}
                   isAdmin={acl.data.caller.isAdmin}
                   onSetVisibility={(visibility) => setVisibility.mutate(visibility)}
@@ -265,6 +267,13 @@ function AppDetailPage() {
                   onRemoveMember={(sub) => removeMember.mutate(sub)}
                   removeMemberPending={removeMember.isPending}
                 />
+                {acl.data.caller.isAdmin && (
+                  <>
+                    <Separator />
+                    <AppSecretsPanel app={name} />
+                  </>
+                )}
+                </>
               )}
             </TabsContent>
           </Tabs>

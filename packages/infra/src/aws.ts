@@ -149,35 +149,6 @@ export const AwsInfra = (options: AwsInfraOptions = {}) =>
             Resource: ["arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*"],
           }],
         },
-        // The set-only secrets GUI (docs/redeployment-plan.md §3): the control
-        // plane creates/overwrites/deletes/list secrets under the prefix but the
-        // GUI never reads values back. CreateSecret on a NEW name needs the
-        // "-??????" suffix wildcard (AWS appends 6 random chars to the ARN).
-        VibevariumSecretsWrite: {
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Sid: "SecretsGuiWrite",
-              Effect: "Allow",
-              Action: [
-                "secretsmanager:PutSecretValue",
-                "secretsmanager:CreateSecret",
-                "secretsmanager:DeleteSecret",
-                "secretsmanager:TagResource",
-              ],
-              Resource: [
-                "arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*",
-                "arn:aws:secretsmanager:us-east-1:412215357683:secret:/vibevarium/prod/*-??????",
-              ],
-            },
-            {
-              Sid: "SecretsGuiListAll",
-              Effect: "Allow",
-              Action: ["secretsmanager:ListSecrets"],
-              Resource: "*",
-            },
-          ],
-        },
       },
       tags: { Name: "vibevarium-ec2-role" },
     });

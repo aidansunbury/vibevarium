@@ -64,10 +64,22 @@ const ErrorBody = Schema.Struct({
   error_description: Schema.optional(Schema.String),
 });
 const Unauthorized = ErrorBody.pipe(HttpApiSchema.status(401));
+const Forbidden = ErrorBody.pipe(HttpApiSchema.status(403));
+const BadRequest = ErrorBody.pipe(HttpApiSchema.status(400));
+const NotFound = ErrorBody.pipe(HttpApiSchema.status(404));
+const Conflict = ErrorBody.pipe(HttpApiSchema.status(409));
 
 export const isApiError = (error: unknown): error is ApiError =>
   error instanceof ApiError ||
   (typeof error === "object" && error !== null && (error as { _tag?: string })._tag === "ApiError");
+
+export const errorMessage = (error: unknown): string => {
+  if (typeof error === "object" && error !== null && "error_description" in error) {
+    const description = error.error_description;
+    if (typeof description === "string") return description;
+  }
+  return error instanceof Error ? error.message : String(error);
+};
 
 // --- response schemas (mirror the hand-written routes) ------------------------
 
@@ -109,6 +121,9 @@ export type DirectoryTool = typeof DirectoryTool.Type;
 
 export const IntegrationView = Schema.Struct({
   name: Schema.String,
+  displayName: Schema.String,
+  logoUrl: Schema.optional(Schema.String),
+  secret: Schema.String,
   baseUrl: Schema.String,
   tokenEnv: Schema.String,
   authHeader: Schema.String,
@@ -137,6 +152,8 @@ export const GrantPair = Schema.Struct({ app: Schema.String, integration: Schema
 export const EventSourceView = Schema.Struct({
   name: Schema.String,
   displayName: Schema.String,
+  logoUrl: Schema.optional(Schema.String),
+  secret: Schema.String,
   verification: Schema.String,
   eventTypeHeader: Schema.NullOr(Schema.String),
   enabled: Schema.Boolean,
@@ -177,6 +194,7 @@ export type GrantPair = typeof GrantPair.Type;
 export const ProviderView = Schema.Struct({
   name: Schema.String,
   displayName: Schema.String,
+  logoUrl: Schema.optional(Schema.String),
   defaultScopes: Schema.Array(Schema.String),
   configured: Schema.Boolean,
 });
@@ -386,17 +404,6 @@ const OpsApi = HttpApi.make("ControlPlane")
         success: Schema.Struct({ integrations: Schema.Array(IntegrationView) }),
         error: Unauthorized,
       }))
-      .add(HttpApiEndpoint.post("createIntegration", "/integrations", {
-        payload: Schema.Struct({
-          name: Schema.String,
-          baseUrl: Schema.String,
-          tokenEnv: Schema.String,
-          authHeader: Schema.optional(Schema.String),
-          timeoutMs: Schema.optional(Schema.Number),
-        }),
-        success: IntegrationView,
-        error: Unauthorized,
-      }))
       .add(HttpApiEndpoint.get("integrationGrants", "/integrations/grants", {
         success: Schema.Struct({ grants: Schema.Array(GrantPair) }),
         error: Unauthorized,
@@ -404,7 +411,7 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.post("grantIntegration", "/integrations/:integration/grants", {
         params: { integration: Schema.String },
         payload: Schema.Struct({ app: Schema.String }),
-        success: Schema.Unknown,
+        success: Schema.Unknown.pipe(HttpApiSchema.status(201)),
         error: Unauthorized,
       }))
       .add(HttpApiEndpoint["delete"]("revokeIntegration", "/integrations/:integration/grants/:app", {
@@ -452,10 +459,12 @@ const OpsApi = HttpApi.make("ControlPlane")
     HttpApiGroup.make("events", { topLevel: true })
       .add(HttpApiEndpoint.get("eventSources", "/events/sources", {
         success: Schema.Struct({ sources: Schema.Array(EventSourceView) }),
+        error: [Unauthorized, Forbidden],
       }))
       .add(HttpApiEndpoint.get("eventSubscriptions", "/events/subscriptions", {
         query: Schema.Struct({ app: Schema.optional(Schema.String), source: Schema.optional(Schema.String) }),
         success: Schema.Struct({ subscriptions: Schema.Array(EventSubscriptionView) }),
+        error: [Unauthorized, Forbidden],
       }))
       .add(HttpApiEndpoint.post("subscribeEvent", "/events/subscriptions", {
         payload: Schema.Struct({
@@ -464,11 +473,13 @@ const OpsApi = HttpApi.make("ControlPlane")
           eventTypes: Schema.optional(Schema.Array(Schema.String)),
           scopes: Schema.optional(Schema.Array(Schema.String)),
         }),
-        success: EventSubscriptionView,
+        success: EventSubscriptionView.pipe(HttpApiSchema.status(201)),
+        error: [Unauthorized, Forbidden, BadRequest, NotFound, Conflict],
       }))
       .add(HttpApiEndpoint["delete"]("unsubscribeEvent", "/events/subscriptions/:id", {
         params: { id: Schema.String },
         success: Schema.Unknown,
+        error: [Unauthorized, Forbidden],
       }))
       .add(HttpApiEndpoint.get("eventDeliveries", "/events/deliveries", {
         query: Schema.Struct({
@@ -476,31 +487,32 @@ const OpsApi = HttpApi.make("ControlPlane")
           status: Schema.optional(Schema.String),
         }),
         success: Schema.Struct({ deliveries: Schema.Array(EventDeliveryView) }),
+        error: [Unauthorized, Forbidden],
       })),
   )
   .add(
     HttpApiGroup.make("secrets", { topLevel: true })
       .add(HttpApiEndpoint.get("secrets", "/secrets", {
-        query: Schema.Struct({ app: Schema.optional(Schema.String) }),
-        success: Schema.Struct({ secrets: Schema.Array(SecretMeta), app: Schema.NullOr(Schema.String) }),
-        error: Unauthorized,
+        query: Schema.Struct({ app: Schema.String }),
+        success: Schema.Struct({ secrets: Schema.Array(SecretMeta), app: Schema.String }),
+        error: [Unauthorized, Forbidden],
       }))
       .add(HttpApiEndpoint.put("putSecret", "/secrets", {
         payload: Schema.Struct({
           reference: Schema.String,
           value: Schema.String,
-          app: Schema.optional(Schema.String),
+          app: Schema.String,
         }),
         success: Schema.Unknown,
-        error: Unauthorized,
+        error: [Unauthorized, Forbidden],
       }))
       .add(HttpApiEndpoint["delete"]("deleteSecret", "/secrets", {
         payload: Schema.Struct({
           reference: Schema.String,
-          app: Schema.optional(Schema.String),
+          app: Schema.String,
         }),
         success: Schema.Unknown,
-        error: Unauthorized,
+        error: [Unauthorized, Forbidden],
       })),
   );
 
@@ -586,8 +598,6 @@ export const api = {
     clientPromise.then((client) => run(client.removeAclMember({ params: { name, sub } }))),
 
   integrations: () => clientPromise.then((client) => run(client.integrations())),
-  createIntegration: (input: { name: string; baseUrl: string; tokenEnv: string }) =>
-    clientPromise.then((client) => run(client.createIntegration({ payload: input }))),
   integrationGrants: () => clientPromise.then((client) => run(client.integrationGrants())),
   grantIntegration: (integration: string, app: string) =>
     clientPromise.then((client) => run(client.grantIntegration({ params: { integration }, payload: { app } }))),
@@ -630,14 +640,12 @@ export const api = {
       }))
     ),
 
-  secrets: (app?: string) =>
-    clientPromise.then((client) => run(client.secrets({ query: app === undefined ? {} : { app } }))),
-  putSecret: (input: { reference: string; value: string; app?: string }) =>
+  secrets: (app: string) =>
+    clientPromise.then((client) => run(client.secrets({ query: { app } }))),
+  putSecret: (input: { reference: string; value: string; app: string }) =>
     clientPromise.then((client) => run(client.putSecret({ payload: input }))),
-  deleteSecret: (reference: string, app?: string) =>
-    clientPromise.then((client) =>
-      run(client.deleteSecret({ payload: app === undefined ? { reference } : { reference, app } }))
-    ),
+  deleteSecret: (reference: string, app: string) =>
+    clientPromise.then((client) => run(client.deleteSecret({ payload: { reference, app } }))),
 };
 
 /** Start the login: full-page redirect to the API's /auth/login (which 302s to the issuer). */

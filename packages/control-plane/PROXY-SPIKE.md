@@ -38,8 +38,10 @@ grant → proxy → audit → revoke → 403 round trip. Excerpt:
 
 ## Admin endpoints (auth-gated when `CONTROL_PLANE_ISSUER` is set)
 
-- `GET/POST /integrations`, `PATCH/DELETE /integrations/:name`
-- `GET /integrations/grants`, `POST/DELETE /integrations/:name/grants(/:app)`
+- Static definitions come from `config/connections.config.ts`; there is no
+  integration-definition CRUD API.
+- `GET /integrations`, `GET /integrations/grants`,
+  `POST/DELETE /integrations/:name/grants(/:app)`
 - `GET /integrations/:name/audit?limit=50`
 
 ## Caller auth on `/proxy/*` — the auth seams

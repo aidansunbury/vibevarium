@@ -37,7 +37,7 @@ import * as HttpServer from "effect/http/HttpServer";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 import { controlPlaneServer } from "../src/server.ts";
-import { Connections } from "../src/connections/service.ts";
+import type { ConnectionsConfig } from "../src/config/connections-schema.ts";
 
 const APP_ID = "metrics-dashboard";
 const APP_SECRET = "metrics-dashboard-shared-secret";
@@ -81,7 +81,7 @@ const devIssuer = await startDevIssuer({ port: 0, audiences: [AUDIENCE] });
 // Reserve a real port first: the connections base URL (redirect_uri, consent
 // URLs) is baked at layer build, so the control plane must know its public
 // address up front.
-const freePort = await new Promise<number>((resolve, reject) => {
+const reservePort = () => new Promise<number>((resolve, reject) => {
   const probe = createServer();
   probe.once("error", reject);
   probe.listen(0, "127.0.0.1", () => {
@@ -94,6 +94,42 @@ const freePort = await new Promise<number>((resolve, reject) => {
   });
 });
 
+const freePort = await reservePort();
+const providerPort = await reservePort();
+const cpUrl = `http://127.0.0.1:${freePort}`;
+
+// Start the provider first so its URLs can be validated in the static catalog.
+const provider = await startFakeOAuthProvider({
+  name: "datadog",
+  port: providerPort,
+  accessTokenTtlSeconds: 5,
+  clients: [{
+    clientId: "vibevarium-control-plane",
+    clientSecret: "dev-control-plane-secret",
+    redirectUris: [`${cpUrl}/connections/callback`],
+  }],
+});
+const demoConfig = {
+  secrets: { "datadog-client": { ref: "FAKE_DATADOG_CLIENT_SECRET" }, "oauth-token-encryption": { ref: "CONNECTIONS_TOKEN_ENCRYPTION_KEY" } },
+  oauthProviders: {
+    datadog: {
+      displayName: "Datadog",
+      authorizeUrl: provider.authorizeUrl,
+      tokenUrl: provider.tokenUrl,
+      userinfoUrl: provider.userinfoUrl,
+      apiBaseUrl: provider.apiBaseUrl,
+      clientIdRef: "FAKE_DATADOG_CLIENT_ID",
+      clientSecret: "datadog-client",
+      defaultScopes: ["read:metrics"],
+      responseMode: "form_post",
+    },
+  },
+  oauthTokenEncryption: "oauth-token-encryption",
+  proxiedSecrets: {},
+  webhooks: {},
+  webhookDeliverySecrets: {},
+} satisfies ConnectionsConfig;
+
 const scope = await Effect.runPromise(Scope.make());
 const context = await Effect.runPromise(
   Layer.build(controlPlaneServer({
@@ -102,43 +138,12 @@ const context = await Effect.runPromise(
     oidc: { issuer: devIssuer.issuer, audience: AUDIENCE },
     appSecrets: { [APP_ID]: APP_SECRET },
     connectionsRefreshSkewMs: 1_000,
+    connectionsConfig: demoConfig,
   })).pipe(Effect.provideService(Scope.Scope, scope)),
 );
 const server = Context.get(context, HttpServer.HttpServer);
 const cp = HttpServer.formatAddress(server.address).replace(/\/$/, "");
 console.log(`control plane: ${cp}`);
-
-// 5s access-token TTL so the demo exercises a real refresh (rotation) quickly.
-const provider = await startFakeOAuthProvider({
-  name: "datadog",
-  port: 0,
-  accessTokenTtlSeconds: 5,
-  clients: [{
-    clientId: "vibevarium-control-plane",
-    clientSecret: "dev-control-plane-secret",
-    redirectUris: [`${cp}/connections/callback`],
-  }],
-});
-
-// Register fake-oauth as a provider against the control plane's own
-// Connections service (in-process — same shape as the GitHub manifest entry).
-await Effect.runPromise(
-  Effect.gen(function*() {
-    const connections = yield* Connections;
-    yield* connections.registerProvider({
-      name: "datadog",
-      displayName: "Datadog",
-      authorizeUrl: provider.authorizeUrl,
-      tokenUrl: provider.tokenUrl,
-      userinfoUrl: provider.userinfoUrl,
-      apiBaseUrl: provider.apiBaseUrl,
-      clientIdRef: "FAKE_DATADOG_CLIENT_ID",
-      clientSecretRef: "FAKE_DATADOG_CLIENT_SECRET",
-      defaultScopes: ["read:metrics"],
-      responseMode: "form_post",
-    });
-  }).pipe(Effect.provideService(Connections, Context.get(context, Connections))),
-);
 
 const ada = await Effect.runPromise(DevAuth.fetchToken({
   issuer: devIssuer.issuer,

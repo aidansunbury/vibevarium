@@ -5,6 +5,8 @@ import * as Layer from "effect/Layer";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { controlPlaneServer } from "./server.ts";
+import { connectionsConfig } from "./config/connections.config.ts";
+import { validateConnectionsConfig } from "./config/connections-schema.ts";
 import { loadBootSecrets } from "./secrets/boot.ts";
 
 // SECRETS_PROVIDER=aws: resolve runtime config (GITHUB_APP_*, CLOUDFLARE_API_TOKEN,
@@ -12,6 +14,9 @@ import { loadBootSecrets } from "./secrets/boot.ts";
 // config layer parses it. No-op for env mode (default) — local dev is
 // unchanged. See SECRETS-SPIKE.md + DB-SPIKE.md.
 await loadBootSecrets();
+// Validate static connection metadata and all credential slug references before
+// environment/capability parsing or any server layer is started.
+const staticConnectionsConfig = validateConnectionsConfig(connectionsConfig);
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -24,6 +29,7 @@ const config = await Effect.runPromise(loadPlatformConfig);
 const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
   Layer.provideMerge(controlPlaneServer({
     port: config.port,
+    connectionsConfig: staticConnectionsConfig,
     host: config.host,
     baseUrl: config.baseUrl,
     // DATABASE_URL (prod: RDS postgres://…, injected from SM at boot) wins;
@@ -34,13 +40,12 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
     discoveryTimeoutMs: config.discoveryTimeoutMs,
     callTimeoutMs: config.callTimeoutMs,
     discoveryToken: config.discoveryToken,
-    connectionProviders: config.connectionProviders,
     // Gateway → child-app MCP discovery auth (M2M client credentials in prod,
     // static DISCOVERY_TOKEN placeholder locally).
     ...(config.discoveryM2M === undefined ? {} : { discoveryM2M: config.discoveryM2M }),
     ...(config.oidc === undefined ? {} : { oidc: config.oidc }),
     ...(config.guiAuth === undefined ? {} : { guiAuth: config.guiAuth }),
-    ...(config.events === undefined ? {} : { events: config.events }),
+    events: config.events,
     appSecrets: config.appSecrets,
     guiDir: config.guiDir ?? join(packageRoot, "web", "dist"),
     scaffold: {
