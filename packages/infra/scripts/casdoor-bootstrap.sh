@@ -11,7 +11,7 @@
 #
 # Usage:
 #   CASDOOR_URL=https://auth.vibevarium.com \
-#   CASDOOR_ADMIN_PASSWORD=… \        # from AWS SM /vibevarium/prod/casdoor-admin-password
+#   CASDOOR_ADMIN_PASSWORD=… \        # from AWS SM /vibevarium/prod/CASDOOR_ADMIN_PASSWORD
 #   GUI_REDIRECT_BASE=https://platform.vibevarium.com \
 #   bash scripts/casdoor-bootstrap.sh
 #
@@ -83,10 +83,10 @@ print(app['clientId']); print(app.get('clientSecret',''))
     aws secretsmanager create-secret --name "$1" --secret-string "$2" >/dev/null 2>&1 \
       || aws secretsmanager put-secret-value --secret-id "$1" --secret-string "$2" >/dev/null
   }
-  upsert "/vibevarium/prod/gui-app-id" "$GID" && echo "  stored /vibevarium/prod/gui-app-id"
-  upsert "/vibevarium/prod/gui-app-secret" "$GSEC" && echo "  stored /vibevarium/prod/gui-app-secret"
+  upsert "/vibevarium/prod/GUI_APP_ID" "$GID" && echo "  stored /vibevarium/prod/GUI_APP_ID"
+  upsert "/vibevarium/prod/GUI_APP_SECRET" "$GSEC" && echo "  stored /vibevarium/prod/GUI_APP_SECRET"
 else
   echo "  (aws CLI/AWS_PROFILE not set — store the GUI creds in AWS SM manually as"
-  echo "   /vibevarium/prod/gui-app-id and /vibevarium/prod/gui-app-secret)"
+  echo "   /vibevarium/prod/GUI_APP_ID and /vibevarium/prod/GUI_APP_SECRET)"
 fi
 echo "=== Bootstrap complete ==="

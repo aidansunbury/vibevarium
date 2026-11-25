@@ -19,31 +19,34 @@ import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-sec
  * Secrets Manager name (relative to the prefix) → env var populated at boot.
  * Only keys the control-plane runtime actually consumes are mapped.
  */
-const AWS_BOOT_SECRETS = {
-  "github-app-id": "GITHUB_APP_ID",
-  "github-app-private-key": "GITHUB_APP_PRIVATE_KEY",
-  "cloudflare-api-token": "CLOUDFLARE_API_TOKEN",
+export const AWS_BOOT_SECRETS = {
+  // Secret names intentionally match the runtime environment variables they
+  // populate. This object is the source-aware secret configuration: the key is
+  // the AWS Secrets Manager name relative to SECRETS_PREFIX, the value is the
+  // process.env destination.
+  GITHUB_APP_ID: "GITHUB_APP_ID",
+  GITHUB_APP_PRIVATE_KEY: "GITHUB_APP_PRIVATE_KEY",
+  CLOUDFLARE_API_TOKEN: "CLOUDFLARE_API_TOKEN",
   // Casdoor (TERRARIUM_AUTH_PROVIDER=casdoor): the GUI app's OIDC credentials.
   // Per-app client registration is unauthenticated DCR, so there are no M2M
   // credentials to fetch — only the GUI client id/secret live here.
-  "gui-app-id": "GUI_APP_ID",
-  "gui-app-secret": "GUI_APP_SECRET",
+  GUI_APP_ID: "GUI_APP_ID",
+  GUI_APP_SECRET: "GUI_APP_SECRET",
   // WorkOS AuthKit (TERRARIUM_AUTH_PROVIDER=workos): the public OAuth client +
   // server-side API key for user/org reads and DCR administration.
-  "workos-client-id": "WORKOS_CLIENT_ID",
-  "workos-api-key": "WORKOS_API_KEY",
-  "discovery-client-id": "DISCOVERY_CLIENT_ID",
-  "discovery-client-secret": "DISCOVERY_CLIENT_SECRET",
-  // Connections (docs/connections.md): the GitHub OAuth client for the
-  // meta-OAuth provider + the AES-256-GCM key for tokens at rest.
-  "github-oauth-client-id": "GITHUB_OAUTH_CLIENT_ID",
-  "github-oauth-client-secret": "GITHUB_OAUTH_CLIENT_SECRET",
-  "linear-oauth-client-id": "LINEAR_OAUTH_CLIENT_ID",
-  "linear-oauth-client-secret": "LINEAR_OAUTH_CLIENT_SECRET",
-  "connections-token-encryption-key": "CONNECTIONS_TOKEN_ENCRYPTION_KEY",
+  WORKOS_CLIENT_ID: "WORKOS_CLIENT_ID",
+  WORKOS_API_KEY: "WORKOS_API_KEY",
+  DISCOVERY_CLIENT_ID: "DISCOVERY_CLIENT_ID",
+  DISCOVERY_CLIENT_SECRET: "DISCOVERY_CLIENT_SECRET",
+  // Connections: OAuth clients + the AES-256-GCM key for provider tokens.
+  GITHUB_OAUTH_CLIENT_ID: "GITHUB_OAUTH_CLIENT_ID",
+  GITHUB_OAUTH_CLIENT_SECRET: "GITHUB_OAUTH_CLIENT_SECRET",
+  LINEAR_OAUTH_CLIENT_ID: "LINEAR_OAUTH_CLIENT_ID",
+  LINEAR_OAUTH_CLIENT_SECRET: "LINEAR_OAUTH_CLIENT_SECRET",
+  CONNECTIONS_TOKEN_ENCRYPTION_KEY: "CONNECTIONS_TOKEN_ENCRYPTION_KEY",
   // Control-plane database (DB-SPIKE.md): the full postgres:// URL for RDS.
   // When unset the box falls back to embedded PGlite via DATABASE_PATH.
-  "database-url": "DATABASE_URL",
+  DATABASE_URL: "DATABASE_URL",
 } as const;
 
 const hasAwsCredentials = () =>

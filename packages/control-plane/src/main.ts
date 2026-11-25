@@ -34,6 +34,7 @@ const server = Layer.effectDiscard(HttpServer.logAddress).pipe(
     discoveryTimeoutMs: config.discoveryTimeoutMs,
     callTimeoutMs: config.callTimeoutMs,
     discoveryToken: config.discoveryToken,
+    connectionProviders: config.connectionProviders,
     // Gateway → child-app MCP discovery auth (M2M client credentials in prod,
     // static DISCOVERY_TOKEN placeholder locally).
     ...(config.discoveryM2M === undefined ? {} : { discoveryM2M: config.discoveryM2M }),

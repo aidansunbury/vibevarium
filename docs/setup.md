@@ -58,7 +58,8 @@ pnpm --dir packages/control-plane proxy:demo
 
 To test real GitHub/Linear connections locally, create OAuth apps with callback
 `http://127.0.0.1:4100/connections/callback` and drop the credentials in a
-repo-root `.env` (`GITHUB_OAUTH_CLIENT_ID=…` etc. — see
+repo-root `.env` (`GITHUB_OAUTH_CLIENT_ID=…` etc.), and enable them with
+`TERRARIUM_CONNECTION_PROVIDERS=github,linear` (see
 [customization.md](./customization.md#connections)).
 
 ---

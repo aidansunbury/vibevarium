@@ -45,27 +45,33 @@ Zero secret env vars on the box.
 
 ### The naming convention
 
+Secrets Manager names match the environment variables they populate:
+
 ```
-/vibevarium/prod/<vendor>-<purpose>[-<qualifier>]   # lower-kebab-case
+/vibevarium/prod/<ENV_VAR_NAME>   # UPPER_SNAKE_CASE
 ```
+
+`AWS_BOOT_SECRETS` in `packages/control-plane/src/secrets/boot.ts` is the
+source-aware mapping from Secrets Manager names (relative to the prefix) to
+runtime environment variables.
 
 ### What the control plane reads at boot
 
 | SM name | Env var it fills | What it's for |
 |---|---|---|
-| `github-app-id` / `github-app-private-key` | `GITHUB_APP_*` | The GitHub App that creates app repos |
-| `cloudflare-api-token` | `CLOUDFLARE_API_TOKEN` | Deploying app Workers + DNS |
-| `gui-app-id` / `gui-app-secret` | `GUI_APP_*` | The control plane GUI's own OIDC client |
-| `github-oauth-client-id` / `-secret` | `GITHUB_OAUTH_CLIENT_*` | The GitHub **connection** (below) |
-| `linear-oauth-client-id` / `-secret` | `LINEAR_OAUTH_CLIENT_*` | The Linear connection |
-| `connections-token-encryption-key` | `CONNECTIONS_TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for provider tokens at rest |
-| `database-url` | `DATABASE_URL` | The RDS `postgres://…` URL |
-| `casdoor-admin-password` | (deploy-time) | Casdoor's bootstrap admin password |
+| `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` | Same names | The GitHub App that creates app repos |
+| `CLOUDFLARE_API_TOKEN` | Same name | Deploying app Workers + DNS |
+| `GUI_APP_ID` / `GUI_APP_SECRET` | Same names | The control plane GUI's own OIDC client |
+| `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | Same names | The GitHub **connection** (below) |
+| `LINEAR_OAUTH_CLIENT_ID` / `LINEAR_OAUTH_CLIENT_SECRET` | Same names | The Linear connection |
+| `CONNECTIONS_TOKEN_ENCRYPTION_KEY` | Same name | AES-256-GCM key for provider tokens at rest |
+| `DATABASE_URL` | Same name | The RDS `postgres://…` URL |
+| `CASDOOR_ADMIN_PASSWORD` | (deploy-time) | Casdoor's bootstrap admin password |
 
 ### Adding a secret
 
 1. Put it in SM under the prefix:
-   `aws secretsmanager create-secret --name /vibevarium/prod/stripe-secret-key --secret-string …`
+   `aws secretsmanager create-secret --name /vibevarium/prod/STRIPE_SECRET_KEY --secret-string …`
 2. If it's **boot config**, add a row to `AWS_BOOT_SECRETS` in
    `packages/control-plane/src/secrets/boot.ts` and redeploy.
 3. If it's an **integration token** (used by the proxy), nothing to redeploy —
@@ -94,8 +100,12 @@ https://platform.$TERRARIUM_DOMAIN/connections/callback
 - **Linear**: Settings → API → OAuth applications → New. Scopes are
   comma-separated (`read,write`); identity is GraphQL.
 
-Then put the client id/secret in Secrets Manager (table above) and restart —
-the provider registers at boot when both refs resolve.
+Then put the client id/secret in Secrets Manager (table above) and enable the
+provider with `TERRARIUM_CONNECTION_PROVIDERS=github,linear` (or a comma-separated
+subset). Enabled providers require both OAuth credentials, and enabling any
+provider requires `CONNECTIONS_TOKEN_ENCRYPTION_KEY`. Startup fails before the
+server listens if any secret required by the enabled configuration is missing;
+disabled providers require no credentials.
 
 ### Adding a brand-new provider
 

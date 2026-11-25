@@ -12,7 +12,7 @@
  * Env:
  *   CASDOOR_ISSUER / WORKOS_ISSUER   (the OIDC issuer; see config/index.ts)
  *   GUI_APP_ID / GUI_APP_SECRET        local: repo-root .env; production: AWS
- *                                      Secrets Manager at /vibevarium/prod/gui-app-*
+ *                                      Secrets Manager at /vibevarium/prod/GUI_APP_*
  *   CONTROL_PLANE_BASE_URL  public origin used to build the redirect_uri
  *                         (default http://127.0.0.1:<port>)
  *   PLATFORM_OIDC_AUDIENCE  RFC 8707 resource (default https://mcp.vibevarium.com)

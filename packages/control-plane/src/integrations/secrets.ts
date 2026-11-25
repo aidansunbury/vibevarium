@@ -71,7 +71,7 @@ export class SecretsProvider extends Context.Service<SecretsProvider, {
 
   /**
    * AWS Secrets Manager provider. References are secret names relative to
-   * `prefix` (e.g. `cloudflare-api-token` → `/vibevarium/prod/cloudflare-api-token`).
+   * `prefix` (e.g. `CLOUDFLARE_API_TOKEN` → `/vibevarium/prod/CLOUDFLARE_API_TOKEN`).
    *
    * - Values are cached in memory with a TTL (default 60s) so proxy-time
    *   resolutions don't hammer SM; a miss refreshes the entry.
@@ -116,6 +116,10 @@ export class SecretsProvider extends Context.Service<SecretsProvider, {
       return SecretsProvider.of({
         resolve: (reference) =>
           Effect.suspend(() => {
+            // Real env vars and values injected by loadBootSecrets are
+            // authoritative. Otherwise, resolve the same reference name in SM.
+            const fromEnv = process.env[reference];
+            if (fromEnv !== undefined) return Effect.succeed(Option.some(fromEnv));
             const cached = cache.get(reference);
             if (cached !== undefined && cached.expiresAt > Date.now()) {
               return Effect.succeed(Option.some(cached.value));

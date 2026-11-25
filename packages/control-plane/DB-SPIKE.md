@@ -61,7 +61,7 @@ The master credentials live in AWS Secrets Manager as the RDS-managed secret
 `rds!db-6f5a2477-…` (JSON `{username, password}`). From those parts we
 materialized **one** secret the control plane consumes directly:
 
-- SM: `/vibevarium/prod/database-url` =
+- SM: `/vibevarium/prod/DATABASE_URL` =
   `postgres://postgres:<url-encoded-pw>@<rds-endpoint>:5432/control_plane`
   (password URL-encoded — it contains `(`, `[`, `*`, `<`).
 

@@ -56,7 +56,7 @@ services:
       PORT: "4100"
       HOST: "0.0.0.0"
       # Real Postgres on RDS. DATABASE_URL (incl. the password) is injected at
-      # boot from AWS Secrets Manager /vibevarium/prod/database-url — see
+      # boot from AWS Secrets Manager /vibevarium/prod/DATABASE_URL — see
       # SECRETS_PROVIDER=aws below + packages/control-plane/DB-SPIKE.md.
       # (DATABASE_URL is NOT set here; boot.ts fetches it into process.env.)
       DISCOVERY_INTERVAL_MS: "30000"
@@ -71,6 +71,7 @@ services:
       GUI_ORIGIN: https://platform.${DOMAIN}
       COOKIE_DOMAIN: .${DOMAIN}
       PLATFORM_OIDC_AUDIENCE: https://mcp.${DOMAIN}
+      TERRARIUM_CONNECTION_PROVIDERS: github,linear
       # GUI_DIR no longer served from the container (the SPA is on Cloudflare);
       # unset → the guiRoutes static-serving is disabled.
       # GUI_DIR: /app/packages/control-plane/web/dist

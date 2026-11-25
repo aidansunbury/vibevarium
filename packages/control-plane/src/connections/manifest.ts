@@ -81,3 +81,9 @@ export const LINEAR_PROVIDER: ProviderManifestEntry = {
   authorizeParams: { actor: "user" },
   fetchIdentity: fetchLinearIdentity,
 };
+
+/** Providers that can be enabled with TERRARIUM_CONNECTION_PROVIDERS. */
+export const CONNECTION_PROVIDER_MANIFEST = {
+  github: GITHUB_PROVIDER,
+  linear: LINEAR_PROVIDER,
+} as const;

@@ -80,21 +80,21 @@ anywhere — the SDK's default chain hits IMDSv2 (enforced on the instance).
 
 ## Adding a new secret
 
-1. Put it in SM under the prefix: name is lower-kebab-case, e.g.
-   `/vibevarium/prod/stripe-secret-key`.
+1. Put it in SM under the prefix using its runtime env name, e.g.
+   `/vibevarium/prod/STRIPE_SECRET_KEY`.
 2. If it's **boot config for the control plane itself**: add a row to
-   `AWS_BOOT_SECRETS` in `src/secrets/boot.ts` (`"stripe-secret-key": "STRIPE_SECRET_KEY"`),
+   `AWS_BOOT_SECRETS` in `src/secrets/boot.ts` (`STRIPE_SECRET_KEY: "STRIPE_SECRET_KEY"`),
    and list the env var in the `/config-check` key table in `server.ts`.
 3. If it's an **integration token**: nothing to add — integrations reference
    it by name via `tokenEnv`, resolved at proxy time.
 4. Redeploy the control-plane container (boot config is read once at boot;
    proxy-time secrets need no redeploy).
 
-Naming convention: `<vendor>-<purpose>[-<qualifier>]`, lower-kebab-case —
-`logto-m2m-app-secret`, `github-app-private-key`, `cloudflare-api-token`.
+Naming convention: `UPPER_SNAKE_CASE`, identical to the runtime env var —
+`LOGTO_M2M_APP_SECRET`, `GITHUB_APP_PRIVATE_KEY`, `CLOUDFLARE_API_TOKEN`.
 
 Boot config also includes the control-plane database: `/vibevarium/prod/
-database-url` is the full `postgres://…` URL for the RDS `control_plane` DB
+DATABASE_URL` is the full `postgres://…` URL for the RDS `control_plane` DB
 (built from the RDS-managed master secret, password URL-encoded), mapped to
 `DATABASE_URL` in `AWS_BOOT_SECRETS`. When unset, the control plane falls back
 to embedded PGlite — local dev is unchanged. See DB-SPIKE.md.
