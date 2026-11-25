@@ -25,7 +25,7 @@ identity provider is issuer + audience config:
 # .env / Secrets Manager
 TERRARIUM_AUTH_PROVIDER=casdoor        # or workos, or any OIDC issuer
 TERRARIUM_ISSUER=https://auth.$TERRARIUM_DOMAIN
-PLATFORM_OIDC_AUDIENCE=https://mcp.$TERRARIUM_DOMAIN
+PLATFORM_OIDC_AUDIENCE=https://api.$TERRARIUM_DOMAIN/mcp
 ```
 
 | Provider | Notes |

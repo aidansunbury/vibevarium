@@ -234,7 +234,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         CONTROL_PLANE_BASE_URL: `https://api.${options.domain}`,
         GUI_ORIGIN: `https://platform.${options.domain}`,
         COOKIE_DOMAIN: `.${options.domain}`,
-        PLATFORM_OIDC_AUDIENCE: `https://mcp.${options.domain}`,
+        PLATFORM_OIDC_AUDIENCE: `https://api.${options.domain}/mcp`,
         TERRARIUM_CONNECTION_PROVIDERS: "github,linear",
         GIT_PROVIDER: "github",
         GITHUB_APP_INSTALLATION_ID: "184285119",

@@ -15,7 +15,7 @@
  *                                      Secrets Manager at /vibevarium/prod/GUI_APP_*
  *   CONTROL_PLANE_BASE_URL  public origin used to build the redirect_uri
  *                         (default http://127.0.0.1:<port>)
- *   PLATFORM_OIDC_AUDIENCE  RFC 8707 resource (default https://mcp.vibevarium.com)
+ *   PLATFORM_OIDC_AUDIENCE  RFC 8707 resource (default https://api.vibevarium.com/mcp)
  *
  * Sessions are held in a server-side in-memory Map keyed by an opaque id in an
  * httpOnly cookie. Restarting the control plane logs everyone out — honest and

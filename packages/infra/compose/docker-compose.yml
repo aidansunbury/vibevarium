@@ -70,7 +70,7 @@ services:
       CONTROL_PLANE_BASE_URL: https://api.${DOMAIN}
       GUI_ORIGIN: https://platform.${DOMAIN}
       COOKIE_DOMAIN: .${DOMAIN}
-      PLATFORM_OIDC_AUDIENCE: https://mcp.${DOMAIN}
+      PLATFORM_OIDC_AUDIENCE: https://api.${DOMAIN}/mcp
       TERRARIUM_CONNECTION_PROVIDERS: github,linear
       # GUI_DIR no longer served from the container (the SPA is on Cloudflare);
       # unset → the guiRoutes static-serving is disabled.

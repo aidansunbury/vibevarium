@@ -31,7 +31,7 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 
 const ISSUER = "https://auth.vibevarium.com/oidc";
 const CLIENT_ID = "s9ne7qecvf20vktab5iwl";
-const RESOURCE = "https://mcp.vibevarium.com";
+const RESOURCE = "https://api.vibevarium.com/mcp";
 
 const base64url = (b: Buffer) => b.toString("base64url");
 

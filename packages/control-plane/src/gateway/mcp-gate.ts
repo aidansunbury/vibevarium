@@ -42,7 +42,7 @@ export const MCP_INTERNAL_PATH = "/__mcp-internal";
 export interface McpGateOptions {
   /** Public origin of this control plane (https://platform.vibevarium.com). */
   readonly baseUrl: string;
-  /** The platform resource indicator (audience), e.g. https://mcp.vibevarium.com. */
+  /** The platform resource indicator (audience), e.g. https://api.vibevarium.com/mcp. */
   readonly resource: string;
   /** Whether the gate is on (auth configured). Off → unauthenticated local dev. */
   readonly authEnabled: boolean;

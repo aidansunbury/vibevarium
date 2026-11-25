@@ -224,7 +224,7 @@ Browser                     Worker (tickets.vibevarium.com)        Logto
    │ GET /auth/login ─────────────────► 302 /oidc/auth?… ─────────────► │
    │         sets signed vibevarium_login cookie (PKCE verifier+state)  │
    │                            │ redirect_uri=<origin>/auth/callback  │
-   │                            │ resource=https://mcp.vibevarium.com  │
+   │                            │ resource=https://api.vibevarium.com/mcp  │
    │                            │ code_challenge (S256), state         │
    │ ◄────────────────────────────── sign-in + consent (first-party) ──┤
    │ GET /auth/callback?code&state ──► verifies signed pending cookie  │
@@ -283,7 +283,7 @@ SPA's client turns that into a bounce to `/auth/login`); requests with
 ### Audience model
 
 Per docs/identity.md + Option B′: the app requests its session tokens with
-the **platform resource** (`resource=https://mcp.vibevarium.com`, RFC 8707 —
+the **platform resource** (`resource=https://api.vibevarium.com/mcp`, RFC 8707 —
 repeated at the token exchange so the access token is a JWT), and accepts
 `aud ∈ [own, platform]`. One platform token therefore opens every app
 (meta-MCP/CLI), and the SPA's session token is that same shape.
@@ -355,7 +355,7 @@ a generated app is broken without it (SPA can never log in):
    APP_HOSTNAME=tickets.vibevarium.com STACK_NAME=TerrariumAppTickets \
    TERRARIUM_ISSUER=https://auth.vibevarium.com/oidc \
    TERRARIUM_AUDIENCE=tickets.vibevarium.com \
-   TERRARIUM_PLATFORM_AUDIENCE=https://mcp.vibevarium.com \
+   TERRARIUM_PLATFORM_AUDIENCE=https://api.vibevarium.com/mcp \
    TERRARIUM_CLIENT_ID=wpm14ynccwetwvnvxs368 TERRARIUM_CLIENT_SECRET=<secret> \
    pnpm exec alchemy deploy --yes --adopt
    # same for notes with the notes id/secret
@@ -380,7 +380,7 @@ Unauthenticated behavior:
 GET /auth/login                 → 302 https://auth.vibevarium.com/oidc/auth
                                   ?client_id=wpm14ynccwetwvnvxs368
                                   &redirect_uri=https://tickets.vibevarium.com/auth/callback
-                                  &resource=https://mcp.vibevarium.com
+                                  &resource=https://api.vibevarium.com/mcp
                                   &code_challenge=…&code_challenge_method=S256&state=…
                                   + Set-Cookie: vibevarium_login=…; HttpOnly; Secure
 GET /TicketList/all  (no auth)  → 401, WWW-Authenticate: Bearer error="invalid_token"
@@ -403,7 +403,7 @@ GET /auth/me after logout       → 401
 ```
 
 Option B′ bearer path, unchanged: the session's embedded access token
-(`aud="https://mcp.vibevarium.com"`, `iss=https://auth.vibevarium.com/oidc`)
+(`aud="https://api.vibevarium.com/mcp"`, `iss=https://auth.vibevarium.com/oidc`)
 replayed as `Authorization: Bearer` → `/TicketList/all` 200 and `/mcp`
 passes auth (400 only for a missing MCP-Protocol-Version header — protocol,
 not auth). Identical results on `notes.vibevarium.com`.
