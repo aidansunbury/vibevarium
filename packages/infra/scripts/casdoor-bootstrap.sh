@@ -73,7 +73,7 @@ app['redirectUris']=['$CONTROL_PLANE_BASE_URL/auth/callback']
 app['postLogoutRedirectUris']=['$GUI_REDIRECT_BASE/']
 json.dump(app,open('$JAR.app.json','w'))
 "
-  api POST "/api/update-application?id=$ORG/$ORG" "$(cat "$JAR.app.json")" \
+  api POST "/api/update-application?id=admin/$ORG" "$(cat "$JAR.app.json")" \
     | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  reconciled GUI application $ORG')"
 else
   api POST "/api/add-application" "{\"owner\":\"$ORG\",\"name\":\"$ORG\",\"displayName\":\"$ORG control plane\",\"organization\":\"$ORG\",\"homepageUrl\":\"$GUI_REDIRECT_BASE\",\"redirectUris\":[\"$CONTROL_PLANE_BASE_URL/auth/callback\"],\"postLogoutRedirectUris\":[\"$GUI_REDIRECT_BASE/\"],\"grantTypes\":[\"authorization_code\",\"refresh_token\",\"client_credentials\"],\"responseTypes\":[\"code\"],\"tokenFormat\":\"JWT\",\"expireInHours\":168,\"refreshExpireInHours\":720,\"enablePassword\":true,\"enableSignUp\":false,\"enableSigninSession\":true,\"enableLinkWithEmail\":true,\"formOffset\":1}" \
