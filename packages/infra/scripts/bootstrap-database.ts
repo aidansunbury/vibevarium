@@ -22,7 +22,9 @@ const resource = async (id: string) => {
   const output = await run(process.execPath, [
     alchemy, "state", "read", `${stack}/${stage}/${id}`, "--config", config,
   ]);
-  const record = JSON.parse(output);
+  const jsonStart = output.indexOf("{");
+  if (jsonStart < 0) throw new Error(`Alchemy state read returned no JSON for ${id}: ${output}`);
+  const record = JSON.parse(output.slice(jsonStart));
   return record.attr ?? record;
 };
 
