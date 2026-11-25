@@ -22,6 +22,7 @@ import * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
+import * as HttpApiSchema from "effect/http-api/HttpApiSchema";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -49,6 +50,20 @@ export class ApiError extends Error {
     );
   }
 }
+
+/**
+ * Every gated route 401s with this body when the session is missing/expired.
+ * DECLARED on every endpoint below: without it, Effect's HttpApiClient throws
+ * "Decode: undeclared status code (401 …)" — an error shape isSessionExpired
+ * can't match, so the session bounce never fires and the raw decode error
+ * leaks into the page (the integrations-page bug). With the declaration, a
+ * 401 decodes into this schema and isSessionExpired matches `response.status`.
+ */
+const ErrorBody = Schema.Struct({
+  error: Schema.optional(Schema.String),
+  error_description: Schema.optional(Schema.String),
+});
+const Unauthorized = ErrorBody.pipe(HttpApiSchema.status(401));
 
 export const isApiError = (error: unknown): error is ApiError =>
   error instanceof ApiError ||
@@ -253,66 +268,84 @@ const OpsApi = HttpApi.make("ControlPlane")
     HttpApiGroup.make("ops", { topLevel: true })
       .add(HttpApiEndpoint.get("me", "/auth/me", {
         success: Schema.Struct({ actor: Schema.NullOr(Actor), auth: Schema.Literals(["on", "off"]) }),
+        error: Unauthorized,
       }))
-      .add(HttpApiEndpoint.get("apps", "/apps", { success: Schema.Struct({ apps: Schema.Array(AppRow) }) }))
+      .add(HttpApiEndpoint.get("apps", "/apps", {
+        success: Schema.Struct({ apps: Schema.Array(AppRow) }),
+        error: Unauthorized,
+      }))
       .add(HttpApiEndpoint.get("directory", "/directory", {
         success: Schema.Struct({ apps: Schema.Array(AppRow), tools: Schema.Array(DirectoryTool) }),
+        error: Unauthorized,
       }))
-      .add(HttpApiEndpoint.post("discover", "/discover", { success: Schema.Unknown }))
+      .add(HttpApiEndpoint.post("discover", "/discover", { success: Schema.Unknown, error: Unauthorized }))
       .add(HttpApiEndpoint["delete"]("deleteApp", "/apps/:name", {
         params: { name: Schema.String },
         success: Schema.Unknown,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("scaffold", "/scaffold", {
         payload: Schema.Struct({ name: Schema.String }),
         success: Schema.Unknown,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("provisioningOptions", "/provisioning/options", {
         success: ProvisioningOptions,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("provision", "/provisioning", {
         payload: ProvisionSpec,
         success: Schema.Struct({ jobId: Schema.String }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("provisionStatus", "/provisioning/:jobId", {
         params: { jobId: Schema.String },
         success: ProvisionStatus,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("createPreview", "/apps/:name/previews", {
         params: { name: Schema.String },
         payload: Schema.Struct({ pr: Schema.String }),
         success: Schema.Struct({ jobId: Schema.String }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("previews", "/previews", {
         success: Schema.Struct({ previews: Schema.Array(PreviewRow) }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("appHistory", "/apps/:name/history", {
         params: { name: Schema.String },
         success: Schema.Struct({ history: Schema.Array(ProvisionStatus) }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("appAcl", "/apps/:name/acl", {
         params: { name: Schema.String },
         success: AppAcl,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.put("setVisibility", "/apps/:name/acl/visibility", {
         params: { name: Schema.String },
         payload: Schema.Struct({ visibility: Schema.Literals(["internal", "restricted"]) }),
         success: Schema.Unknown,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("addAclMember", "/apps/:name/acl/members", {
         params: { name: Schema.String },
         payload: Schema.Struct({ sub: Schema.String, role: Schema.Literals(["admin", "member"]) }),
         success: Schema.Unknown,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint["delete"]("removeAclMember", "/apps/:name/acl/members/:sub", {
         params: { name: Schema.String, sub: Schema.String },
         success: Schema.Unknown,
+        error: Unauthorized,
       })),
   )
   .add(
     HttpApiGroup.make("integrations", { topLevel: true })
       .add(HttpApiEndpoint.get("integrations", "/integrations", {
         success: Schema.Struct({ integrations: Schema.Array(IntegrationView) }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("createIntegration", "/integrations", {
         payload: Schema.Struct({
@@ -323,46 +356,57 @@ const OpsApi = HttpApi.make("ControlPlane")
           timeoutMs: Schema.optional(Schema.Number),
         }),
         success: IntegrationView,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("integrationGrants", "/integrations/grants", {
         success: Schema.Struct({ grants: Schema.Array(GrantPair) }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("grantIntegration", "/integrations/:integration/grants", {
         params: { integration: Schema.String },
         payload: Schema.Struct({ app: Schema.String }),
         success: Schema.Unknown,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint["delete"]("revokeIntegration", "/integrations/:integration/grants/:app", {
         params: { integration: Schema.String, app: Schema.String },
         success: Schema.Unknown,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("integrationAudit", "/integrations/:integration/audit", {
         params: { integration: Schema.String },
         success: Schema.Struct({ audit: Schema.Array(AuditRow) }),
+        error: Unauthorized,
       })),
   )
   .add(
     HttpApiGroup.make("connections", { topLevel: true })
       .add(HttpApiEndpoint.get("providers", "/connections/providers", {
         success: Schema.Struct({ providers: Schema.Array(ProviderView) }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("connections", "/connections", {
         success: Schema.Struct({ connections: Schema.Array(ConnectionView) }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("startConnection", "/connections/start", {
         payload: Schema.Struct({ provider: Schema.String, scopes: Schema.optional(Schema.Array(Schema.String)) }),
         success: Schema.Struct({ authorization_url: Schema.String }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("revokeConnection", "/connections/revoke", {
         payload: Schema.Struct({ connectionId: Schema.String }),
         success: Schema.Unknown,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("grants", "/grants", {
         success: Schema.Struct({ grants: Schema.Array(GrantView) }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.post("revokeGrant", "/grants/revoke", {
         payload: Schema.Struct({ grantId: Schema.String }),
         success: Schema.Unknown,
+        error: Unauthorized,
       })),
   )
   .add(
@@ -370,6 +414,7 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.get("secrets", "/secrets", {
         query: Schema.Struct({ app: Schema.optional(Schema.String) }),
         success: Schema.Struct({ secrets: Schema.Array(SecretMeta), app: Schema.NullOr(Schema.String) }),
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint.put("putSecret", "/secrets", {
         payload: Schema.Struct({
@@ -378,6 +423,7 @@ const OpsApi = HttpApi.make("ControlPlane")
           app: Schema.optional(Schema.String),
         }),
         success: Schema.Unknown,
+        error: Unauthorized,
       }))
       .add(HttpApiEndpoint["delete"]("deleteSecret", "/secrets", {
         payload: Schema.Struct({
@@ -385,6 +431,7 @@ const OpsApi = HttpApi.make("ControlPlane")
           app: Schema.optional(Schema.String),
         }),
         success: Schema.Unknown,
+        error: Unauthorized,
       })),
   );
 
