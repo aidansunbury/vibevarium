@@ -9,6 +9,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startControlPlane } from "./server.ts";
+import type { ConnectionsConfig } from "./config/connections-schema.ts";
 
 /** A unique PGlite data dir per control plane (PGlite has no true in-memory mode). */
 const tempDb = () => mkdtempSync(join(tmpdir(), `vv-events-${randomUUID()}-`));
@@ -21,6 +22,32 @@ const tempDb = () => mkdtempSync(join(tmpdir(), `vv-events-${randomUUID()}-`));
  */
 const SECRET = "test-source-secret";
 const APP_SECRET = "ci-bot-delivery-secret";
+const EMPTY_CONFIG = {
+  secrets: {},
+  oauthProviders: {},
+  proxiedSecrets: {},
+  webhooks: {},
+  webhookDeliverySecrets: {},
+} satisfies ConnectionsConfig;
+
+const EVENTS_CONFIG = {
+  secrets: {
+    "github-ingress": { ref: "GITHUB_WEBHOOK_SECRET" },
+    "ci-bot-delivery": { ref: "APP_EVENTS_SECRET_CI_BOT" },
+  },
+  oauthProviders: {},
+  proxiedSecrets: {},
+  webhooks: {
+    github: {
+      displayName: "GitHub",
+      logoUrl: "/provider-logos/github.svg",
+      secret: "github-ingress",
+      verification: "hmac-sha256",
+      eventTypeHeader: "x-github-event",
+    },
+  },
+  webhookDeliverySecrets: { "ci-bot": "ci-bot-delivery" },
+} satisfies ConnectionsConfig;
 
 const signGitHub = (secret: string, body: string): string =>
   `sha256=${createHmac("sha256", secret).update(body, "utf8").digest("hex")}`;
@@ -72,6 +99,7 @@ describe("events", () => {
     process.env["GITHUB_WEBHOOK_SECRET"] = SECRET;
     // The receiver app's platform delivery secret (convention ref APP_EVENTS_SECRET_CI_BOT).
     process.env["APP_EVENTS_SECRET_CI_BOT"] = APP_SECRET;
+    process.env.ATTACKER_SECRET = "attacker-controlled-secret";
 
     scope = await Effect.runPromise(Scope.make());
     controlPlane = await Effect.runPromise(
@@ -81,6 +109,7 @@ describe("events", () => {
         databasePath: tempDb(),
         discoveryIntervalMs: 0,
         events: { maxAttempts: 3, retryScheduleMs: [50, 100], pollMs: 50 },
+        connectionsConfig: EVENTS_CONFIG,
       }), Scope.Scope, scope),
     );
   }, 30_000);
@@ -90,6 +119,7 @@ describe("events", () => {
     receiver.close();
     delete process.env["GITHUB_WEBHOOK_SECRET"];
     delete process.env["APP_EVENTS_SECRET_CI_BOT"];
+    delete process.env.ATTACKER_SECRET;
   });
 
   it("fans a signed ingress event out to the subscribed app with a platform signature", async () => {
@@ -101,21 +131,21 @@ describe("events", () => {
     });
     expect(appRes.status).toBe(201);
 
-    // Register the github source (secretRef → env var GITHUB_WEBHOOK_SECRET).
-    const srcRes = await fetch(`${controlPlane.url}/events/sources`, {
+    // The static source is materialized at boot; runtime source creation is gone.
+    const srcRes = await fetch(`${controlPlane.url}/events/sources`);
+    const { sources } = await srcRes.json();
+    expect(sources[0]).toMatchObject({
+      name: "github",
+      logoUrl: "/provider-logos/github.svg",
+      secret: "github-ingress",
+      secretConfigured: true,
+    });
+    const createRes = await fetch(`${controlPlane.url}/events/sources`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: "github",
-        displayName: "GitHub",
-        secretRef: "GITHUB_WEBHOOK_SECRET",
-        verification: "hmac-sha256",
-        eventTypeHeader: "x-github-event",
-      }),
+      body: JSON.stringify({ name: "other", secretRef: "OTHER_SECRET" }),
     });
-    expect(srcRes.status).toBe(201);
-    const source = await srcRes.json();
-    expect(source.secretConfigured).toBe(true);
+    expect(createRes.status).toBe(404);
 
     // Subscribe the app to push events on one repo.
     const subRes = await fetch(`${controlPlane.url}/events/subscriptions`, {
@@ -126,6 +156,8 @@ describe("events", () => {
         source: "github",
         eventTypes: ["push"],
         scopes: ["org/app-one"],
+        // Caller-supplied credential refs are ignored; config owns the mapping.
+        deliverySecretRef: "ATTACKER_SECRET",
       }),
     });
     expect(subRes.status).toBe(201);
@@ -195,6 +227,7 @@ describe("events", () => {
           host: "127.0.0.1",
           databasePath: tempDb(),
           discoveryIntervalMs: 0,
+          connectionsConfig: EMPTY_CONFIG,
         }), Scope.Scope, scope2),
       );
       const res = await fetch(`${off.url}/events/github`, {

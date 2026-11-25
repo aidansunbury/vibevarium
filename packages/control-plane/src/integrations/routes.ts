@@ -1,4 +1,4 @@
-import { Auth, requireAuth, type Actor } from "@vibevarium/auth";
+import { Auth, type Actor } from "@vibevarium/auth";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
@@ -15,6 +15,12 @@ export interface IntegrationRouteOptions {
 }
 
 type Response = HttpServerResponse.HttpServerResponse;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Gated = <E, R>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handler: Effect.Effect<Response, E, R>,
+) => Effect.Effect<Response, E, any>;
 
 /** All bodies passed here are JSON.stringify-safe plain data, so the HttpBodyError channel is unreachable. */
 const json = (body: unknown, status = 200): Effect.Effect<Response, never, never> =>
@@ -77,14 +83,15 @@ const resolveCaller = (options: IntegrationRouteOptions) =>
     return { kind: "user", actor: verified.success } satisfies Caller;
   });
 
-/** Wrap an admin handler with requireAuth when OIDC is configured; dev-open otherwise. */
+/** Wrap an admin handler with the shared GUI-session-or-bearer gate when auth is configured. */
 const admin = <R>(
   options: IntegrationRouteOptions,
+  gated: Gated,
   handler: Effect.Effect<Response, IntegrationError, R>,
 ) => {
   const handled = Effect.catch(handler, (error: IntegrationError) =>
     json({ error: error.code, error_description: error.message }, error.status));
-  return (options.authEnabled ? requireAuth(handled) : handled) as Effect.Effect<Response, never, unknown>;
+  return (options.authEnabled ? gated(handled) : handled) as Effect.Effect<Response, never, unknown>;
 };
 
 /**
@@ -92,60 +99,23 @@ const admin = <R>(
  * Grants are app × integration rows; revoke = delete a row. Every proxied
  * call writes a proxy_audit row.
  */
-export const integrationRoutes = (options: IntegrationRouteOptions) =>
+export const integrationRoutes = (options: IntegrationRouteOptions, gated: Gated) =>
   HttpRouter.use((router) =>
     Effect.gen(function*() {
       const integrations = yield* Integrations;
+      const adminRoute = <R>(handler: Effect.Effect<Response, IntegrationError, R>) => admin(options, gated, handler);
 
-      // ---- Admin CRUD ----
-      yield* router.add("GET", "/integrations", admin(options, Effect.map(integrations.list(), (list) => ({ integrations: list })).pipe(
+      // Definitions come from config/connections.config.ts. Only grants and
+      // audits are mutable/readable here; there is no runtime definition CRUD.
+      yield* router.add("GET", "/integrations", adminRoute(Effect.map(integrations.list(), (list) => ({ integrations: list })).pipe(
         Effect.flatMap((value) => json(value)),
       )));
 
-      yield* router.add("POST", "/integrations", admin(options, Effect.gen(function*() {
-        const body = yield* parseJsonBody;
-        const input = typeof body === "object" && body !== null ? body as Record<string, unknown> : undefined;
-        if (input === undefined || typeof input.name !== "string" || typeof input.baseUrl !== "string" || typeof input.tokenEnv !== "string") {
-          return yield* invalidBody("Expected { name, baseUrl, tokenEnv, authHeader?, timeoutMs? }");
-        }
-        const created = yield* integrations.create({
-          name: input.name,
-          baseUrl: input.baseUrl,
-          tokenEnv: input.tokenEnv,
-          ...(typeof input.authHeader === "string" ? { authHeader: input.authHeader } : {}),
-          ...(typeof input.timeoutMs === "number" ? { timeoutMs: input.timeoutMs } : {}),
-        });
-        return yield* json(created, 201);
-      })));
-
-      yield* router.add("PATCH", "/integrations/:integration", admin(options, Effect.gen(function*() {
-        const params = yield* HttpRouter.params;
-        const body = yield* parseJsonBody;
-        const input = typeof body === "object" && body !== null ? body as Record<string, unknown> : undefined;
-        if (params.integration === undefined || input === undefined) {
-          return yield* invalidBody("Expected { baseUrl?, tokenEnv?, authHeader?, timeoutMs? }");
-        }
-        const updated = yield* integrations.update(params.integration, {
-          ...(typeof input.baseUrl === "string" ? { baseUrl: input.baseUrl } : {}),
-          ...(typeof input.tokenEnv === "string" ? { tokenEnv: input.tokenEnv } : {}),
-          ...(typeof input.authHeader === "string" ? { authHeader: input.authHeader } : {}),
-          ...(typeof input.timeoutMs === "number" ? { timeoutMs: input.timeoutMs } : {}),
-        });
-        return yield* json(updated);
-      })));
-
-      yield* router.add("DELETE", "/integrations/:integration", admin(options, Effect.gen(function*() {
-        const params = yield* HttpRouter.params;
-        if (params.integration === undefined) return yield* invalidBody("Expected an integration name");
-        yield* integrations.remove(params.integration);
-        return yield* json({ deleted: params.integration });
-      })));
-
-      yield* router.add("GET", "/integrations/grants", admin(options, Effect.gen(function*() {
+      yield* router.add("GET", "/integrations/grants", adminRoute(Effect.gen(function*() {
         return yield* json({ grants: yield* integrations.grants() });
       })));
 
-      yield* router.add("POST", "/integrations/:integration/grants", admin(options, Effect.gen(function*() {
+      yield* router.add("POST", "/integrations/:integration/grants", adminRoute(Effect.gen(function*() {
         const params = yield* HttpRouter.params;
         const body = yield* parseJsonBody;
         const app = typeof body === "object" && body !== null ? (body as Record<string, unknown>).app : undefined;
@@ -156,7 +126,7 @@ export const integrationRoutes = (options: IntegrationRouteOptions) =>
         return yield* json({ app, integration: params.integration, granted: true }, 201);
       })));
 
-      yield* router.add("DELETE", "/integrations/:integration/grants/:app", admin(options, Effect.gen(function*() {
+      yield* router.add("DELETE", "/integrations/:integration/grants/:app", adminRoute(Effect.gen(function*() {
         const params = yield* HttpRouter.params;
         if (params.integration === undefined || params.app === undefined) {
           return yield* invalidBody("Expected an integration and app name");
@@ -165,7 +135,7 @@ export const integrationRoutes = (options: IntegrationRouteOptions) =>
         return yield* json({ app: params.app, integration: params.integration, granted: false });
       })));
 
-      yield* router.add("GET", "/integrations/:integration/audit", admin(options, Effect.gen(function*() {
+      yield* router.add("GET", "/integrations/:integration/audit", adminRoute(Effect.gen(function*() {
         const params = yield* HttpRouter.params;
         const request = yield* HttpServerRequest;
         const limit = Number.parseInt(

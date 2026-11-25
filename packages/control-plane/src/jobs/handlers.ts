@@ -20,6 +20,7 @@ import { apps, eventSubscriptions } from "../store/schema.ts";
 import { eq } from "drizzle-orm";
 import { Database } from "../store/database.ts";
 import { SecretsProvider } from "../integrations/secrets.ts";
+import { ConnectionsConfigService } from "../config/connections-schema.ts";
 import { Scaffold } from "../scaffold/index.ts";
 import { asScaffoldError } from "../scaffold/errors.ts";
 import type { JobHandler, Outcome } from "./index.ts";
@@ -161,6 +162,7 @@ const classify = (status: number, retryAfterMs: number | null): Outcome => {
 export const deliverWebhookHandler = Effect.gen(function*() {
   const { db } = yield* Database;
   const secrets = yield* SecretsProvider;
+  const connectionsConfig = yield* ConnectionsConfigService;
 
   const handler: JobHandler = ({ job }) =>
     Effect.gen(function*() {
@@ -179,7 +181,11 @@ export const deliverWebhookHandler = Effect.gen(function*() {
       if (sub === undefined || app === undefined) {
         return { kind: "dead", error: "subscription_or_app_missing" } satisfies Outcome;
       }
-      const secret = sub.deliverySecretRef === null ? Option.none<string>() : yield* secrets.resolve(sub.deliverySecretRef);
+      if (!Object.hasOwn(connectionsConfig.config.webhooks, sub.source)) {
+        return { kind: "dead", error: "webhook_source_not_configured" } satisfies Outcome;
+      }
+      const deliveryRef = connectionsConfig.webhookDeliverySecretRef(sub.app);
+      const secret = deliveryRef === undefined ? Option.none<string>() : yield* secrets.resolve(deliveryRef);
       if (Option.isNone(secret)) {
         return { kind: "dead", error: "delivery_secret_unavailable" } satisfies Outcome;
       }

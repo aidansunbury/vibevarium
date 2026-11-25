@@ -7,9 +7,9 @@ stack: **TanStack Router** (file routes) + **TanStack Query** (server state) +
 an **Effect-`HttpApiClient` typed client** (no hand-rolled fetch strings).
 Routes: `/` app **gallery** (registered apps with status/URL/last-seen, run
 discovery), `/apps/$name` **app detail** (discovered tools, stale markers,
-delete), `/scaffold` (name → `POST /scaffold` → result), `/integrations`
-(register, grant/revoke app access, proxy audit), `/connections` (providers,
-connect/revoke, grants per app, audit). The root route (`__root`) is the auth
+delete + per-app secrets), `/scaffold` (name → `POST /scaffold` → result), and
+one `/connections` page (OAuth providers/grants, statically configured proxied
+secrets and grants, webhook sources/subscriptions, audit). The root route (`__root`) is the auth
 guard: its `beforeLoad` resolves `GET /auth/me`; auth-on with no session shows
 a sign-in card (matching the existing UX), auth-off dev mode renders straight
 through. The actor identity is in the header.
@@ -80,8 +80,8 @@ anyway). With no `web/dist` the mount is inert.
 | `/` gallery | `GET /auth/me`, `GET /apps`, `POST /discover` |
 | `/apps/$name` detail | `GET /directory`, `DELETE /apps/:name` |
 | `/scaffold` | `POST /scaffold` |
-| `/integrations` | `GET/POST /integrations`, `GET/POST/DELETE .../grants`, `GET .../audit` |
-| `/connections` | `GET /connections/providers`, `GET /connections`, `POST /connections/start`, `POST /connections/revoke`, `GET /grants`, `POST /grants/revoke`, `GET /integrations/:provider/audit` |
+| `/connections` (also integrations + events) | `GET /integrations`, `GET/POST/DELETE .../grants`, `GET .../audit`, `GET /events/sources`, `GET/POST/DELETE /events/subscriptions`, `GET /events/deliveries` |
+| `/connections` OAuth | `GET /connections/providers`, `GET /connections`, `POST /connections/start`, `POST /connections/revoke`, `GET /grants`, `POST /grants/revoke`, `GET /integrations/:provider/audit` |
 
 All of those are gated by `requireAuth` when `CONTROL_PLANE_ISSUER` is set
 (ops routes in `server.ts`, scaffold routes in `scaffold/index.ts`,

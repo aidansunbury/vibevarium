@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { Database } from "../store/database.ts";
 import { integrationGrants, integrations, proxyAudit, type IntegrationRow, type ProxyAuditRow } from "../store/schema.ts";
 import { SecretsProvider } from "./secrets.ts";
+import { ConnectionsConfigService, type ProxiedSecretConfig } from "../config/connections-schema.ts";
 
 export class IntegrationError extends Schema.TaggedError<IntegrationError>()("IntegrationError", {
   status: Schema.Number,
@@ -17,27 +18,16 @@ export class IntegrationError extends Schema.TaggedError<IntegrationError>()("In
 
 export interface IntegrationView {
   readonly name: string;
+  readonly displayName: string;
+  readonly logoUrl?: string | undefined;
   readonly baseUrl: string;
+  /** Stable config slug for the shared credential. */
+  readonly secret: string;
   readonly tokenEnv: string;
   readonly authHeader: string;
   readonly timeoutMs: number;
   readonly tokenConfigured: boolean;
   readonly createdAt: string;
-}
-
-export interface CreateIntegrationInput {
-  readonly name: string;
-  readonly baseUrl: string;
-  readonly tokenEnv: string;
-  readonly authHeader?: string | undefined;
-  readonly timeoutMs?: number | undefined;
-}
-
-export interface UpdateIntegrationInput {
-  readonly baseUrl?: string | undefined;
-  readonly tokenEnv?: string | undefined;
-  readonly authHeader?: string | undefined;
-  readonly timeoutMs?: number | undefined;
 }
 
 export interface ProxyCall {
@@ -59,12 +49,12 @@ export interface ProxyResult {
 
 const namePattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
-const validAuthHeader = (value: string) =>
-  ["authorization_bearer", "authorization", "x-api-key", "none"].includes(value);
-
-const toView = (row: IntegrationRow, tokenConfigured: boolean): IntegrationView => ({
+const toView = (row: IntegrationRow, tokenConfigured: boolean, definition?: ProxiedSecretConfig): IntegrationView => ({
   name: row.name,
+  displayName: definition?.displayName ?? row.name,
+  ...(definition?.logoUrl === undefined ? {} : { logoUrl: definition.logoUrl }),
   baseUrl: row.baseUrl,
+  secret: definition?.secret ?? row.tokenEnv,
   tokenEnv: row.tokenEnv,
   authHeader: row.authHeader,
   timeoutMs: Number.parseInt(row.timeoutMs, 10),
@@ -73,10 +63,7 @@ const toView = (row: IntegrationRow, tokenConfigured: boolean): IntegrationView 
 });
 
 export class Integrations extends Context.Service<Integrations, {
-  readonly create: (input: CreateIntegrationInput) => Effect.Effect<IntegrationView, IntegrationError>;
   readonly list: () => Effect.Effect<ReadonlyArray<IntegrationView>>;
-  readonly update: (name: string, input: UpdateIntegrationInput) => Effect.Effect<IntegrationView, IntegrationError>;
-  readonly remove: (name: string) => Effect.Effect<void, IntegrationError>;
   readonly grant: (app: string, integration: string) => Effect.Effect<void, IntegrationError>;
   readonly revoke: (app: string, integration: string) => Effect.Effect<void, IntegrationError>;
   readonly grants: () => Effect.Effect<ReadonlyArray<{ readonly app: string; readonly integration: string }>>;
@@ -89,93 +76,44 @@ export class Integrations extends Context.Service<Integrations, {
   static readonly layer = Layer.effect(Integrations)(Effect.gen(function*() {
     const { db } = yield* Database;
     const secrets = yield* SecretsProvider;
+    const connectionsConfig = yield* ConnectionsConfigService;
+    const definitions = new Map(Object.entries(connectionsConfig.config.proxiedSecrets));
 
     const fail = (status: number, code: string, message: string) =>
       Effect.fail(new IntegrationError({ status, code, message }));
 
-    const create = Effect.fnUntraced(function*(input: CreateIntegrationInput) {
-      if (!namePattern.test(input.name)) {
-        return yield* fail(400, "invalid_name", "Integration names are lower-kebab-case (1-63 characters)");
-      }
-      let baseUrl: URL;
-      try {
-        baseUrl = new URL(input.baseUrl);
-      } catch {
-        return yield* fail(400, "invalid_base_url", "baseUrl must be an absolute URL");
-      }
-      if (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") {
-        return yield* fail(400, "invalid_base_url", "baseUrl must be an http(s) URL");
-      }
-      if (!/^[A-Z0-9_]+$/.test(input.tokenEnv)) {
-        return yield* fail(400, "invalid_token_env", "tokenEnv must be an env var name (A-Z, 0-9, _)");
-      }
-      const authHeader = input.authHeader ?? "authorization_bearer";
-      if (!validAuthHeader(authHeader)) {
-        return yield* fail(400, "invalid_auth_header", "authHeader must be authorization_bearer, authorization, x-api-key, or none");
-      }
-      const timeoutMs = input.timeoutMs ?? 10_000;
-      if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-        return yield* fail(400, "invalid_timeout", "timeoutMs must be a positive integer");
-      }
-      const rows = yield* Effect.promise(() =>
-        db.insert(integrations).values({
-          name: input.name,
-          baseUrl: input.baseUrl.replace(/\/+$/, ""),
-          tokenEnv: input.tokenEnv,
-          authHeader,
-          timeoutMs: String(timeoutMs),
-        }).returning()
+    // Static config is authoritative. DB rows are only FK parents for grants;
+    // stale runtime-created rows are neither listed nor executable.
+    for (const [name, definition] of definitions) {
+      const values = {
+        baseUrl: definition.baseUrl.replace(/\/+$/, ""),
+        tokenEnv: connectionsConfig.secretRef(definition.secret)!,
+        authHeader: definition.authHeader ?? "authorization_bearer",
+        timeoutMs: String(definition.timeoutMs ?? 10_000),
+      };
+      yield* Effect.promise(() =>
+        db.insert(integrations).values({ name, ...values }).onConflictDoUpdate({
+          target: integrations.name,
+          set: values,
+        })
       );
-      return toView(rows[0]!, Option.isSome(yield* secrets.resolve(input.tokenEnv)));
-    });
+    }
+    const view = (row: IntegrationRow, tokenConfigured: boolean) =>
+      toView(row, tokenConfigured, definitions.get(row.name));
 
     const list = Effect.fnUntraced(function*() {
       const rows = yield* Effect.promise(() => db.select().from(integrations));
-      return yield* Effect.forEach(rows, (row) =>
-        Effect.map(secrets.resolve(row.tokenEnv), (token) => toView(row, Option.isSome(token)))
+      return yield* Effect.forEach(rows.filter((row) => definitions.has(row.name)), (row) =>
+        Effect.map(secrets.resolve(row.tokenEnv), (token) => view(row, Option.isSome(token)))
       );
     });
 
     const getRow = Effect.fnUntraced(function*(name: string) {
+      if (!definitions.has(name)) return Option.none<IntegrationRow>();
       const rows = yield* Effect.promise(() =>
         db.select().from(integrations).where(eq(integrations.name, name)).limit(1)
       );
       return Option.fromUndefinedOr(rows[0]);
-    });
-
-    const update = Effect.fnUntraced(function*(name: string, input: UpdateIntegrationInput) {
-      const existing = yield* getRow(name);
-      if (Option.isNone(existing)) {
-        return yield* fail(404, "not_found", `Integration ${name} is not registered`);
-      }
-      if (input.authHeader !== undefined && !validAuthHeader(input.authHeader)) {
-        return yield* fail(400, "invalid_auth_header", "authHeader must be authorization_bearer, authorization, x-api-key, or none");
-      }
-      if (input.tokenEnv !== undefined && !/^[A-Z0-9_]+$/.test(input.tokenEnv)) {
-        return yield* fail(400, "invalid_token_env", "tokenEnv must be an env var name (A-Z, 0-9, _)");
-      }
-      if (input.timeoutMs !== undefined && (!Number.isInteger(input.timeoutMs) || input.timeoutMs <= 0)) {
-        return yield* fail(400, "invalid_timeout", "timeoutMs must be a positive integer");
-      }
-      const set: Partial<typeof integrations.$inferInsert> = {};
-      if (input.baseUrl !== undefined) set.baseUrl = input.baseUrl.replace(/\/+$/, "");
-      if (input.tokenEnv !== undefined) set.tokenEnv = input.tokenEnv;
-      if (input.authHeader !== undefined) set.authHeader = input.authHeader;
-      if (input.timeoutMs !== undefined) set.timeoutMs = String(input.timeoutMs);
-      const rows = yield* Effect.promise(() =>
-        db.update(integrations).set(set).where(eq(integrations.name, name)).returning()
-      );
-      const row = rows[0]!;
-      return toView(row, Option.isSome(yield* secrets.resolve(row.tokenEnv)));
-    });
-
-    const remove = Effect.fnUntraced(function*(name: string) {
-      const existing = yield* getRow(name);
-      if (Option.isNone(existing)) {
-        return yield* fail(404, "not_found", `Integration ${name} is not registered`);
-      }
-      // Grants cascade with the row.
-      yield* Effect.promise(() => db.delete(integrations).where(eq(integrations.name, name)));
     });
 
     const grant = Effect.fnUntraced(function*(app: string, integration: string) {
@@ -342,10 +280,7 @@ export class Integrations extends Context.Service<Integrations, {
     });
 
     return Integrations.of({
-      create,
       list,
-      update,
-      remove,
       grant,
       revoke,
       grants,

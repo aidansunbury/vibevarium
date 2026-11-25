@@ -7,11 +7,11 @@
  *   is the path-exemptions `authMode: "app"` shape: the control plane
  *   authenticates the provider, then fans out. 503 events_not_configured when
  *   the feature is off so providers retry/alert instead of a false 200.
- * - CRUD: sources (superadmin) + subscriptions (app owner/admin or superadmin)
- *   under the standard GUI-session-or-bearer gate.
+ * - Static source reads + subscription CRUD (app owner/admin or superadmin)
+ *   under the standard GUI-session-or-bearer gate. Sources cannot be registered
+ *   or mutated through HTTP.
  */
 import { CurrentActor } from "@vibevarium/auth";
-import { eq } from "drizzle-orm";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
@@ -21,10 +21,9 @@ import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Acl } from "../acl/index.ts";
-import { Database } from "../store/database.ts";
-import { webhookSources } from "../store/schema.ts";
 import { SecretsProvider } from "../integrations/secrets.ts";
-import { CreateSourceInput, CreateSubscriptionInput, EventError, Events, type NormalizedEvent } from "./service.ts";
+import { CreateSubscriptionInput, EventError, Events, type NormalizedEvent } from "./service.ts";
+import { ConnectionsConfigService } from "../config/connections-schema.ts";
 
 const namePattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
@@ -122,7 +121,7 @@ export const eventsRoutes = (gated: Gated) =>
       const events = yield* Events;
       const acl = yield* Acl;
       const secrets = yield* SecretsProvider;
-      const { db } = yield* Database;
+      const connectionsConfig = yield* ConnectionsConfigService;
 
       // ----- INGRESS (secret-verified, not platform-auth) --------------------
       const ingress = Effect.gen(function*() {
@@ -134,10 +133,7 @@ export const eventsRoutes = (gated: Gated) =>
         const request = yield* HttpServerRequest;
         const rawBody = yield* request.text.pipe(Effect.catch(() => Effect.succeed("")));
 
-        const sourceRows = yield* Effect.promise(() =>
-          db.select().from(webhookSources).where(eq(webhookSources.name, sourceName)).limit(1),
-        );
-        const source = sourceRows[0];
+        const source = Option.getOrUndefined(yield* events.getSource(sourceName));
         const headers: Record<string, string> = {};
         for (const [key, value] of Object.entries(request.headers)) headers[key.toLowerCase()] = value;
 
@@ -145,7 +141,8 @@ export const eventsRoutes = (gated: Gated) =>
         // feature is off — never leak whether events_not_configured would fire
         // to an unauthenticated caller probing with bad signatures.
         if (source !== undefined && source.verification !== "none") {
-          const secret = yield* secrets.resolve(source.secretRef);
+          const ref = connectionsConfig.secretRef(source.secret);
+          const secret = ref === undefined ? Option.none<string>() : yield* secrets.resolve(ref);
           if (Option.isNone(secret) || !verifyIngress(source.verification, secret.value, headers, rawBody)) {
             return yield* HttpServerResponse.json({ error: "invalid_signature" }, { status: 401 });
           }
@@ -158,25 +155,7 @@ export const eventsRoutes = (gated: Gated) =>
       });
       yield* router.add("POST", "/events/:source", ingress);
 
-      // ----- SOURCE CRUD (superadmin) ----------------------------------------
-      const createSource = gated(Effect.gen(function*() {
-        const actor = yield* Effect.serviceOption(CurrentActor);
-        if (Option.isSome(actor) && !(yield* acl.isSuperadmin(actor.value.sub))) {
-          return yield* HttpServerResponse.json({ error: "superadmin_required" }, { status: 403 });
-        }
-        const request = yield* HttpServerRequest;
-        const body = yield* request.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
-        const decoded = yield* Schema.decodeUnknownEffect(CreateSourceInput)(body).pipe(Effect.result);
-        if (Result.isFailure(decoded)) {
-          return yield* HttpServerResponse.json(
-            { error: "invalid_input", details: decoded.failure.message },
-            { status: 400 },
-          );
-        }
-        return yield* respond(events.createSource(decoded.success), 201);
-      }));
-      yield* router.add("POST", "/events/sources", createSource);
-
+      // Sources are static config; only subscriptions are runtime-managed.
       const listSources = gated(Effect.gen(function*() {
         const sources = yield* events.listSources();
         return yield* HttpServerResponse.json({ sources });

@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OAuthProviderRow } from "../store/schema.ts";
-import { GITHUB_PROVIDER } from "./manifest.ts";
+import { connectionsConfig } from "../config/connections.config.ts";
+import { secretRef } from "../config/connections-schema.ts";
 import { fetchProviderIdentity } from "./oauth.ts";
 
+const configured = connectionsConfig.oauthProviders.github!;
+const { clientSecret, ...definition } = configured;
 const provider = {
-  ...GITHUB_PROVIDER,
-  defaultScopes: GITHUB_PROVIDER.defaultScopes.join(" "),
-  responseMode: "query",
+  ...definition,
+  name: "github",
+  clientSecretRef: secretRef(connectionsConfig, clientSecret)!,
+  defaultScopes: configured.defaultScopes.join(" "),
+  responseMode: configured.responseMode ?? "query",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 } satisfies OAuthProviderRow;
@@ -21,7 +26,7 @@ describe("fetchProviderIdentity", () => {
 
     await expect(fetchProviderIdentity(provider, "token")).resolves.toEqual({ sub: "42", label: "octocat" });
     expect(fetchMock).toHaveBeenCalledWith(
-      GITHUB_PROVIDER.userinfoUrl,
+      configured.userinfoUrl,
       expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer token" }) }),
     );
   });

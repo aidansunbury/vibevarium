@@ -29,8 +29,11 @@ export interface AppSecretsOptions {
 
 export class AppSecretsError extends Error {
   readonly _tag = "AppSecretsError";
-  constructor(readonly status: number, message: string) {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
   }
 }
 

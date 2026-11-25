@@ -30,7 +30,8 @@ import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import type * as ContextT from "effect/Context";
 import { SecretsProvider } from "../integrations/secrets.ts";
-import { CONNECTION_PROVIDER_MANIFEST } from "../connections/manifest.ts";
+import { connectionsConfig } from "./connections.config.ts";
+import { secretRef } from "./connections-schema.ts";
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -47,9 +48,6 @@ export type Feature = typeof Feature.Type;
 
 export const AuthProvider = Schema.Literals(["casdoor", "workos"]);
 export type AuthProvider = typeof AuthProvider.Type;
-
-export const ConnectionProvider = Schema.Literals(["github", "linear"]);
-export type ConnectionProvider = typeof ConnectionProvider.Type;
 
 /** Comma-separated env list decoded to trimmed non-empty strings, validated against `literals`. */
 const csvLiterals = <L extends string>(literals: ReadonlyArray<L>, name: string) =>
@@ -104,10 +102,6 @@ const flatConfig = Config.all({
   authProvider: Config.schema(AuthProvider, "TERRARIUM_AUTH_PROVIDER").pipe(
     Config.withDefault("casdoor" as AuthProvider),
   ),
-  /** OAuth connection providers enabled for this deployment. Disabled providers require no secrets. */
-  connectionProviders: csvLiterals(["github", "linear"], "TERRARIUM_CONNECTION_PROVIDERS").pipe(
-    Config.withDefault([] as Array<ConnectionProvider>),
-  ),
 
   startupTimeoutMs: Config.Int("APP_START_TIMEOUT_MS").pipe(Config.withDefault(20_000)),
   appsRoot: Config.option(Config.NonEmptyString("TERRARIUM_APPS_ROOT")),
@@ -150,9 +144,6 @@ const flatConfig = Config.all({
   workosApiKey: Config.option(Config.NonEmptyString("WORKOS_API_KEY")),
   workosIssuer: Config.String("WORKOS_ISSUER").pipe(Config.withDefault("https://api.workos.com")),
 
-  // Events (docs/internal/events.md): optional feature. Absent config → the EventBus
-  // runs as a NoopEventBus and ingress/CRUD report events_not_configured.
-  eventsEnabled: Config.Boolean("EVENTS_ENABLED").pipe(Config.withDefault(false)),
   eventsMaxAttempts: Config.Int("EVENTS_MAX_ATTEMPTS").pipe(Config.withDefault(8)),
   eventsRetrySchedule: Config.String("EVENTS_RETRY_SCHEDULE").pipe(
     Config.withDefault("30s,2m,10m,30m,2h,8h"),
@@ -208,7 +199,6 @@ export interface PlatformConfig {
   readonly database: DatabaseOption;
   readonly features: ReadonlyArray<Feature>;
   readonly authProvider: AuthProvider;
-  readonly connectionProviders: ReadonlyArray<ConnectionProvider>;
 
   readonly cloudflare:
     | {
@@ -262,18 +252,15 @@ export interface PlatformConfig {
   readonly issuer: string | undefined;
 
   /**
-   * Events feature (docs/internal/events.md). Undefined when EVENTS_ENABLED is not
-   * true — the control plane then mounts a NoopEventBus and every events
-   * surface reports events_not_configured (503 on ingress, empty elsewhere).
+   * Events feature (docs/internal/events.md). Webhook sources are enabled by their presence in connections.config.ts;
+   * these are only worker retry/polling settings.
    */
-  readonly events:
-    | {
-        readonly maxAttempts: number;
-        /** Comma-separated backoff delays (e.g. "30s,2m,10m,30m,2h,8h"), parsed to ms. */
-        readonly retryScheduleMs: ReadonlyArray<number>;
-        readonly pollMs: number;
-      }
-    | undefined;
+  readonly events: {
+    readonly maxAttempts: number;
+    /** Comma-separated backoff delays (e.g. "30s,2m,10m,30m,2h,8h"), parsed to ms. */
+    readonly retryScheduleMs: ReadonlyArray<number>;
+    readonly pollMs: number;
+  };
 }
 
 const normalizeIssuer = (issuer: string) => issuer.replace(/\/+$/, "");
@@ -477,7 +464,6 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
     database: flat.database,
     features: flat.features,
     authProvider: flat.authProvider,
-    connectionProviders: flat.connectionProviders,
     cloudflare,
     aws,
     planetscale,
@@ -489,13 +475,11 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
     appSecrets: parseAppSecrets(),
     connectionsRefreshSkewMs: get(flat.connectionsRefreshSkewMs),
     issuer: get(flat.issuer),
-    events: flat.eventsEnabled
-      ? {
-          maxAttempts: flat.eventsMaxAttempts,
-          retryScheduleMs: parseRetrySchedule(flat.eventsRetrySchedule),
-          pollMs: flat.eventsPollMs,
-        }
-      : undefined,
+    events: {
+      maxAttempts: flat.eventsMaxAttempts,
+      retryScheduleMs: parseRetrySchedule(flat.eventsRetrySchedule),
+      pollMs: flat.eventsPollMs,
+    },
   };
 };
 
@@ -651,7 +635,7 @@ const anyOf = (feature: string, ...refs: ReadonlyArray<string>): SecretRequireme
  * of secrets the boot loader knows about. For example, disabling Linear means
  * its OAuth client may be absent without affecting startup.
  */
-export const requiredSecretsForConfig = (flat: FlatConfig): ReadonlyArray<SecretRequirement> => {
+export const requiredSecretsForConfig = (flat: FlatConfig, env: NodeJS.ProcessEnv = process.env): ReadonlyArray<SecretRequirement> => {
   const requirements: Array<SecretRequirement> = [];
 
   if (flat.authProvider === "casdoor") {
@@ -675,12 +659,12 @@ export const requiredSecretsForConfig = (flat: FlatConfig): ReadonlyArray<Secret
     requirements.push(allOf("Authenticated app discovery", "DISCOVERY_CLIENT_ID", "DISCOVERY_CLIENT_SECRET"));
   }
 
-  if (flat.connectionProviders.length > 0) {
-    requirements.push(allOf("Connections token encryption", "CONNECTIONS_TOKEN_ENCRYPTION_KEY"));
-  }
-  for (const name of flat.connectionProviders) {
-    const provider = CONNECTION_PROVIDER_MANIFEST[name];
-    requirements.push(allOf(`${provider.displayName} OAuth connection`, provider.clientIdRef, provider.clientSecretRef));
+  const oauthCredentialRefs = Object.values(connectionsConfig.oauthProviders).flatMap((provider) => [
+    provider.clientIdRef,
+    secretRef(connectionsConfig, provider.clientSecret)!,
+  ]);
+  if (oauthCredentialRefs.some((ref) => env[ref] !== undefined && env[ref] !== "")) {
+    requirements.push(allOf("Connections token encryption", secretRef(connectionsConfig, connectionsConfig.oauthTokenEncryption)!));
   }
 
   return requirements;
@@ -697,7 +681,7 @@ export const missingRequiredSecrets = (
   env: NodeJS.ProcessEnv = process.env,
 ): ReadonlyArray<MissingSecretRequirement> => {
   const present = (ref: string) => env[ref] !== undefined && env[ref] !== "";
-  return requiredSecretsForConfig(flat).flatMap((requirement) => {
+  return requiredSecretsForConfig(flat, env).flatMap((requirement) => {
     if (requirement.allOf !== undefined) {
       const missing = requirement.allOf.filter((ref) => !present(ref));
       return missing.length === 0 ? [] : [{ feature: requirement.feature, refs: missing }];

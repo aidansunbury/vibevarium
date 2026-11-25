@@ -12,9 +12,9 @@
  * Design anchors:
  * - Subscription truth lives in Postgres, never in a broker — the jobs table
  *   is the only v1 "queue", and it survives any future backend swap.
- * - The whole feature is OPTIONAL. When config.events is undefined this
- *   service still loads (routes/MCP/CLI can list empty state) but `publish`
- *   fails with events_not_configured (503) so providers never get a false 200.
+ * - Sources come from connections.config.ts. With an empty webhook catalog,
+ *   `publish` fails with events_not_configured (503) so providers never get a
+ *   false 200. Runtime DB rows hold only grants/subscriptions/deliveries.
  */
 import { and, eq, type SQL } from "drizzle-orm";
 import * as Context from "effect/Context";
@@ -37,6 +37,7 @@ import {
 import { JobRunner } from "../jobs/index.ts";
 import type { DeliverWebhookPayload } from "../jobs/handlers.ts";
 import { SecretsProvider } from "../integrations/secrets.ts";
+import { ConnectionsConfigService, type WebhookSourceConfig } from "../config/connections-schema.ts";
 
 export class EventError extends Schema.TaggedError<EventError>()("EventError", {
   status: Schema.Number,
@@ -47,9 +48,11 @@ export class EventError extends Schema.TaggedError<EventError>()("EventError", {
 const fail = (status: number, code: string, message: string) =>
   Effect.fail(new EventError({ status, code, message }));
 
-const toSourceView = (row: WebhookSourceRow, secretConfigured: boolean): SourceView => ({
+const toSourceView = (row: WebhookSourceRow, secretConfigured: boolean, definition?: WebhookSourceConfig): SourceView => ({
   name: row.name,
-  displayName: row.displayName,
+  displayName: definition?.displayName ?? row.displayName,
+  ...(definition?.logoUrl === undefined ? {} : { logoUrl: definition.logoUrl }),
+  secret: definition?.secret ?? row.secretRef,
   verification: row.verification,
   eventTypeHeader: row.eventTypeHeader,
   enabled: row.enabled,
@@ -77,6 +80,9 @@ const toSubscriptionView = (row: EventSubscriptionRow, deliveryConfigured: boole
 export interface SourceView {
   readonly name: string;
   readonly displayName: string;
+  readonly logoUrl?: string | undefined;
+  /** Stable config slug for the ingress verification credential. */
+  readonly secret: string;
   readonly verification: string;
   readonly eventTypeHeader: string | null;
   readonly enabled: boolean;
@@ -97,31 +103,15 @@ export interface SubscriptionView {
   readonly createdAt: string;
 }
 
-export const CreateSourceInput = Schema.Struct({
-  name: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]{0,62}$/)),
-  displayName: Schema.String.check(Schema.isNonEmpty()),
-  secretRef: Schema.String.check(Schema.isPattern(/^[A-Za-z0-9_/-]+$/)),
-  verification: Schema.optional(Schema.Literals(["hmac-sha256", "bearer", "none"])),
-  eventTypeHeader: Schema.optional(Schema.String),
-  enabled: Schema.optional(Schema.Boolean),
-});
-export type CreateSourceInput = typeof CreateSourceInput.Type;
-
 export const CreateSubscriptionInput = Schema.Struct({
   app: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]{0,62}$/)),
   source: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]{0,62}$/)),
   eventTypes: Schema.optional(Schema.Array(Schema.String)),
   scopes: Schema.optional(Schema.Array(Schema.String)),
   filter: Schema.optional(Schema.NullOr(Schema.Array(Schema.Any))),
-  /** SecretsProvider reference for this app's delivery-signing secret. Defaults to the app convention APP_EVENTS_SECRET_<APP>. */
-  deliverySecretRef: Schema.optional(Schema.String),
   createdBy: Schema.optional(Schema.String),
 });
 export type CreateSubscriptionInput = typeof CreateSubscriptionInput.Type;
-
-/** The delivery-secret reference convention for an app (env-style name). */
-export const appDeliverySecretRef = (app: string): string =>
-  `APP_EVENTS_SECRET_${app.toUpperCase().replaceAll("-", "_")}`;
 
 export interface NormalizedEvent {
   readonly source: string;
@@ -172,7 +162,6 @@ const matchesFilter = (payload: unknown, filter: ReadonlyArray<EventFilterClause
 
 export class Events extends Context.Service<Events, {
   // Sources (platform-owned; superadmin-gated at the route).
-  readonly createSource: (input: CreateSourceInput) => Effect.Effect<SourceView, EventError>;
   readonly listSources: () => Effect.Effect<ReadonlyArray<SourceView>>;
   readonly getSource: (name: string) => Effect.Effect<Option.Option<SourceView>>;
   // Subscriptions (app-owner/superadmin-gated at the route).
@@ -196,45 +185,58 @@ export class Events extends Context.Service<Events, {
       const { db } = yield* Database;
       const secrets = yield* SecretsProvider;
       const runner = yield* JobRunner;
+      const connectionsConfig = yield* ConnectionsConfigService;
+      const sourceDefinitions = new Map(Object.entries(connectionsConfig.config.webhooks));
 
       const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
-      const createSource = Effect.fnUntraced(function*(input: CreateSourceInput) {
-        const rows = yield* Effect.promise(() =>
-          db.insert(webhookSources).values({
-            name: input.name,
-            displayName: input.displayName,
-            secretRef: input.secretRef,
-            verification: input.verification ?? "hmac-sha256",
-            eventTypeHeader: input.eventTypeHeader ?? null,
-            enabled: input.enabled ?? true,
-          }).onConflictDoNothing({ target: webhookSources.name }).returning()
+      for (const [name, definition] of sourceDefinitions) {
+        const values = {
+          displayName: definition.displayName,
+          secretRef: connectionsConfig.secretRef(definition.secret)!,
+          verification: definition.verification ?? "hmac-sha256",
+          eventTypeHeader: definition.eventTypeHeader ?? null,
+          enabled: true,
+          updatedAt: new Date().toISOString(),
+        };
+        yield* Effect.promise(() =>
+          db.insert(webhookSources).values({ name, ...values }).onConflictDoUpdate({
+            target: webhookSources.name,
+            set: values,
+          })
         );
-        const row = rows[0];
-        if (row === undefined) {
-          return yield* fail(409, "source_exists", `Source ${input.name} is already registered`);
-        }
-        return toSourceView(row, Option.isSome(yield* secrets.resolve(row.secretRef)));
-      });
+      }
+      const sourceView = (row: WebhookSourceRow, secretConfigured: boolean) =>
+        toSourceView(row, secretConfigured, sourceDefinitions.get(row.name));
 
       const listSources = Effect.fnUntraced(function*() {
         const rows = yield* Effect.promise(() => db.select().from(webhookSources));
-        return yield* Effect.forEach(rows, (row) =>
-          Effect.map(secrets.resolve(row.secretRef), (secret) => toSourceView(row, Option.isSome(secret)))
+        return yield* Effect.forEach(rows.filter((row) => sourceDefinitions.has(row.name)), (row) =>
+          Effect.map(secrets.resolve(row.secretRef), (secret) => sourceView(row, Option.isSome(secret)))
         );
       });
 
       const getSource = Effect.fnUntraced(function*(name: string) {
+        if (!sourceDefinitions.has(name)) return Option.none<SourceView>();
         const rows = yield* Effect.promise(() =>
           db.select().from(webhookSources).where(eq(webhookSources.name, name)).limit(1)
         );
         const row = rows[0];
         if (row === undefined) return Option.none<SourceView>();
-        return Option.some(toSourceView(row, Option.isSome(yield* secrets.resolve(row.secretRef))));
+        return Option.some(sourceView(row, Option.isSome(yield* secrets.resolve(row.secretRef))));
+      });
+
+      const subscriptionView = Effect.fnUntraced(function*(row: EventSubscriptionRow) {
+        const ref = connectionsConfig.webhookDeliverySecretRef(row.app);
+        const configured = ref !== undefined && Option.isSome(yield* secrets.resolve(ref));
+        return toSubscriptionView(row, configured);
       });
 
       const subscribe = Effect.fnUntraced(function*(input: CreateSubscriptionInput) {
-        // The source must exist and be enabled.
+        // Only statically configured sources can receive subscriptions.
+        if (!sourceDefinitions.has(input.source)) {
+          return yield* fail(404, "unknown_source", `Source ${input.source} is not registered`);
+        }
         const sourceRows = yield* Effect.promise(() =>
           db.select().from(webhookSources).where(eq(webhookSources.name, input.source)).limit(1)
         );
@@ -252,6 +254,14 @@ export class Events extends Context.Service<Events, {
         if (appRows[0] === undefined) {
           return yield* fail(404, "unknown_app", `App ${input.app} is not registered`);
         }
+        const deliverySecretRef = connectionsConfig.webhookDeliverySecretRef(input.app);
+        if (deliverySecretRef === undefined) {
+          return yield* fail(
+            400,
+            "delivery_credential_not_configured",
+            `App ${input.app} has no webhook delivery credential in connections.config.ts`,
+          );
+        }
         const id = randomUUID();
         const createdAt = yield* nowIso;
         const rows = yield* Effect.promise(() =>
@@ -262,13 +272,13 @@ export class Events extends Context.Service<Events, {
             eventTypes: input.eventTypes ?? [],
             scopes: input.scopes ?? [],
             filter: (input.filter ?? null) as ReadonlyArray<EventFilterClause> | null,
-            deliverySecretRef: input.deliverySecretRef ?? appDeliverySecretRef(input.app),
+            deliverySecretRef,
             createdBy: input.createdBy ?? null,
             updatedAt: createdAt,
           }).returning()
         );
         const row = rows[0]!;
-        return toSubscriptionView(row, row.deliverySecretRef !== null);
+        return yield* subscriptionView(row);
       });
 
       const unsubscribe = Effect.fnUntraced(function*(id: string) {
@@ -288,7 +298,7 @@ export class Events extends Context.Service<Events, {
         const rows = yield* Effect.promise(() =>
           conditions.length === 0 ? base : base.where(and(...conditions))
         );
-        return rows.map((row) => toSubscriptionView(row, row.deliverySecretRef !== null));
+        return yield* Effect.forEach(rows, subscriptionView);
       });
 
       const setSubscriptionStatus = Effect.fnUntraced(function*(id: string, status: "active" | "paused") {
@@ -300,7 +310,7 @@ export class Events extends Context.Service<Events, {
         if (row === undefined) {
           return yield* fail(404, "not_found", `Subscription ${id} does not exist`);
         }
-        return toSubscriptionView(row, row.deliverySecretRef !== null);
+        return yield* subscriptionView(row);
       });
 
       const publish = Effect.fnUntraced(function*(sourceName: string, event: NormalizedEvent) {
@@ -308,8 +318,11 @@ export class Events extends Context.Service<Events, {
           return yield* fail(
             503,
             "events_not_configured",
-            "The events feature is not configured on this control plane (EVENTS_ENABLED) — the provider should retry/alert rather than treat this as delivered",
+            "The events feature is not configured on this control plane (connections.config.ts) — the provider should retry/alert rather than treat this as delivered",
           );
+        }
+        if (!sourceDefinitions.has(sourceName)) {
+          return yield* fail(404, "unknown_source", `Source ${sourceName} is not registered`);
         }
         const sourceRows = yield* Effect.promise(() =>
           db.select().from(webhookSources).where(eq(webhookSources.name, sourceName)).limit(1)
@@ -384,7 +397,6 @@ export class Events extends Context.Service<Events, {
       });
 
       return Events.of({
-        createSource,
         listSources,
         getSource,
         subscribe,

@@ -17,6 +17,7 @@ import * as Context from "effect/Context";
 import * as HttpServer from "effect/http/HttpServer";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
+import type { ConnectionsConfig } from "../src/config/connections-schema.ts";
 
 const CONTROL_AUDIENCE = "control.vibevarium.local";
 const APP_SECRET = "demo-app-shared-secret";
@@ -71,6 +72,22 @@ const snowflake = await startFakeSnowflake();
 // The v1 secrets backend: env vars. The manifest row only names the env var.
 process.env.INTEGRATION_SNOWFLAKE_TOKEN = "snowflake-real-token-abc123";
 
+const demoConfig = {
+  secrets: { "snowflake-token": { ref: "INTEGRATION_SNOWFLAKE_TOKEN" } },
+  oauthProviders: {},
+  proxiedSecrets: {
+    snowflake: {
+      displayName: "Snowflake",
+      logoUrl: "/provider-logos/snowflake.svg",
+      baseUrl: snowflake.url,
+      secret: "snowflake-token",
+      timeoutMs: 5_000,
+    },
+  },
+  webhooks: {},
+  webhookDeliverySecrets: {},
+} satisfies ConnectionsConfig;
+
 const scope = await Effect.runPromise(Scope.make());
 const context = await Effect.runPromise(
   Layer.build(controlPlaneServer({
@@ -78,6 +95,7 @@ const context = await Effect.runPromise(
     discoveryIntervalMs: 0,
     oidc: { issuer: issuer.issuer, audience: CONTROL_AUDIENCE },
     appSecrets: { "metrics-dashboard": APP_SECRET },
+    connectionsConfig: demoConfig,
   })).pipe(Effect.provideService(Scope.Scope, scope)),
 );
 const server = Context.get(context, HttpServer.HttpServer);
@@ -99,15 +117,7 @@ const json = async (response: Response) => ({ status: response.status, body: awa
 report.anonymousAdminRejected = await json(await fetch(`${cp}/integrations`));
 
 // 2. Register the fake snowflake integration (token by env var reference only).
-report.registerIntegration = await json(await fetch(`${cp}/integrations`, admin({
-  method: "POST",
-  body: JSON.stringify({
-    name: "snowflake",
-    baseUrl: snowflake.url,
-    tokenEnv: "INTEGRATION_SNOWFLAKE_TOKEN",
-    timeoutMs: 5000,
-  }),
-})));
+report.registerIntegration = await json(await fetch(`${cp}/integrations`, admin()));
 
 // 3. App call WITHOUT a grant → 403 grant_required.
 const appHeaders = {
@@ -165,7 +175,7 @@ report.callAfterRevoke = await json(await fetch(`${cp}/proxy/snowflake/v1/query`
 
 // ---- Assertions ----
 assert.equal((report.anonymousAdminRejected as { status: number }).status, 401);
-assert.equal((report.registerIntegration as { status: number }).status, 201);
+assert.equal((report.registerIntegration as { status: number }).status, 200);
 assert.deepEqual(report.callBeforeGrant, {
   status: 403,
   body: {

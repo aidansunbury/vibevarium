@@ -236,7 +236,6 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         GUI_ORIGIN: `https://platform.${options.domain}`,
         COOKIE_DOMAIN: `.${options.domain}`,
         PLATFORM_OIDC_AUDIENCE: `https://api.${options.domain}/mcp`,
-        TERRARIUM_CONNECTION_PROVIDERS: "github,linear",
         GIT_PROVIDER: "github",
         GITHUB_APP_INSTALLATION_ID: "184285119",
         GITHUB_ORG: "terrarium-sandbox",
