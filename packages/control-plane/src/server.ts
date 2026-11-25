@@ -37,6 +37,10 @@ import { Scaffold, type ScaffoldOptions } from "./scaffold/index.ts";
 import { Database } from "./store/database.ts";
 import { PlatformConfigService, type ConnectionProvider } from "./config/index.ts";
 import { Provisioning } from "./provisioning/index.ts";
+import { Handlers, JobRunner } from "./jobs/index.ts";
+import { deliverWebhookHandler, provisionHandler } from "./jobs/handlers.ts";
+import { Events } from "./events/service.ts";
+import { eventsRoutes } from "./events/routes.ts";
 
 export interface ControlPlaneOptions {
   readonly port?: number | undefined;
@@ -73,6 +77,12 @@ export interface ControlPlaneOptions {
   readonly connectionsRefreshSkewMs?: number | undefined;
   /** OAuth providers enabled for this deployment. Defaults to none. */
   readonly connectionProviders?: ReadonlyArray<ConnectionProvider> | undefined;
+  /** Events feature config (docs/internal/events.md). Undefined → NoopEventBus: ingress 503s, CRUD lists empty. */
+  readonly events?: {
+    readonly maxAttempts: number;
+    readonly retryScheduleMs: ReadonlyArray<number>;
+    readonly pollMs: number;
+  } | undefined;
   /** Built GUI directory (vite output) served at /. Unset disables the GUI. */
   readonly guiDir?: string | undefined;
   /**
@@ -333,11 +343,55 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
           apiToken: token.value,
         }) as Layer.Layer<AppSecrets>;
       })).pipe(Layer.provide(secretsLayer));
+  // JobRunner (docs/jobs.md): the single durable-async engine. One worker
+  // drains the jobs table and dispatches on kind; the built-in handlers
+  // (provision + deliver_webhook) resolve their services here, then the worker
+  // runs against the jobs table. The boot reaper makes execution survive a
+  // redeploy. Always on: both provisioning and events write jobs.
+  const runnerConfig = {
+    maxAttempts: options.events?.maxAttempts ?? 8,
+    retryScheduleMs: options.events?.retryScheduleMs ?? [30_000, 120_000, 600_000, 1_800_000, 7_200_000, 28_800_000],
+    pollMs: options.events?.pollMs ?? 5_000,
+    staleMs: 60_000,
+  };
+  // Handlers are Effects resolving Scaffold/Database/SecretsProvider; build the
+  // Handlers service from them, then the worker consumes it (+ Database).
+  const handlersLayer = Layer.unwrap(Effect.gen(function*() {
+    const provision = yield* provisionHandler;
+    const deliverWebhook = yield* deliverWebhookHandler;
+    return Layer.succeed(Handlers, Handlers.of({ resolve: { provision, deliver_webhook: deliverWebhook } }));
+  })).pipe(
+    Layer.provide(scaffoldLayer),
+    Layer.provide(databaseLayer),
+    Layer.provide(secretsLayer),
+  );
+  const jobRunnerWorkerLayer = JobRunner.worker(runnerConfig).pipe(
+    Layer.provide(handlersLayer),
+    Layer.provide(databaseLayer),
+  );
+  // The JobRunner service itself (for enqueue/get/history from events +
+  // provisioning routes) — same deps as the worker minus the fork.
+  const jobRunnerLayer = JobRunner.layer(runnerConfig).pipe(
+    Layer.provide(handlersLayer),
+    Layer.provide(databaseLayer),
+  );
+
   const provisioningLayer = Provisioning.layer.pipe(
     Layer.provide(databaseLayer),
     Layer.provide(configLayer),
-    Layer.provide(scaffoldLayer),
+    Layer.provide(jobRunnerLayer),
     Layer.provide(secretsLayer),
+  );
+
+  // Events (docs/events.md): optional feature. The Events service always
+  // loads (so routes/MCP/CLI can list empty state); when options.events is
+  // undefined it runs with enabled:false and publish() returns
+  // events_not_configured.
+  const eventsEnabled = options.events !== undefined;
+  const eventsLayer = Events.layer({ enabled: eventsEnabled }).pipe(
+    Layer.provide(databaseLayer),
+    Layer.provide(secretsLayer),
+    Layer.provide(jobRunnerLayer),
   );
 
   const routes = Layer.mergeAll(
@@ -352,6 +406,13 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       Layer.provide(aclLayer),
     ),
     operationalRoutes({ authEnabled, guiAuthEnabled }),
+    eventsRoutes(makeGated({ authEnabled, guiAuthEnabled })).pipe(
+      Layer.provide(eventsLayer),
+      Layer.provide(aclLayer),
+      Layer.provide(secretsLayer),
+      Layer.provide(databaseLayer),
+    ),
+    jobRunnerWorkerLayer,
     authFlowRoutes,
     Scaffold.routes(makeGated({ authEnabled, guiAuthEnabled })).pipe(Layer.provide(scaffoldLayer)),
     Provisioning.routes(makeGated({ authEnabled, guiAuthEnabled })).pipe(

@@ -28,9 +28,9 @@ import { controlPlaneUrl } from "./config.ts";
 const userError = (message: string, cause: unknown = message) =>
   new CliError.UserError({ cause, userMessage: message });
 
-/** GET/POST against the control plane with the cached SSO bearer attached. */
+/** GET/POST/DELETE against the control plane with the cached SSO bearer attached. */
 const controlRequest = Effect.fnUntraced(function* (
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   path: string,
   body?: Record<string, unknown>,
 ) {
@@ -177,10 +177,95 @@ const job = Command.make(
 ).pipe(Command.withDescription("Provision job status by jobId"));
 
 // ---------------------------------------------------------------------------
+// control events … (docs/events.md)
+// ---------------------------------------------------------------------------
+const eventsSources = Command.make("sources", {}, () =>
+  Effect.gen(function* () {
+    const json = yield* controlRequest("GET", "/events/sources");
+    yield* printJson(json);
+  }),
+).pipe(Command.withDescription("List registered webhook sources on the control plane"));
+
+const eventsSubscriptions = Command.make(
+  "subscriptions",
+  {
+    app: Flag.optional(appNameFlag()).pipe(Flag.withDescription("App name to narrow by")),
+    source: Flag.optional(Flag.String("source")).pipe(Flag.withDescription("Source name to narrow by")),
+  },
+  ({ app, source }) =>
+    Effect.gen(function* () {
+      const params = new URLSearchParams();
+      if (Option.isSome(app)) params.set("app", app.value);
+      if (Option.isSome(source)) params.set("source", source.value);
+      const query = params.size === 0 ? "" : `?${params.toString()}`;
+      const json = yield* controlRequest("GET", `/events/subscriptions${query}`);
+      yield* printJson(json);
+    }),
+).pipe(Command.withDescription("List event subscriptions (all, or narrowed with --app/--source)"));
+
+const eventsSubscribe = Command.make(
+  "subscribe",
+  {
+    app: appNameArg,
+    source: Argument.String("source").pipe(Argument.withDescription("Source name (e.g. github, stripe)")),
+    eventType: Flag.optional(Flag.String("event-type")).pipe(
+      Flag.withDescription("Provider event type to receive (comma list; default all)"),
+    ),
+    scope: Flag.optional(Flag.String("scope")).pipe(
+      Flag.withDescription("Repo/account scope (comma list; default all)"),
+    ),
+  },
+  ({ app, source, eventType, scope }) =>
+    Effect.gen(function* () {
+      const body: Record<string, unknown> = { app, source };
+      if (Option.isSome(eventType)) {
+        body["eventTypes"] = eventType.value.split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
+      }
+      if (Option.isSome(scope)) {
+        body["scopes"] = scope.value.split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
+      }
+      const json = yield* controlRequest("POST", "/events/subscriptions", body);
+      yield* printJson(json);
+    }),
+).pipe(Command.withDescription("Subscribe an app to a webhook source (docs/events.md)"));
+
+const eventsUnsubscribe = Command.make(
+  "unsubscribe",
+  { id: Argument.String("id").pipe(Argument.withDescription("Subscription id")) },
+  ({ id }) =>
+    Effect.gen(function* () {
+      const json = yield* controlRequest("DELETE", `/events/subscriptions/${encodeURIComponent(id)}`);
+      yield* printJson(json);
+    }),
+).pipe(Command.withDescription("Remove an event subscription by id"));
+
+const eventsDeliveries = Command.make(
+  "deliveries",
+  {
+    subscription: Flag.optional(Flag.String("subscription")).pipe(Flag.withDescription("Subscription id to narrow by")),
+    status: Flag.optional(Flag.String("status")).pipe(Flag.withDescription("pending | running | succeeded | failed | dead")),
+  },
+  ({ subscription, status }) =>
+    Effect.gen(function* () {
+      const params = new URLSearchParams();
+      if (Option.isSome(subscription)) params.set("subscriptionId", subscription.value);
+      if (Option.isSome(status)) params.set("status", status.value);
+      const query = params.size === 0 ? "" : `?${params.toString()}`;
+      const json = yield* controlRequest("GET", `/events/deliveries${query}`);
+      yield* printJson(json);
+    }),
+).pipe(Command.withDescription("List recent event deliveries (fan-out debugging)"));
+
+const events = Command.make("events").pipe(
+  Command.withSubcommands([eventsSources, eventsSubscriptions, eventsSubscribe, eventsUnsubscribe, eventsDeliveries]),
+  Command.withDescription("Central webhook firehose: sources, subscriptions, deliveries (docs/events.md)"),
+);
+
+// ---------------------------------------------------------------------------
 // The reserved `control` subtree.
 // ---------------------------------------------------------------------------
 export const control = Command.make("control").pipe(
-  Command.withSubcommands([apps, provision, previews, history, job]),
+  Command.withSubcommands([apps, provision, previews, history, job, events]),
   Command.withDescription(
     "The platform control plane (reserved alias — fleet apps are never named `control`). " +
       `Talking to ${controlPlaneUrl}`,

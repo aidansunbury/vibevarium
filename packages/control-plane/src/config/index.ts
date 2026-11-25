@@ -149,6 +149,15 @@ const flatConfig = Config.all({
   workosClientId: Config.option(Config.NonEmptyString("WORKOS_CLIENT_ID")),
   workosApiKey: Config.option(Config.NonEmptyString("WORKOS_API_KEY")),
   workosIssuer: Config.String("WORKOS_ISSUER").pipe(Config.withDefault("https://api.workos.com")),
+
+  // Events (docs/events.md): optional feature. Absent config → the EventBus
+  // runs as a NoopEventBus and ingress/CRUD report events_not_configured.
+  eventsEnabled: Config.Boolean("EVENTS_ENABLED").pipe(Config.withDefault(false)),
+  eventsMaxAttempts: Config.Int("EVENTS_MAX_ATTEMPTS").pipe(Config.withDefault(8)),
+  eventsRetrySchedule: Config.String("EVENTS_RETRY_SCHEDULE").pipe(
+    Config.withDefault("30s,2m,10m,30m,2h,8h"),
+  ),
+  eventsPollMs: Config.Int("EVENTS_POLL_MS").pipe(Config.withDefault(5_000)),
 });
 
 export type FlatConfig = typeof flatConfig extends Config.Config<infer A> ? A : never;
@@ -251,6 +260,20 @@ export interface PlatformConfig {
   readonly appSecrets: Readonly<Record<string, string>>;
   readonly connectionsRefreshSkewMs: number | undefined;
   readonly issuer: string | undefined;
+
+  /**
+   * Events feature (docs/events.md). Undefined when EVENTS_ENABLED is not
+   * true — the control plane then mounts a NoopEventBus and every events
+   * surface reports events_not_configured (503 on ingress, empty elsewhere).
+   */
+  readonly events:
+    | {
+        readonly maxAttempts: number;
+        /** Comma-separated backoff delays (e.g. "30s,2m,10m,30m,2h,8h"), parsed to ms. */
+        readonly retryScheduleMs: ReadonlyArray<number>;
+        readonly pollMs: number;
+      }
+    | undefined;
 }
 
 const normalizeIssuer = (issuer: string) => issuer.replace(/\/+$/, "");
@@ -287,6 +310,21 @@ const parseAppSecrets = (): Record<string, string> => {
 };
 
 const get = <A>(option: Option.Option<A>): A | undefined => Option.getOrUndefined(option);
+
+/** Parse a human delay like "30s" / "2m" / "1h" to milliseconds. */
+const parseDelayMs = (raw: string): number | undefined => {
+  const match = /^(\d+)\s*(ms|s|m|h)?$/.exec(raw.trim());
+  if (match === null) return undefined;
+  const n = Number.parseInt(match[1]!, 10);
+  const unit = match[2] ?? "s";
+  if (unit === "ms") return n;
+  if (unit === "s") return n * 1_000;
+  if (unit === "m") return n * 60_000;
+  return n * 3_600_000;
+};
+
+const parseRetrySchedule = (raw: string): ReadonlyArray<number> =>
+  raw.split(",").map(parseDelayMs).filter((n): n is number => n !== undefined && n > 0);
 
 /** Assemble the flat leaves into the final config with optional blocks. */
 export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
@@ -451,6 +489,13 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
     appSecrets: parseAppSecrets(),
     connectionsRefreshSkewMs: get(flat.connectionsRefreshSkewMs),
     issuer: get(flat.issuer),
+    events: flat.eventsEnabled
+      ? {
+          maxAttempts: flat.eventsMaxAttempts,
+          retryScheduleMs: parseRetrySchedule(flat.eventsRetrySchedule),
+          pollMs: flat.eventsPollMs,
+        }
+      : undefined,
   };
 };
 

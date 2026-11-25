@@ -21,6 +21,7 @@ import {
   LinkIcon,
   PlugIcon,
   PlusIcon,
+  ZapIcon,
 } from "@vibevarium/ui/lib/icons";
 
 export interface RouterContext {
@@ -40,6 +41,7 @@ const NAV = [
   { to: "/secrets", label: "Secrets", icon: KeyRoundIcon },
   { to: "/integrations", label: "Integrations", icon: PlugIcon },
   { to: "/connections", label: "Connections", icon: LinkIcon },
+  { to: "/events", label: "Events", icon: ZapIcon },
 ] as const;
 
 function RootLayout() {

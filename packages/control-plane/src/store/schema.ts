@@ -150,35 +150,67 @@ export type ConnectionRow = typeof connections.$inferSelect;
 export type ConnectionGrantRow = typeof connectionGrants.$inferSelect;
 export type OAuthSessionRow = typeof oauthSessions.$inferSelect;
 
-// --- Provisioning jobs (docs/provisioning.md §3) --------------------------
-// A job-based async provision: POST /provisioning returns a job id; the steps
-// (repo → OIDC client → deploy → router → directory → discovery) run in a
-// background fiber and are persisted here so status survives restarts and the
-// wizard can poll/resume.
+// --- Jobs (docs/jobs.md): the unified durable-async primitive ---------------
+// One jobs row = one unit of durable background work (provision an app,
+// deliver a webhook). The JobRunner drains due rows and dispatches on `kind`;
+// a job's payload carries its input, and its job_steps rows checkpoint each
+// step so a fresh process resumes where a dead one left off (survives redeploy).
 
-export type ProvisioningStepState = "pending" | "running" | "done" | "failed";
-export interface ProvisioningStep {
-  readonly id: string;
-  readonly label: string;
-  readonly state: ProvisioningStepState;
-  readonly detail?: string | undefined;
-}
-export type ProvisioningJobStatus = "running" | "succeeded" | "failed";
+export type JobStatus = "pending" | "running" | "succeeded" | "failed" | "dead";
 
-export const provisioningJobs = pgTable("provisioning_jobs", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  /** The requested spec: target/database/features (jsonb). */
-  spec: jsonb("spec").$type<Record<string, unknown>>().notNull(),
-  status: text("status").$type<ProvisioningJobStatus>().notNull().default("running"),
-  steps: jsonb("steps").$type<Array<ProvisioningStep>>().notNull(),
-  result: jsonb("result").$type<Record<string, unknown>>(),
-  error: text("error"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-});
+export const jobs = pgTable(
+  "jobs",
+  {
+    id: text("id").primaryKey(),
+    /** Discriminator the JobRunner routes on: "provision" | "deliver_webhook" | ... */
+    kind: text("kind").notNull(),
+    /** Human label (e.g. the app name) for history/CLI display. */
+    name: text("name").notNull(),
+    /** The job's input. For deliver_webhook: the envelope + target + signing ref. */
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    status: text("status").$type<JobStatus>().notNull().default("pending"),
+    attempts: text("attempts").notNull().default("0"),
+    /** When the job next becomes due — the scheduling + backoff column. */
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    /** Set at completion: the job's final output (provision result, delivery response). */
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    /** Last failure detail (terminal or most-recent transient). */
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("jobs_drain_idx").on(table.status, table.nextAttemptAt),
+    index("jobs_kind_idx").on(table.kind),
+    index("jobs_name_idx").on(table.name),
+  ],
+);
 
-export type ProvisioningJobRow = typeof provisioningJobs.$inferSelect;
+export type JobStepState = "pending" | "running" | "done" | "failed" | "skipped";
+
+/** One step in a multi-step job (provisioning's repo→oidc→deploy→…; a single-step job has one row). */
+export const jobSteps = pgTable(
+  "job_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jobId: text("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
+    /** Stable step id within the job ("repo" | "oidc" | "deploy" | "post" | ...). */
+    stepId: text("step_id").notNull(),
+    label: text("label").notNull(),
+    /** Order within the job — the runner resumes at the first non-done step. */
+    ordinal: text("ordinal").notNull(),
+    state: text("state").$type<JobStepState>().notNull().default("pending"),
+    /** What the step produced / its failure detail (deploy URL, webhook response status). */
+    detail: text("detail"),
+    attempt: text("attempt").notNull().default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [index("job_steps_job_idx").on(table.jobId)],
+);
+
+export type JobRow = typeof jobs.$inferSelect;
+export type JobStepRow = typeof jobSteps.$inferSelect;
 
 // --- App ACLs (docs/previews-and-acl.md Part 2) ----------------------------
 // The control plane OWNS the ACL policy as Tier 1/2 facts keyed by `sub`;
@@ -225,6 +257,74 @@ export const platformRoles = pgTable("platform_roles", {
 export type AppAclRow = typeof appAcl.$inferSelect;
 export type AppAclMemberRow = typeof appAclMembers.$inferSelect;
 export type PlatformRoleRow = typeof platformRoles.$inferSelect;
+
+// --- Events (docs/events.md): provider webhook sources + per-app subscriptions ---
+// The control plane owns a central ingress per source; providers POST their
+// firehose there once, and the dispatcher fans each event out to every
+// subscription whose structured match fits. Source secrets are NEVER stored
+// here — only a reference the SecretsProvider resolves (same seam as OAuth
+// providers / integration tokens).
+
+/**
+ * Payload predicate (Layer 2 filtering): an allowlisted predicate ANDed
+ * against the event's indexable metadata + payload. `path` is a dotted string
+ * (into the payload); ops are deliberately non-Turing-complete.
+ */
+export interface EventFilterClause {
+  readonly path: string;
+  readonly op: "eq" | "neq" | "prefix" | "in" | "exists";
+  readonly value?: unknown;
+}
+
+export const webhookSources = pgTable("webhook_sources", {
+  name: text("name").primaryKey(), // e.g. "github", "stripe"
+  displayName: text("display_name").notNull(),
+  /** SecretsProvider reference for the ingress verification secret (env var name locally, SM name in prod). */
+  secretRef: text("secret_ref").notNull(),
+  /** Verification scheme the ingress applies to incoming POSTs. */
+  verification: text("verification").notNull().default("hmac-sha256"), // hmac-sha256 | bearer | none
+  /** Header carrying the provider event type (e.g. X-GitHub-Event, Stripe passes it in the body). */
+  eventTypeHeader: text("event_type_header"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export const eventSubscriptions = pgTable(
+  "event_subscriptions",
+  {
+    id: uuid("id").primaryKey(),
+    app: text("app").notNull().references(() => apps.name, { onDelete: "cascade" }),
+    source: text("source").notNull().references(() => webhookSources.name, { onDelete: "cascade" }),
+    /** Provider event types to receive (["push", "check_suite"]); empty = all types from the source. */
+    eventTypes: jsonb("event_types").$type<ReadonlyArray<string>>().notNull().default([]),
+    /** Structured narrowing (Layer 1): repos/accounts the subscription is scoped to; empty = all. */
+    scopes: jsonb("scopes").$type<ReadonlyArray<string>>().notNull().default([]),
+    /** Optional payload predicate (Layer 2); null = no payload filtering. */
+    filter: jsonb("filter").$type<ReadonlyArray<EventFilterClause>>(),
+    status: text("status").notNull().default("active"), // active | paused
+    /** SecretsProvider reference for this app's delivery-signing secret (set at provisioning/scaffold). */
+    deliverySecretRef: text("delivery_secret_ref"),
+    /** Per-subscription retry overrides; null = platform default (env). */
+    maxAttempts: text("max_attempts"),
+    retrySchedule: text("retry_schedule"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("event_subscriptions_source_idx").on(table.source, table.status),
+    index("event_subscriptions_app_idx").on(table.app),
+  ],
+);
+
+// NOTE: webhook DELIVERY rows are not a separate table. Each fan-out delivery
+// is a `jobs` row (kind = "deliver_webhook") whose payload carries the envelope
+// + target app + signing-secret reference; the JobRunner drains and signs it.
+// This keeps the delivery outbox and provisioning on one durable-async engine.
+
+export type WebhookSourceRow = typeof webhookSources.$inferSelect;
+export type EventSubscriptionRow = typeof eventSubscriptions.$inferSelect;
 
 export type AppRow = typeof apps.$inferSelect;
 export type DirectoryToolRow = typeof directoryTools.$inferSelect;
