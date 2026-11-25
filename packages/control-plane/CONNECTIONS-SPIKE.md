@@ -37,8 +37,8 @@ oauth_sessions    (state, user_sub, provider, pkce_verifier, redirect_uri,
 **Secrets never live in the DB.** Provider OAuth client id/secret are stored as
 *references* (`client_id_ref`, `client_secret_ref`) resolved through the
 `SecretsProvider` seam — env vars locally, AWS Secrets Manager in prod (the
-boot loader maps `github-oauth-client-id` / `github-oauth-client-secret` /
-`connections-token-encryption-key`). Tokens **are** stored, but encrypted at
+boot loader maps `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` /
+`CONNECTIONS_TOKEN_ENCRYPTION_KEY`). Tokens **are** stored, but encrypted at
 rest with **AES-256-GCM** (`v1:<iv>:<tag>:<ciphertext>`, the spike's envelope)
 under `CONNECTIONS_TOKEN_ENCRYPTION_KEY` — also from the SecretsProvider. With
 the key unset the store is plaintext and the control plane logs a loud dev-only
@@ -133,10 +133,10 @@ routes.
 
 ## The one manual step: the GitHub OAuth App
 
-The GitHub provider is registered automatically at boot **when
-`GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` are resolvable** (env
-locally, Secrets Manager `/vibevarium/prod/github-oauth-client-{id,secret}` in
-prod). Creating that OAuth App is the only thing a human must do in a dashboard:
+The GitHub provider is registered at boot when `github` is enabled in
+`TERRARIUM_CONNECTION_PROVIDERS`. Its client ID and secret must then resolve
+(env locally, Secrets Manager `/vibevarium/prod/GITHUB_OAUTH_CLIENT_*` in prod),
+or startup fails. Creating that OAuth App is the only thing a human must do in a dashboard:
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
    (for an org-owned app: the org's page → Settings → Developer settings).
@@ -151,12 +151,12 @@ prod). Creating that OAuth App is the only thing a human must do in a dashboard:
 4. Put the pair where the SecretsProvider finds them:
    - local: `GITHUB_OAUTH_CLIENT_ID=…` and `GITHUB_OAUTH_CLIENT_SECRET=…` in the
      repo-root `.env`;
-   - prod: SM secrets `github-oauth-client-id` / `github-oauth-client-secret`
+   - prod: SM secrets `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET`
      under `/vibevarium/prod/`.
 5. Also set `CONNECTIONS_TOKEN_ENCRYPTION_KEY` (any 32+ byte random string;
    `openssl rand -base64 32`) so tokens are encrypted at rest.
-6. Restart the control plane — the boot log line changes from
-   `GitHub provider not registered` to nothing (registered silently).
+6. Set `TERRARIUM_CONNECTION_PROVIDERS=github` and restart the control plane.
+   The provider registers silently once its required secrets resolve.
 
 Then the live flow is: sign into the GUI → Connections panel → **Connect** on
 GitHub → approve on GitHub's screen → back on the control plane. An app with a

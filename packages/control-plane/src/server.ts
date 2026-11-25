@@ -22,7 +22,7 @@ import { MCP_INTERNAL_PATH, mcpGateRoutes } from "./gateway/mcp-gate.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
 import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
-import { Connections, GITHUB_PROVIDER, LINEAR_PROVIDER } from "./connections/index.ts";
+import { CONNECTION_PROVIDER_MANIFEST, Connections } from "./connections/index.ts";
 import { connectionRoutes } from "./connections/routes.ts";
 import { secretsRoutes } from "./integrations/secrets-routes.ts";
 import { integrationRoutes } from "./integrations/routes.ts";
@@ -35,7 +35,7 @@ import { Acl } from "./acl/index.ts";
 import { aclRoutes } from "./acl/routes.ts";
 import { Scaffold, type ScaffoldOptions } from "./scaffold/index.ts";
 import { Database } from "./store/database.ts";
-import { PlatformConfigService } from "./config/index.ts";
+import { PlatformConfigService, type ConnectionProvider } from "./config/index.ts";
 import { Provisioning } from "./provisioning/index.ts";
 
 export interface ControlPlaneOptions {
@@ -71,6 +71,8 @@ export interface ControlPlaneOptions {
   readonly appSecrets?: Readonly<Record<string, string>> | undefined;
   /** Connections provider-token refresh skew (ms). Overrides the 60s default; demos set it low to prove rotation. */
   readonly connectionsRefreshSkewMs?: number | undefined;
+  /** OAuth providers enabled for this deployment. Defaults to none. */
+  readonly connectionProviders?: ReadonlyArray<ConnectionProvider> | undefined;
   /** Built GUI directory (vite output) served at /. Unset disables the GUI. */
   readonly guiDir?: string | undefined;
   /**
@@ -255,10 +257,8 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const authEnabled = options.oidc !== undefined || options.guiAuth !== undefined;
   const guiAuthEnabled = options.guiAuth !== undefined;
 
-  // Connections (docs/connections.md): one proxy mechanism, two credential
-  // sources. Provider OAuth client secrets resolve through the same
-  // SecretsProvider seam as integration tokens. The GitHub provider registers
-  // when GITHUB_OAUTH_CLIENT_ID/_SECRET are resolvable (env locally, SM prod).
+  // Connections: only providers enabled in TERRARIUM_CONNECTION_PROVIDERS are
+  // registered. main.ts validates their credentials before starting the server.
   const connectionsBaseUrl = options.guiAuth?.baseUrl ?? `http://127.0.0.1:${options.port ?? 4100}`;
   const secretsLayer = Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv));
   const connectionsLayer = Connections.layer({ baseUrl: connectionsBaseUrl, refreshSkewMs: options.connectionsRefreshSkewMs }).pipe(
@@ -268,14 +268,17 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const registerManifestProviders = Layer.effectDiscard(Effect.gen(function*() {
     const connections = yield* Connections;
     const secrets = yield* SecretsProvider;
-    for (const provider of [GITHUB_PROVIDER, LINEAR_PROVIDER]) {
+    for (const name of options.connectionProviders ?? []) {
+      const provider = CONNECTION_PROVIDER_MANIFEST[name];
       const configured = Option.isSome(yield* secrets.resolve(provider.clientIdRef)) &&
         Option.isSome(yield* secrets.resolve(provider.clientSecretRef));
       if (configured) {
         yield* connections.registerProvider(provider).pipe(Effect.ignore);
       } else {
-        yield* Effect.logInfo(
-          `[connections] ${provider.displayName} provider not registered (${provider.clientIdRef}/${provider.clientSecretRef} unset) — see CONNECTIONS-SPIKE.md`,
+        // Direct startControlPlane callers bypass main.ts config validation;
+        // retain a visible warning for that programmatic use case.
+        yield* Effect.logWarning(
+          `[connections] ${provider.displayName} provider enabled but ${provider.clientIdRef}/${provider.clientSecretRef} are not resolvable`,
         );
       }
     }
@@ -313,15 +316,15 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const scaffoldLayer = Scaffold.layer(options.scaffold).pipe(Layer.provide(aclLayer));
   // Per-app secrets → the app's own Worker secrets (Cloudflare). Built only
   // when the Cloudflare target is configured; the CF API token resolves via
-  // the SecretsProvider (cloudflare-api-token). Absent otherwise — the routes
+  // the SecretsProvider (CLOUDFLARE_API_TOKEN). Absent otherwise — the routes
   // report app_secrets_unavailable.
   const appSecretsLayer = options.scaffold?.cloudflare === undefined
     ? Layer.empty
     : Layer.unwrap(Effect.gen(function*() {
         const secrets = yield* SecretsProvider;
-        const token = yield* secrets.resolve("cloudflare-api-token");
+        const token = yield* secrets.resolve("CLOUDFLARE_API_TOKEN");
         if (Option.isNone(token)) {
-          yield* Effect.logWarning("[app-secrets] cloudflare-api-token unresolvable — app-secret store disabled");
+          yield* Effect.logWarning("[app-secrets] CLOUDFLARE_API_TOKEN unresolvable — app-secret store disabled");
           return Layer.empty as Layer.Layer<AppSecrets>;
         }
         return AppSecrets.layer({
@@ -431,6 +434,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         ["GUI_APP_ID", process.env.GUI_APP_ID],
         ["GUI_APP_SECRET", process.env.GUI_APP_SECRET],
         ["WORKOS_CLIENT_ID", process.env.WORKOS_CLIENT_ID],
+        ["TERRARIUM_CONNECTION_PROVIDERS", process.env.TERRARIUM_CONNECTION_PROVIDERS],
         ["GITHUB_OAUTH_CLIENT_ID", process.env.GITHUB_OAUTH_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_SECRET", process.env.GITHUB_OAUTH_CLIENT_SECRET],
         ["LINEAR_OAUTH_CLIENT_ID", process.env.LINEAR_OAUTH_CLIENT_ID],

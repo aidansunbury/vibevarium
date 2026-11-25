@@ -133,6 +133,9 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       image: "casbin/casdoor:latest",
       port: 8000,
       desiredCount: 1,
+      deploymentConfiguration: {
+        deploymentCircuitBreaker: { enable: true, rollback: true },
+      },
       vpcId: network.vpcId,
       subnets: network.publicSubnetIds,
       securityGroups: [tasksSg.groupId],
@@ -165,6 +168,9 @@ export const EcsInfra = (options: EcsInfraOptions) =>
       dockerfile: options.controlPlaneDockerfile,
       port: 4100,
       desiredCount: 1,
+      deploymentConfiguration: {
+        deploymentCircuitBreaker: { enable: true, rollback: true },
+      },
       vpcId: network.vpcId,
       subnets: network.publicSubnetIds,
       securityGroups: [tasksSg.groupId],
@@ -178,6 +184,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         GUI_ORIGIN: `https://platform.${options.domain}`,
         COOKIE_DOMAIN: `.${options.domain}`,
         PLATFORM_OIDC_AUDIENCE: `https://mcp.${options.domain}`,
+        TERRARIUM_CONNECTION_PROVIDERS: "github,linear",
         GIT_PROVIDER: "github",
         GITHUB_APP_INSTALLATION_ID: "184285119",
         GITHUB_ORG: "terrarium-sandbox",

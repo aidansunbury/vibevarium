@@ -146,13 +146,13 @@ scp $SSH_OPTS -r "$INFRA_DIR/compose/" "$SSH_USER@$EIP:/opt/vibevarium/"
 # first database creation, so this is only effective on a fresh install).
 echo ">>> Ensuring Casdoor admin password in Secrets Manager…"
 CASDOOR_ADMIN_PASSWORD=$(aws secretsmanager get-secret-value \
-  --secret-id /vibevarium/prod/casdoor-admin-password \
+  --secret-id /vibevarium/prod/CASDOOR_ADMIN_PASSWORD \
   --region "$AWS_REGION" --profile "$AWS_PROFILE" \
   --query 'SecretString' --output text 2>/dev/null || true)
 if [ -z "$CASDOOR_ADMIN_PASSWORD" ]; then
   CASDOOR_ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -d '=+/' | cut -c1-24)
   aws secretsmanager create-secret \
-    --name /vibevarium/prod/casdoor-admin-password \
+    --name /vibevarium/prod/CASDOOR_ADMIN_PASSWORD \
     --secret-string "$CASDOOR_ADMIN_PASSWORD" \
     --region "$AWS_REGION" --profile "$AWS_PROFILE" >/dev/null
   echo "  generated + stored new Casdoor admin password"

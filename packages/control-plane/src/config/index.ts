@@ -30,6 +30,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import type * as ContextT from "effect/Context";
 import { SecretsProvider } from "../integrations/secrets.ts";
+import { CONNECTION_PROVIDER_MANIFEST } from "../connections/manifest.ts";
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -46,6 +47,9 @@ export type Feature = typeof Feature.Type;
 
 export const AuthProvider = Schema.Literals(["casdoor", "workos"]);
 export type AuthProvider = typeof AuthProvider.Type;
+
+export const ConnectionProvider = Schema.Literals(["github", "linear"]);
+export type ConnectionProvider = typeof ConnectionProvider.Type;
 
 /** Comma-separated env list decoded to trimmed non-empty strings, validated against `literals`. */
 const csvLiterals = <L extends string>(literals: ReadonlyArray<L>, name: string) =>
@@ -99,6 +103,10 @@ const flatConfig = Config.all({
   ),
   authProvider: Config.schema(AuthProvider, "TERRARIUM_AUTH_PROVIDER").pipe(
     Config.withDefault("casdoor" as AuthProvider),
+  ),
+  /** OAuth connection providers enabled for this deployment. Disabled providers require no secrets. */
+  connectionProviders: csvLiterals(["github", "linear"], "TERRARIUM_CONNECTION_PROVIDERS").pipe(
+    Config.withDefault([] as Array<ConnectionProvider>),
   ),
 
   startupTimeoutMs: Config.Int("APP_START_TIMEOUT_MS").pipe(Config.withDefault(20_000)),
@@ -191,6 +199,7 @@ export interface PlatformConfig {
   readonly database: DatabaseOption;
   readonly features: ReadonlyArray<Feature>;
   readonly authProvider: AuthProvider;
+  readonly connectionProviders: ReadonlyArray<ConnectionProvider>;
 
   readonly cloudflare:
     | {
@@ -430,6 +439,7 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
     database: flat.database,
     features: flat.features,
     authProvider: flat.authProvider,
+    connectionProviders: flat.connectionProviders,
     cloudflare,
     aws,
     planetscale,
@@ -473,11 +483,9 @@ type Secrets = ContextT.Service.Shape<typeof SecretsProvider>;
  * A reference is "resolvable" if EITHER the boot-injected env var is set
  * (config-check's provenance — works in both env and aws modes, since
  * loadBootSecrets injects SM values into process.env at boot) OR the
- * SecretsProvider resolves it. The SecretsProvider alone is not sufficient:
- * in aws mode it looks up SM by the reference name, but our env-style names
- * (CLOUDFLARE_API_TOKEN) are not valid SM secret names (cloudflare-api-token
- * is) — so an env var name would always miss in aws mode. Checking the env
- * first makes the validator provenance-correct in both modes.
+ * SecretsProvider resolves it. Checking the environment first keeps local
+ * overrides and boot-injected values authoritative; direct AWS resolution
+ * remains the fallback for references not populated at boot.
  */
 const resolveMissing = (secrets: Secrets, refs: ReadonlyArray<string>) =>
   Effect.forEach(refs, (ref) =>
@@ -579,6 +587,95 @@ export const validateCapabilities = (
   });
 
 // ---------------------------------------------------------------------------
+// Required secrets — enabled features must be fully configured before boot.
+// ---------------------------------------------------------------------------
+
+export type SecretRequirement = {
+  /** Feature whose configuration makes these secrets necessary. */
+  readonly feature: string;
+} & (
+  | { readonly allOf: ReadonlyArray<string>; readonly anyOf?: never }
+  | { readonly anyOf: ReadonlyArray<string>; readonly allOf?: never }
+);
+
+const allOf = (feature: string, ...refs: ReadonlyArray<string>): SecretRequirement => ({ feature, allOf: refs });
+const anyOf = (feature: string, ...refs: ReadonlyArray<string>): SecretRequirement => ({ feature, anyOf: refs });
+
+/**
+ * Derive secret requirements from enabled features, not from the global list
+ * of secrets the boot loader knows about. For example, disabling Linear means
+ * its OAuth client may be absent without affecting startup.
+ */
+export const requiredSecretsForConfig = (flat: FlatConfig): ReadonlyArray<SecretRequirement> => {
+  const requirements: Array<SecretRequirement> = [];
+
+  if (flat.authProvider === "casdoor") {
+    requirements.push(allOf("Casdoor GUI auth", "GUI_APP_ID", "GUI_APP_SECRET"));
+  } else {
+    requirements.push(allOf("WorkOS auth", "WORKOS_CLIENT_ID", "WORKOS_API_KEY"));
+  }
+
+  if (flat.deployTargets.includes("cloudflare")) {
+    requirements.push(allOf("Cloudflare deploy target", "CLOUDFLARE_API_TOKEN"));
+  }
+
+  if (flat.gitProvider === "github") {
+    requirements.push(
+      allOf("GitHub App provisioning", "GITHUB_APP_ID"),
+      anyOf("GitHub App provisioning", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_PRIVATE_KEY_PATH"),
+    );
+  }
+
+  if (Option.isSome(flat.discoveryClientId) || Option.isSome(flat.discoveryClientSecret)) {
+    requirements.push(allOf("Authenticated app discovery", "DISCOVERY_CLIENT_ID", "DISCOVERY_CLIENT_SECRET"));
+  }
+
+  if (flat.connectionProviders.length > 0) {
+    requirements.push(allOf("Connections token encryption", "CONNECTIONS_TOKEN_ENCRYPTION_KEY"));
+  }
+  for (const name of flat.connectionProviders) {
+    const provider = CONNECTION_PROVIDER_MANIFEST[name];
+    requirements.push(allOf(`${provider.displayName} OAuth connection`, provider.clientIdRef, provider.clientSecretRef));
+  }
+
+  return requirements;
+};
+
+export interface MissingSecretRequirement {
+  readonly feature: string;
+  readonly refs: ReadonlyArray<string>;
+}
+
+/** Names only — never include secret values in validation errors. */
+export const missingRequiredSecrets = (
+  flat: FlatConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): ReadonlyArray<MissingSecretRequirement> => {
+  const present = (ref: string) => env[ref] !== undefined && env[ref] !== "";
+  return requiredSecretsForConfig(flat).flatMap((requirement) => {
+    if (requirement.allOf !== undefined) {
+      const missing = requirement.allOf.filter((ref) => !present(ref));
+      return missing.length === 0 ? [] : [{ feature: requirement.feature, refs: missing }];
+    }
+    return requirement.anyOf.some(present) ? [] : [{ feature: requirement.feature, refs: requirement.anyOf }];
+  });
+};
+
+const validatedPlatformConfig: Effect.Effect<PlatformConfig, Config.ConfigError> = Effect.gen(function*() {
+  const flat = yield* flatConfig;
+  const missing = missingRequiredSecrets(flat);
+  if (missing.length > 0) {
+    const description = missing.map(({ feature, refs }) => `${feature}: ${refs.join(" | ")}`).join("; ");
+    return yield* Effect.fail(new Config.ConfigError({
+      _tag: "MissingData",
+      path: ["secrets"],
+      description: `Missing required secrets for enabled features — ${description}`,
+    } as never));
+  }
+  return makePlatformConfig(flat);
+});
+
+// ---------------------------------------------------------------------------
 // The service
 // ---------------------------------------------------------------------------
 
@@ -593,8 +690,5 @@ export class PlatformConfigService extends Context.Service<PlatformConfigService
   )(Effect.map(flatConfig, makePlatformConfig));
 }
 
-/** Parse the full PlatformConfig once at boot (used by main.ts before layers). */
-export const loadPlatformConfig: Effect.Effect<PlatformConfig, Config.ConfigError> = Effect.map(
-  flatConfig,
-  makePlatformConfig,
-);
+/** Parse and validate the full PlatformConfig once at boot (used by main.ts before layers). */
+export const loadPlatformConfig: Effect.Effect<PlatformConfig, Config.ConfigError> = validatedPlatformConfig;

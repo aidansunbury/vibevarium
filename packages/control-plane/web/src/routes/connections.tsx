@@ -95,8 +95,8 @@ function ConnectionsPage() {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : !providers.isSuccess ? null : providers.data.providers.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No providers registered. Set GITHUB_OAUTH_CLIENT_ID/SECRET (see CONNECTIONS-SPIKE.md) or register a
-            fake-oauth provider for local development.
+            No providers registered. Enable github and/or linear with TERRARIUM_CONNECTION_PROVIDERS and configure
+            their OAuth credentials, or register a fake-oauth provider for local development.
           </p>
         ) : (
           <Table>
