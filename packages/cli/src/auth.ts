@@ -21,10 +21,10 @@ import { authFile, readJsonFile, writeJsonFile } from "./config.ts";
 const ISSUER = (process.env.PLATFORM_OIDC_ISSUER ?? "https://auth.vibevarium.com/oidc").replace(/\/+$/, "");
 const CLIENT_ID = process.env.LOGTO_CLI_APP_ID ?? "a4mo5zbso2lrb6nipf7hj";
 /** RFC 8707 resource indicator: keeps the access token audience-restricted. */
-const RESOURCE = process.env.PLATFORM_OIDC_AUDIENCE ?? "https://mcp.vibevarium.com";
+const RESOURCE = process.env.PLATFORM_OIDC_AUDIENCE ?? "https://api.vibevarium.com/mcp";
 const LOOPBACK_PORT = Number(process.env.TERRARIUM_CLI_CALLBACK_PORT ?? 8919);
 const REDIRECT_URI = `http://127.0.0.1:${LOOPBACK_PORT}/callback`;
-// offline_access → refresh token; the mcp.vibevarium.com API scopes are granted
+// offline_access → refresh token; the api.vibevarium.com/mcp API scopes are granted
 // against the RFC 8707 resource indicator (and become the access token's scope).
 const SCOPES = "openid profile offline_access member admin apps:read apps:write";
 

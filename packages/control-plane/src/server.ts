@@ -403,7 +403,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
 
   const mcpGate = mcpGateRoutes({
     baseUrl: options.baseUrl ?? `http://127.0.0.1:${options.port ?? 4100}`,
-    resource: options.oidc?.audience ?? `https://mcp.vibevarium.com`,
+    resource: options.oidc?.audience ?? `https://api.vibevarium.com/mcp`,
     authEnabled,
     issuer: options.oidc?.issuer,
   });

@@ -57,7 +57,7 @@ anyway). With no `web/dist` the mount is inert.
 
 - **Now (real Logto)**: `Log in` navigates to the server's `GET /auth/login`,
   which 302s to the hosted Logto `/oidc/auth` (authorization code + PKCE S256,
-  RFC 8707 resource `https://mcp.vibevarium.com`, `prompt=consent` so
+  RFC 8707 resource `https://api.vibevarium.com/mcp`, `prompt=consent` so
   `offline_access` yields a refresh token). `GET /auth/callback` exchanges the
   code with the GUI secret, verifies the ID token, and sets an httpOnly
   SameSite=Lax session cookie (`vibevarium_session`, HMAC-signed, server-side

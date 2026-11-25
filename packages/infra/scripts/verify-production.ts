@@ -37,7 +37,7 @@ const oidc = await json(`https://auth.${domain}/.well-known/openid-configuration
 if (oidc.issuer !== `https://auth.${domain}`) throw new Error(`Unexpected OIDC issuer: ${oidc.issuer}`);
 
 const resource = await json(`https://api.${domain}/.well-known/oauth-protected-resource`);
-if (resource.resource !== `https://mcp.${domain}`) {
+if (resource.resource !== `https://api.${domain}/mcp`) {
   throw new Error(`Unexpected MCP resource: ${resource.resource}`);
 }
 

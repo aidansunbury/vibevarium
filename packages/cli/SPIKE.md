@@ -126,7 +126,7 @@ Per-app URLs work because each `toCli` subtree is wrapped in its own `Command.pr
 
 1. Reads issuer discovery (`https://auth.vibevarium.com/oidc` by default, `PLATFORM_OIDC_ISSUER` overrides).
 2. Generates state and a PKCE S256 verifier/challenge.
-3. Listens on `127.0.0.1:8919`, opens the browser at `/oidc/auth` (scope `openid profile offline_access member admin apps:read apps:write`, RFC 8707 `resource=https://mcp.vibevarium.com`, `prompt=consent` so `offline_access` yields a refresh token), and validates the callback state.
+3. Listens on `127.0.0.1:8919`, opens the browser at `/oidc/auth` (scope `openid profile offline_access member admin apps:read apps:write`, RFC 8707 `resource=https://api.vibevarium.com/mcp`, `prompt=consent` so `offline_access` yields a refresh token), and validates the callback state.
 4. Exchanges the code at `/oidc/token` — repeating the `resource` indicator, which is what makes Logto issue a JWT access token audience-restricted to the platform API — decodes the ID-token claims, and writes `CachedSession` (now v2, with `refreshToken` + `idToken`) to `~/.config/vibevarium/auth.json` (0600).
 5. `requireSession` transparently refreshes via the `refresh_token` grant when the access token is expired; `platform logout` revokes the refresh token and clears the cache. `whoami` decodes the cached ID-token claims.
 

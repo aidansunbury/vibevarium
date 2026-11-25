@@ -33,7 +33,7 @@ const cli = fileURLToPath(new URL("../src/main.ts", import.meta.url));
 
 const ISSUER = "https://auth.vibevarium.com/oidc";
 const CLIENT_ID = "a4mo5zbso2lrb6nipf7hj";
-const RESOURCE = "https://mcp.vibevarium.com";
+const RESOURCE = "https://api.vibevarium.com/mcp";
 const REDIRECT_URI = "http://127.0.0.1:8919/callback";
 
 const base64url = (b: Buffer) => b.toString("base64url");
