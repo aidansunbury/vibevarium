@@ -21,6 +21,7 @@ set -euo pipefail
 CASDOOR_URL="${CASDOOR_URL:-https://auth.vibevarium.com}"
 ORG="${CASDOOR_ORG:-vibevarium}"
 GUI_REDIRECT_BASE="${GUI_REDIRECT_BASE:-https://platform.vibevarium.com}"
+CONTROL_PLANE_BASE_URL="${CONTROL_PLANE_BASE_URL:-https://api.vibevarium.com}"
 : "${CASDOOR_ADMIN_PASSWORD:?Set CASDOOR_ADMIN_PASSWORD (from AWS SM)}"
 
 JAR="$(mktemp)"
@@ -61,11 +62,21 @@ else
     | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  enabled dcrPolicy=open')"
 fi
 
-# 4. GUI application exists with the right redirect?
+# 4. Create or reconcile the GUI application and its API callback.
 if api GET "/api/get-organization-applications?organization=$ORG" | python3 -c "import sys,json;exit(0 if any(o.get('name')=='$ORG' for o in (json.load(sys.stdin).get('data') or [])) else 1)" 2>/dev/null; then
-  echo "  GUI application '$ORG' exists"
+  api GET "/api/get-organization-applications?organization=$ORG" | python3 -c "
+import sys,json
+apps=json.load(sys.stdin).get('data') or []
+app=[o for o in apps if o.get('name')=='$ORG'][0]
+app['homepageUrl']='$GUI_REDIRECT_BASE'
+app['redirectUris']=['$CONTROL_PLANE_BASE_URL/auth/callback']
+app['postLogoutRedirectUris']=['$GUI_REDIRECT_BASE/']
+json.dump(app,open('$JAR.app.json','w'))
+"
+  api POST "/api/update-application?id=$ORG/$ORG" "$(cat "$JAR.app.json")" \
+    | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  reconciled GUI application $ORG')"
 else
-  api POST "/api/add-application" "{\"owner\":\"$ORG\",\"name\":\"$ORG\",\"displayName\":\"$ORG control plane\",\"organization\":\"$ORG\",\"homepageUrl\":\"$GUI_REDIRECT_BASE\",\"redirectUris\":[\"$GUI_REDIRECT_BASE/auth/callback\"],\"postLogoutRedirectUris\":[\"$GUI_REDIRECT_BASE/\"],\"grantTypes\":[\"authorization_code\",\"refresh_token\",\"client_credentials\"],\"responseTypes\":[\"code\"],\"tokenFormat\":\"JWT\",\"expireInHours\":168,\"refreshExpireInHours\":720,\"enablePassword\":true,\"enableSignUp\":false,\"enableSigninSession\":true,\"enableLinkWithEmail\":true,\"formOffset\":1}" \
+  api POST "/api/add-application" "{\"owner\":\"$ORG\",\"name\":\"$ORG\",\"displayName\":\"$ORG control plane\",\"organization\":\"$ORG\",\"homepageUrl\":\"$GUI_REDIRECT_BASE\",\"redirectUris\":[\"$CONTROL_PLANE_BASE_URL/auth/callback\"],\"postLogoutRedirectUris\":[\"$GUI_REDIRECT_BASE/\"],\"grantTypes\":[\"authorization_code\",\"refresh_token\",\"client_credentials\"],\"responseTypes\":[\"code\"],\"tokenFormat\":\"JWT\",\"expireInHours\":168,\"refreshExpireInHours\":720,\"enablePassword\":true,\"enableSignUp\":false,\"enableSigninSession\":true,\"enableLinkWithEmail\":true,\"formOffset\":1}" \
     | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  created GUI application $ORG')"
 fi
 
