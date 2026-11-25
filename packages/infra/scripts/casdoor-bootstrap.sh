@@ -52,15 +52,21 @@ else
     | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  created org $ORG')"
 fi
 
-# 3. DCR open?
-CUR=$(api GET "/api/get-organization?id=admin/$ORG" | python3 -c "import sys,json;print((json.load(sys.stdin).get('data') or {}).get('dcrPolicy',''))")
-if [ "$CUR" = "open" ]; then
-  echo "  dcrPolicy already open"
-else
-  api GET "/api/get-organization?id=admin/$ORG" | python3 -c "import sys,json;o=json.load(sys.stdin)['data'];o['dcrPolicy']='open';json.dump(o,open('$JAR.org.json','w'))"
-  api POST "/api/update-organization?id=admin/$ORG" "$(cat "$JAR.org.json")" \
-    | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  enabled dcrPolicy=open')"
-fi
+# 3. Enable DCR for global clients and the organization issuer for org users.
+for dcr_org in built-in "$ORG"; do
+  CUR=$(api GET "/api/get-organization?id=admin/$dcr_org" | python3 -c "import sys,json;print((json.load(sys.stdin).get('data') or {}).get('dcrPolicy',''))")
+  if [ "$CUR" = "open" ]; then
+    echo "  dcrPolicy already open for $dcr_org"
+  else
+    api GET "/api/get-organization?id=admin/$dcr_org" | python3 -c "import sys,json;o=json.load(sys.stdin)['data'];o['dcrPolicy']='open';json.dump(o,open('$JAR.org.json','w'))"
+    api POST "/api/update-organization?id=admin/$dcr_org" "$(cat "$JAR.org.json")" \
+      | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  enabled dcrPolicy=open for $dcr_org')"
+  fi
+done
+
+api GET "/api/get-organization?id=admin/$ORG" | python3 -c "import sys,json;o=json.load(sys.stdin)['data'];o['useOrganizationIssuer']=True;json.dump(o,open('$JAR.org.json','w'))"
+api POST "/api/update-organization?id=admin/$ORG" "$(cat "$JAR.org.json")" \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  enabled organization issuer for $ORG')"
 
 # 4. Create or reconcile the GUI application and its API callback.
 if api GET "/api/get-organization-applications?organization=$ORG" | python3 -c "import sys,json;exit(0 if any(o.get('name')=='$ORG' for o in (json.load(sys.stdin).get('data') or [])) else 1)" 2>/dev/null; then

@@ -33,8 +33,10 @@ for (const name of [
   if (config.config?.[name]?.set !== true) throw new Error(`Required secret is unset: ${name}`);
 }
 
-const oidc = await json(`https://auth.${domain}/.well-known/openid-configuration`);
-if (oidc.issuer !== `https://auth.${domain}`) throw new Error(`Unexpected OIDC issuer: ${oidc.issuer}`);
+const oidc = await json(`https://auth.${domain}/orgs/vibevarium/.well-known/openid-configuration`);
+if (oidc.issuer !== `https://auth.${domain}/orgs/vibevarium`) {
+  throw new Error(`Unexpected OIDC issuer: ${oidc.issuer}`);
+}
 
 const resource = await json(`https://api.${domain}/.well-known/oauth-protected-resource`);
 if (resource.resource !== `https://api.${domain}/mcp`) {

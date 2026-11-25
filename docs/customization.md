@@ -24,7 +24,7 @@ identity provider is issuer + audience config:
 ```bash
 # .env / Secrets Manager
 TERRARIUM_AUTH_PROVIDER=casdoor        # or workos, or any OIDC issuer
-TERRARIUM_ISSUER=https://auth.$TERRARIUM_DOMAIN
+TERRARIUM_ISSUER=https://auth.$TERRARIUM_DOMAIN/orgs/vibevarium
 PLATFORM_OIDC_AUDIENCE=https://api.$TERRARIUM_DOMAIN/mcp
 ```
 

@@ -27,9 +27,12 @@ export interface RegisteredClient {
   readonly registrationClientUri?: string | undefined;
 }
 
+/** Casdoor's API origin, including when an organization issuer has an `/orgs/<name>` suffix. */
+const apiOrigin = (issuer: string) => issuer.replace(/\/$/, "").replace(/\/orgs\/[^/]+$/, "");
+
 /** The DCR endpoint; `organization` selects which org the client is created in. */
 const registerUrl = (options: CasdoorAdminOptions) => {
-  const base = options.issuer.replace(/\/$/, "");
+  const base = apiOrigin(options.issuer);
   const org = options.organization ?? "vibevarium";
   return `${base}/api/oauth/register?organization=${encodeURIComponent(org)}`;
 };
@@ -83,7 +86,7 @@ export const deleteOidcClient = (
   registrationAccessToken?: string,
 ): Effect.Effect<void, ScaffoldError> =>
   attempt(async () => {
-    const base = options.issuer.replace(/\/$/, "");
+    const base = apiOrigin(options.issuer);
     // RFC 7592: DELETE /api/oauth/register/<client-id> with the registration
     // access token. If no token is available (e.g. it wasn't persisted), we
     // still attempt the delete — Casdoor may accept it depending on policy.

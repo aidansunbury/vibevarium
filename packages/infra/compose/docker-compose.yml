@@ -63,7 +63,8 @@ services:
       # Casdoor issuer. Casdoor is a complete OIDC provider; the issuer is the
       # origin root (discovery at auth.<domain>/.well-known/openid-configuration).
       TERRARIUM_AUTH_PROVIDER: casdoor
-      TERRARIUM_ISSUER: https://auth.${DOMAIN}
+      TERRARIUM_ISSUER: https://auth.${DOMAIN}/orgs/vibevarium
+      CASDOOR_ISSUER: https://auth.${DOMAIN}/orgs/vibevarium
       # API origin (the OIDC callback + all API routes). The GUI SPA is served
       # from Cloudflare at platform.<domain>; the session cookie is scoped
       # .vibevarium.com so it's sent same-site across the two subdomains.
