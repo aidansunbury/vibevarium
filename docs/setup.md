@@ -66,8 +66,10 @@ repo-root `.env` (`GITHUB_OAUTH_CLIENT_ID=…` etc.), and enable them with
 
 ## Path 2 — AWS production
 
-The reference deployment: the control plane on one EC2 instance, Postgres on
-RDS, secrets in AWS Secrets Manager, TLS via Caddy, DNS in Cloudflare.
+The reference deployment: the control plane and Casdoor on ECS Fargate,
+Postgres on RDS, the GUI on S3 + CloudFront, secrets in AWS Secrets Manager,
+and DNS + ACM validation in Cloudflare. See [deployment.md](./deployment.md)
+for the current stack, manual commands, and GitHub Actions deployment.
 
 ### What you'll need
 
@@ -95,19 +97,20 @@ AWS_PROFILE=your-sso-profile
 ### 2. Deploy the infrastructure
 
 ```bash
-cd packages/infra
-source ../../.env
-bash scripts/deploy.sh
+source .env
+pnpm --dir packages/infra deploy --stage live_aidan --yes
+bash packages/infra/scripts/verify-production.sh
 ```
 
-One script does everything: VPC + EC2 + RDS + Elastic IP + DNS records
-(`auth.` and `platform.` on your domain), creates the databases, pushes the
-compose stack, and brings it up. At the end it prints verification URLs:
+The ECS stack builds and publishes the control-plane image, updates the ECS
+services and ALB, builds and publishes the GUI to S3 + CloudFront, and manages
+ACM validation and DNS records through the Cloudflare adapter. Verify with:
 
 ```bash
-curl https://auth.$TERRARIUM_DOMAIN/api/.well-known/openid-configuration
-curl https://platform.$TERRARIUM_DOMAIN/health
-curl https://platform.$TERRARIUM_DOMAIN/config-check   # which config came from SM (names only)
+curl https://auth.$TERRARIUM_DOMAIN/.well-known/openid-configuration
+curl https://api.$TERRARIUM_DOMAIN/health
+curl https://api.$TERRARIUM_DOMAIN/config-check   # which config came from SM (names only)
+curl https://platform.$TERRARIUM_DOMAIN/connections
 ```
 
 ### 3. Fill the secrets
@@ -167,6 +170,6 @@ to port the store — and open an issue; this is an active direction.
 ## Getting help
 
 - Issues: <https://github.com/aidansunbury/vibevarium/issues>
-- The control plane's `/config-check` endpoint shows which config resolved and
-  from where (names only, never values) — the first place to look when
-  something's "unset".
+- The control plane's `/config-check` endpoint at `api.$TERRARIUM_DOMAIN` shows
+  which config resolved and from where (names only, never values) — the first
+  place to look when something's "unset".

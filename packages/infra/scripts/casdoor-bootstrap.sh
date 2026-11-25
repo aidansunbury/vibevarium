@@ -70,7 +70,7 @@ else
 fi
 
 # 5. Write the GUI app credentials to AWS Secrets Manager (never printed).
-if command -v aws >/dev/null 2>&1 && [ -n "${AWS_PROFILE:-}" ]; then
+if command -v aws >/dev/null 2>&1 && { [ -n "${AWS_PROFILE:-}" ] || [ -n "${AWS_ACCESS_KEY_ID:-}" ]; }; then
   CREDS=$(api GET "/api/get-organization-applications?organization=$ORG" | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
@@ -86,7 +86,7 @@ print(app['clientId']); print(app.get('clientSecret',''))
   upsert "/vibevarium/prod/GUI_APP_ID" "$GID" && echo "  stored /vibevarium/prod/GUI_APP_ID"
   upsert "/vibevarium/prod/GUI_APP_SECRET" "$GSEC" && echo "  stored /vibevarium/prod/GUI_APP_SECRET"
 else
-  echo "  (aws CLI/AWS_PROFILE not set — store the GUI creds in AWS SM manually as"
+  echo "  (AWS CLI credentials not set — store the GUI creds in AWS SM manually as"
   echo "   /vibevarium/prod/GUI_APP_ID and /vibevarium/prod/GUI_APP_SECRET)"
 fi
 echo "=== Bootstrap complete ==="

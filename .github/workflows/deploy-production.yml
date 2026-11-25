@@ -1,0 +1,79 @@
+name: deploy-production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vibevarium-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  CI: true
+  TERRARIUM_DOMAIN: ${{ vars.TERRARIUM_DOMAIN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  ACM_CERTIFICATE_ARN: ${{ vars.ACM_CERTIFICATE_ARN }}
+  ECS_DATABASE_URL_ARN: ${{ vars.ECS_DATABASE_URL_ARN }}
+  CASDOOR_DATABASE_URL_ARN: ${{ vars.CASDOOR_DATABASE_URL_ARN }}
+  CASDOOR_ADMIN_PASSWORD_ARN: ${{ vars.CASDOOR_ADMIN_PASSWORD_ARN }}
+  CLOUDFLARE_API_TOKEN_ARN: ${{ vars.CLOUDFLARE_API_TOKEN_ARN }}
+  SECRETS_POLICY_ARN: ${{ vars.SECRETS_POLICY_ARN }}
+  DEPLOYED_GIT_SHA: ${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.1
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate
+        run: |
+          pnpm typecheck
+          pnpm --dir packages/control-plane exec vitest run src/config.test.ts src/secrets.test.ts src/mcp-gate.test.ts
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Check deployment environment
+        working-directory: packages/infra
+        run: pnpm exec alchemy provider check-env --config ./src/main-ecs.ts
+
+      - name: Deploy production
+        working-directory: packages/infra
+        run: pnpm exec alchemy deploy --config ./src/main-ecs.ts --stage live_aidan --yes
+
+      - name: Initialize databases
+        run: node --experimental-strip-types packages/infra/scripts/bootstrap-database.ts
+
+      - name: Bootstrap Casdoor
+        run: |
+          export CASDOOR_ADMIN_PASSWORD="$(aws secretsmanager get-secret-value \
+            --secret-id "$CASDOOR_ADMIN_PASSWORD_ARN" \
+            --query 'SecretString' --output text)"
+          bash packages/infra/scripts/casdoor-bootstrap.sh
+
+      - name: Verify production
+        run: node --experimental-strip-types packages/infra/scripts/verify-production.ts "$DEPLOYED_GIT_SHA"

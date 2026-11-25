@@ -1,0 +1,9 @@
+**/node_modules
+**/.git
+**/.alchemy
+**/dist
+**/.data
+**/.secrets
+**/.env
+**/.env.*
+apps

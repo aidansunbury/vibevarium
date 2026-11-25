@@ -79,7 +79,7 @@ runtime environment variables.
    cache.
 
 Verify what's resolving (names only, never values):
-`curl https://platform.$TERRARIUM_DOMAIN/config-check`
+`curl https://api.$TERRARIUM_DOMAIN/config-check`
 
 ## Connections
 
