@@ -26,6 +26,7 @@ env:
   CLOUDFLARE_API_TOKEN_ARN: ${{ vars.CLOUDFLARE_API_TOKEN_ARN }}
   SECRETS_POLICY_ARN: ${{ vars.SECRETS_POLICY_ARN }}
   DEPLOYED_GIT_SHA: ${{ github.sha }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   deploy:
