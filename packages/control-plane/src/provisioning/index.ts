@@ -104,6 +104,7 @@ export class Provisioning extends Context.Service<Provisioning, {
   readonly start: (spec: ProvisionSpec, actorSub?: string) => Effect.Effect<ProvisionStart, ScaffoldError>;
   readonly get: (jobId: string) => Effect.Effect<ProvisionStatus, ScaffoldError>;
   readonly options: () => Effect.Effect<CapabilityReport>;
+  readonly requirements: (name: string) => Effect.Effect<import("../scaffold/index.ts").ScaffoldRequirements, ScaffoldError>;
   /** Deploy history: all provision jobs for an app (previews included), newest first. */
   readonly history: (appName: string) => Effect.Effect<ReadonlyArray<ProvisionStatus>>;
   /** Every preview app of a parent (or all previews when parent is undefined). */
@@ -121,12 +122,21 @@ export class Provisioning extends Context.Service<Provisioning, {
       const config = yield* PlatformConfigService;
       const secrets = yield* SecretsProvider;
       const runner = yield* JobRunner;
+      const scaffold = yield* Scaffold;
 
       const start = Effect.fnUntraced(function*(rawSpec: ProvisionSpec, actorSub?: string) {
         const target = rawSpec.target ?? config.defaultDeployTarget;
         const database = rawSpec.database ?? config.database;
         const features = rawSpec.features ?? [];
         const spec = { ...rawSpec, target, database, features };
+
+        const requirements = yield* scaffold.requirements(spec.name);
+        if (!requirements.available) {
+          return yield* Effect.fail(new ScaffoldError(
+            409,
+            requirements.checks.filter((check) => !check.available).map((check) => check.detail).join("; "),
+          ));
+        }
 
         // Re-validate against the capability report — the wizard only offers
         // backed options, but the route re-checks so a hand-rolled request
@@ -219,7 +229,7 @@ export class Provisioning extends Context.Service<Provisioning, {
         }));
       });
 
-      return Provisioning.of({ start, get, options, history, previews });
+      return Provisioning.of({ start, get, options, requirements: scaffold.requirements, history, previews });
     }),
   );
 
@@ -237,6 +247,16 @@ export class Provisioning extends Context.Service<Provisioning, {
             authProvider: config.authProvider,
             ...report,
           });
+        })));
+
+        yield* router.add("GET", "/provisioning/requirements/:name", gated(Effect.gen(function*() {
+          const params = yield* HttpRouter.params;
+          const name = params.name;
+          if (name === undefined) return yield* HttpServerResponse.json({ error: "Missing app name" }, { status: 400 });
+          const result = yield* provisioning.requirements(name).pipe(Effect.result);
+          return Result.isFailure(result)
+            ? yield* HttpServerResponse.json({ error: result.failure.message }, { status: result.failure.status })
+            : yield* HttpServerResponse.json(result.success);
         })));
 
         yield* router.add("POST", "/provisioning", gated(Effect.gen(function*() {

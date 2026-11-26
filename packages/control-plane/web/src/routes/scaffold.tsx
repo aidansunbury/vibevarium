@@ -38,6 +38,12 @@ function ScaffoldWizard() {
   const [features, setFeatures] = useState<Array<"r2" | "hyperdrive">>([]);
 
   const options = useQuery({ queryKey: ["provisioning-options"], queryFn: api.provisioningOptions });
+  const requirements = useQuery({
+    queryKey: ["provisioning-requirements", name.trim()],
+    queryFn: () => api.provisionRequirements(name.trim()),
+    enabled: dnsLabel.test(name.trim()),
+    staleTime: 0,
+  });
 
   // Seed defaults once the capability report lands.
   useEffect(() => {
@@ -112,6 +118,7 @@ function ScaffoldWizard() {
 
   const report = options.data;
   const nameValid = dnsLabel.test(name.trim());
+  const requirementsValid = requirements.data?.available === true;
 
   // A job in flight takes over the whole card with the live stepper.
   if (jobId !== undefined) {
@@ -127,7 +134,7 @@ function ScaffoldWizard() {
   }
 
   const canNext =
-    step === 0 ? nameValid : step === 1 ? target !== null : step === 2 ? database !== null : true;
+    step === 0 ? nameValid && requirementsValid : step === 1 ? target !== null : step === 2 ? database !== null : true;
 
   return (
     <Card>
@@ -161,6 +168,22 @@ function ScaffoldWizard() {
             </p>
             {name.trim() !== "" && !nameValid && (
               <p className="text-xs text-destructive">Invalid name — lower-kebab-case, 1–63 chars.</p>
+            )}
+            {nameValid && requirements.isFetching && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" /> Verifying requirements…</p>
+            )}
+            {nameValid && requirements.isError && (
+              <p className="text-xs text-destructive">Could not verify requirements: {message(requirements.error)}</p>
+            )}
+            {requirements.data !== undefined && (
+              <ul className="mt-2 grid gap-1 rounded-md border p-3">
+                {requirements.data.checks.map((check) => (
+                  <li key={check.id} className={`flex items-center gap-2 text-xs ${check.available ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                    {check.available ? <Check className="size-3.5" /> : <X className="size-3.5" />}
+                    <span className="font-medium">{check.label}:</span> {check.detail}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         )}
@@ -265,7 +288,7 @@ function ScaffoldWizard() {
               Next <ChevronRight className="size-4" />
             </Button>
           ) : (
-            <Button disabled={!nameValid || target === null || database === null} onClick={() => void submit()}>
+            <Button disabled={!nameValid || !requirementsValid || target === null || database === null} onClick={() => void submit()}>
               Provision app
             </Button>
           )}

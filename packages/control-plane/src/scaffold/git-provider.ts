@@ -17,6 +17,8 @@ export interface GitRepo {
 }
 
 export interface GitProviderShape {
+  /** Whether this provider already owns a repository with this app name. */
+  readonly repoExists?: (name: string) => Effect.Effect<boolean, ScaffoldError>;
   readonly createRepo: (
     name: string,
     files: Readonly<Record<string, string>>,

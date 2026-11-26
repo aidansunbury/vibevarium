@@ -39,6 +39,15 @@ export const GitHubAppProvider = {
         },
       });
       const shape: GitProviderShape = {
+        repoExists: (name) => attempt(async () => {
+          try {
+            await octokit.rest.repos.get({ owner: options.org, repo: name });
+            return true;
+          } catch (cause) {
+            if ((cause as { status?: number }).status === 404) return false;
+            throw asError(cause);
+          }
+        }),
         resumeRepo: (name, files) => attempt(async () => {
           const directory = join(options.appsRoot, name);
           await rm(directory, { recursive: true, force: true });

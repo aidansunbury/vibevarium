@@ -291,6 +291,17 @@ export const ProvisioningOptions = Schema.Struct({
 });
 export type ProvisioningOptions = typeof ProvisioningOptions.Type;
 
+export const ProvisionRequirements = Schema.Struct({
+  available: Schema.Boolean,
+  checks: Schema.Array(Schema.Struct({
+    id: Schema.Literals(["registry", "repository", "domain"]),
+    label: Schema.String,
+    available: Schema.Boolean,
+    detail: Schema.String,
+  })),
+});
+export type ProvisionRequirements = typeof ProvisionRequirements.Type;
+
 export const ProvisionSpec = Schema.Struct({
   name: Schema.String,
   target: Schema.optional(Schema.Literals(["cloudflare", "aws"])),
@@ -353,6 +364,11 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.post("provision", "/provisioning", {
         payload: ProvisionSpec,
         success: Schema.Struct({ jobId: Schema.String }),
+        error: Unauthorized,
+      }))
+      .add(HttpApiEndpoint.get("provisionRequirements", "/provisioning/requirements/:name", {
+        params: { name: Schema.String },
+        success: ProvisionRequirements,
         error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("provisionStatus", "/provisioning/:jobId", {
@@ -582,6 +598,8 @@ export const api = {
 
   provisioningOptions: () => clientPromise.then((client) => run(client.provisioningOptions())),
   provision: (spec: ProvisionSpec) => clientPromise.then((client) => run(client.provision({ payload: spec }))),
+  provisionRequirements: (name: string) =>
+    clientPromise.then((client) => run(client.provisionRequirements({ params: { name } }))),
   provisionStatus: (jobId: string) =>
     clientPromise.then((client) => run(client.provisionStatus({ params: { jobId } }))),
   createPreview: (name: string, pr: string) =>

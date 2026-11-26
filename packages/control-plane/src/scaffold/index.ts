@@ -97,6 +97,18 @@ export interface ScaffoldResult {
   };
 }
 
+export interface ScaffoldRequirement {
+  readonly id: "registry" | "repository" | "domain";
+  readonly label: string;
+  readonly available: boolean;
+  readonly detail: string;
+}
+
+export interface ScaffoldRequirements {
+  readonly available: boolean;
+  readonly checks: ReadonlyArray<ScaffoldRequirement>;
+}
+
 const generatedFiles = (name: string): Readonly<Record<string, string>> => ({
   "package.json": `${JSON.stringify({
     name: `@vibevarium-app/${name}`,
@@ -171,6 +183,8 @@ const registerGeneratedRoutes = (gated: Gated) =>
   );
 
 export class Scaffold extends Context.Service<Scaffold, {
+  /** Verify names before a job is accepted; performs no writes. */
+  readonly requirements: (name: string) => Effect.Effect<ScaffoldRequirements, ScaffoldError>;
   readonly create: (
     name: string,
     preview?: { readonly previewOf: string; readonly previewPr: string },
@@ -228,7 +242,55 @@ export class Scaffold extends Context.Service<Scaffold, {
             accountId: options.cloudflare.accountId,
             namespaceId: options.cloudflare.routerNamespaceId,
             zoneId: options.cloudflare.zoneId,
-          });
+           });
+
+      const requirements = Effect.fnUntraced(function*(name: string) {
+        if (!dnsLabel.test(name)) {
+          return yield* Effect.fail(new ScaffoldError(400, "Invalid DNS-label-safe app name"));
+        }
+        const registered = Option.isSome(yield* registry.get(name));
+        const repositoryExists = git.repoExists === undefined ? false : yield* git.repoExists(name);
+        const hostname = options.cloudflare === undefined ? undefined : `${name}.${options.cloudflare.domain}`;
+        const domainExists = hostname === undefined
+          ? false
+          : yield* Effect.tryPromise({
+              try: async () => {
+                const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`, {
+                  headers: { accept: "application/dns-json" },
+                  signal: AbortSignal.timeout(5_000),
+                });
+                if (!response.ok) throw new Error(`DNS lookup returned HTTP ${response.status}`);
+                const body = await response.json() as { Answer?: ReadonlyArray<unknown> };
+                return (body.Answer?.length ?? 0) > 0;
+              },
+              catch: (cause) => new ScaffoldError(502, `Could not verify ${hostname}: ${String(cause)}`),
+            });
+        const checks: ReadonlyArray<ScaffoldRequirement> = [
+          {
+            id: "registry",
+            label: "App name",
+            available: !registered,
+            detail: registered ? `App “${name}” is already registered` : `App name “${name}” is available`,
+          },
+          {
+            id: "repository",
+            label: "Repository",
+            available: !repositoryExists,
+            detail: repositoryExists
+              ? `Repository already exists: https://github.com/${options.github?.org ?? ""}/${name}`
+              : `Repository name “${name}” is available`,
+          },
+          {
+            id: "domain",
+            label: "Domain",
+            available: !domainExists,
+            detail: hostname === undefined
+              ? "Custom domain is not used by this target"
+              : domainExists ? `Domain already resolves: ${hostname}` : `Domain is available: ${hostname}`,
+          },
+        ];
+        return { available: checks.every((check) => check.available), checks } satisfies ScaffoldRequirements;
+      });
 
       const register = Effect.fnUntraced(function*(
         name: string,
@@ -474,7 +536,7 @@ export class Scaffold extends Context.Service<Scaffold, {
       });
 
       yield* syncCloudflareDirectory();
-      return Scaffold.of({ create, createTracked, remove });
+      return Scaffold.of({ requirements, create, createTracked, remove });
     })).pipe(
       Layer.provide(options.github === undefined
         ? LocalGitProvider.layer(options.appsRoot ?? join(options.workspaceRoot ?? defaultWorkspaceRoot, "apps"))
