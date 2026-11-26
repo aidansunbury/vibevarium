@@ -14,6 +14,7 @@ export const connectionsConfig = {
     "linear-oauth-client": { ref: "LINEAR_OAUTH_CLIENT_SECRET" },
     "oauth-token-encryption": { ref: "CONNECTIONS_TOKEN_ENCRYPTION_KEY" },
     "github-webhook-ingress": { ref: "GITHUB_WEBHOOK_SECRET" },
+    "aws-bedrock-inference-key": { ref: "AWS_BEARER_TOKEN_BEDROCK" },
 
     // Example shared API credential, referenced by `proxiedSecrets` below:
     // "open-ai-api": { ref: "OPENAI_API_KEY" },
@@ -54,6 +55,15 @@ export const connectionsConfig = {
   },
 
   proxiedSecrets: {
+    "aws-bedrock": {
+      displayName: "AWS Bedrock",
+      logoUrl: "https://aws.amazon.com/favicon.ico",
+      baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+      secret: "aws-bedrock-inference-key",
+      authHeader: "authorization_bearer",
+      timeoutMs: 60_000,
+    },
+
     // Example: apps granted "openai" use the same OpenAI token through the proxy.
     // openai: {
     //   displayName: "OpenAI",
