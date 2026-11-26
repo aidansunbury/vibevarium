@@ -12,10 +12,16 @@ export const apps = pgTable("registry_apps", {
   lastError: text("last_error"),
   /** The app's OIDC client id (set at scaffold via Casdoor DCR; deleted on teardown). */
   oidcClientId: text("oidc_client_id"),
+  m2mClientId: text("m2m_client_id").unique(),
   /** Preview lineage: set on preview apps, the parent app name. Null on prod apps. */
   previewOf: text("preview_of"),
   /** The PR number this preview tracks (previews only). */
   previewPr: text("preview_pr"),
+});
+
+export const appOidcRegistrations = pgTable("app_oidc_registrations", {
+  app: text("app").primaryKey().references(() => apps.name, { onDelete: "cascade" }),
+  accessToken: text("access_token").notNull(),
 });
 
 export const directoryTools = pgTable(

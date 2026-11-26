@@ -597,10 +597,10 @@ export const validateCapabilities = (
       hyperdriveDb.reason,
     );
 
-    // Auth-server providers. Casdoor registration is unauthenticated DCR — it
-    // is always satisfiable once the issuer is configured (which it always is),
-    // so there are no missing credentials to report.
-    const casdoorCap = status(config.authProvider === "casdoor", [], "Casdoor issuer not configured");
+    const casdoorMissing = config.authProvider === "casdoor" && enabledIn(config.deployTargets, "cloudflare")
+      ? yield* resolveMissing(secrets, ["CASDOOR_PROVISIONER_CLIENT_ID", "CASDOOR_PROVISIONER_CLIENT_SECRET"])
+      : [];
+    const casdoorCap = status(config.authProvider === "casdoor", casdoorMissing, "Casdoor provisioning credentials incomplete");
 
     const workosMissing: Array<string> = [];
     if (config.workos === undefined) workosMissing.push("WORKOS_CLIENT_ID");

@@ -16,9 +16,10 @@ import { Acl } from "../acl/index.ts";
 import { Directory, Discovery, type DirectoryTool } from "../discovery/index.ts";
 import { AppProxy } from "../gateway/proxy.ts";
 import { syncGatewayTools } from "../gateway/tools.ts";
+import { SecretsProvider } from "../integrations/secrets.ts";
 import { Registry, type AppRegistration } from "../registry/index.ts";
 import { attempt, asScaffoldError, ScaffoldError } from "./errors.ts";
-import { createOidcClient, deleteOidcClient } from "./casdoor.ts";
+import { createM2mClient, createOidcClient, deleteM2mClient, deleteOidcClient } from "./casdoor.ts";
 import { GitProvider, LocalGitProvider, type GitRepo } from "./git-provider.ts";
 import { GitHubAppProvider } from "./github-app-provider.ts";
 import { CloudflareDeployer, type CloudflareDeployment } from "./cloudflare-deployer.ts";
@@ -221,6 +222,17 @@ export class Scaffold extends Context.Service<Scaffold, {
       const proxy = yield* AppProxy;
       const mcpServer = yield* McpServer.McpServer;
       const git = yield* GitProvider;
+      const secrets = yield* SecretsProvider;
+      const getProvisioner = Effect.gen(function*() {
+        const [id, secret] = yield* Effect.all([
+          secrets.resolve("CASDOOR_PROVISIONER_CLIENT_ID"),
+          secrets.resolve("CASDOOR_PROVISIONER_CLIENT_SECRET"),
+        ], { concurrency: "unbounded" });
+        if (Option.isNone(id) || Option.isNone(secret) || !id.value || !secret.value) {
+          return yield* Effect.fail(new ScaffoldError(503, "Casdoor provisioning credentials are missing. Run the Casdoor bootstrap script."));
+        }
+        return { clientId: id.value, clientSecret: secret.value };
+      });
       const processes = yield* Effect.acquireRelease(
         Effect.sync(() => new AppProcesses()),
         (apps) => Effect.promise(() => apps.stopAll()),
@@ -298,6 +310,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         oidcClientId?: string,
         preview?: { readonly previewOf: string; readonly previewPr: string },
         actorSub?: string,
+        identity?: { readonly m2mClientId: string; readonly oidcRegistrationToken: string },
       ) {
         const app = yield* registry.register({
           name,
@@ -306,7 +319,7 @@ export class Scaffold extends Context.Service<Scaffold, {
           ...(preview === undefined
             ? {}
             : { previewOf: preview.previewOf, previewPr: preview.previewPr }),
-        });
+        }, identity);
         // Seed the creator as the app's ACL admin (docs/previews-and-acl.md
         // Part 2). Previews inherit the parent's ACL instead (no new rows).
         if (actorSub !== undefined && preview === undefined) {
@@ -382,22 +395,8 @@ export class Scaffold extends Context.Service<Scaffold, {
           return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
         }
         const appUrl = `https://${name}.${options.cloudflare!.domain}`;
-        // Register the app's own OIDC client so it can run its auth-code flow.
-        // Previews get their OWN client (own redirect URIs) — they never share
-        // the parent app's client.
-        const oidcClient = options.casdoor === undefined
-          ? undefined
-          : yield* createOidcClient(
-              {
-                issuer: options.casdoor.issuer,
-                organization: options.casdoor.organization,
-              },
-              {
-                name: `${name}.vibevarium`,
-                callbackUrl: `${appUrl}/auth/callback`,
-                logoutUrl: `${appUrl}/`,
-              },
-            );
+        const casdoor = options.casdoor;
+        const provisioner = casdoor === undefined ? undefined : yield* getProvisioner;
         const files = yield* attempt(() => materializeCloudflareTemplate(templateRoot, name));
         const repo = yield* git.createRepo(name, files).pipe(
           Effect.catch((error) =>
@@ -407,16 +406,53 @@ export class Scaffold extends Context.Service<Scaffold, {
           ),
         );
         if (phase !== undefined) yield* phase("repo", repo.repoUrl);
-        if (phase !== undefined) yield* phase("oidc", oidcClient?.clientId ?? "OIDC registration not configured");
-        const deployment = yield* attempt(() => deployer.deploy(name, repo.directory, oidcClient));
+        const oidc = yield* Effect.acquireRelease(
+          casdoor === undefined
+            ? Effect.succeed(undefined)
+            : createOidcClient(casdoor, {
+              name: `${name}.vibevarium`,
+              callbackUrl: `${appUrl}/auth/callback`,
+              logoutUrl: `${appUrl}/`,
+            }),
+          (client) => Effect.gen(function*() {
+            if (casdoor === undefined || client === undefined) return;
+            const current = yield* registry.get(name);
+            if (Option.isSome(current) && current.value.oidcClientId === client.clientId) return;
+            yield* deleteOidcClient(casdoor, client.clientId, client.registrationAccessToken).pipe(
+              Effect.tapError(() => Effect.logWarning(`Failed to clean up OIDC client for ${name}`)),
+              Effect.ignore,
+            );
+          }),
+        );
+        const m2m = yield* Effect.acquireRelease(
+          casdoor === undefined || provisioner === undefined
+            ? Effect.succeed(undefined)
+            : createM2mClient(casdoor, provisioner),
+          (client) => Effect.gen(function*() {
+            if (casdoor === undefined || provisioner === undefined || client === undefined) return;
+            const current = yield* registry.get(name);
+            if (Option.isSome(current) && current.value.m2mClientId === client.clientId) return;
+            yield* deleteM2mClient(casdoor, provisioner, client.clientId).pipe(
+              Effect.tapError(() => Effect.logWarning(`Failed to clean up M2M client for ${name}`)),
+              Effect.ignore,
+            );
+          }),
+        );
+        if (phase !== undefined) yield* phase("oidc", oidc?.clientId ?? "OIDC registration not configured");
+        const identity = oidc === undefined || m2m === undefined || casdoor === undefined
+          ? undefined
+          : { oidc, m2m, platformAudience: casdoor.platformAudience, issuer: casdoor.issuer };
+        const deployment = yield* attempt(() => deployer.deploy(name, repo.directory, identity));
         if (phase !== undefined) yield* phase("deploy", deployment.hostname);
         yield* attempt(() => routerBindings!.add(name));
         yield* attempt(() => routerDirectory!.put(name, name));
         if (phase !== undefined) yield* phase("router", appUrl);
-        // Register the public hostname (not the workers.dev origin) so the
-        // gallery + gateway point at the app's real URL. Preview lineage goes
-        // on the row so the dashboard can group previews under their parent.
-        const directoryEntry = yield* register(name, `${appUrl}/mcp`, oidcClient?.clientId, preview, actorSub);
+        const directoryEntry = yield* register(name, `${appUrl}/mcp`, oidc?.clientId, preview, actorSub,
+          identity === undefined ? undefined : {
+            m2mClientId: identity.m2m.clientId,
+            oidcRegistrationToken: identity.oidc.registrationAccessToken,
+          },
+        );
         if (phase !== undefined) yield* phase("directory");
         return {
           name,
@@ -428,7 +464,7 @@ export class Scaffold extends Context.Service<Scaffold, {
           deployment,
           directoryEntry,
         } satisfies ScaffoldResult;
-      });
+      }, Effect.scoped);
 
       const syncCloudflareDirectory = Effect.fnUntraced(function*() {
         if (routerDirectory === undefined) return;
@@ -507,16 +543,18 @@ export class Scaffold extends Context.Service<Scaffold, {
           return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
         }
         const appDirectory = join(appsRoot, name);
-        // Delete the app's OIDC client before the registry row goes.
         const existing = yield* registry.get(name);
-        if (options.casdoor !== undefined && Option.isSome(existing) && existing.value.oidcClientId !== null) {
-          yield* deleteOidcClient(
-            { issuer: options.casdoor.issuer, organization: options.casdoor.organization },
-            existing.value.oidcClientId,
-          ).pipe(
-            Effect.tapError(() => Effect.logWarning(`Failed to delete OIDC client for ${name}`)),
-            Effect.ignore,
-          );
+        if (options.casdoor !== undefined && Option.isSome(existing)) {
+          const { oidcClientId, m2mClientId } = existing.value;
+          if (m2mClientId !== null) {
+            const provisioner = yield* getProvisioner;
+            yield* deleteM2mClient(options.casdoor, provisioner, m2mClientId);
+            yield* registry.clearM2mClient(name, m2mClientId);
+          }
+          const token = yield* registry.oidcRegistrationToken(name);
+          if (oidcClientId !== null && token !== undefined) {
+            yield* deleteOidcClient(options.casdoor, oidcClientId, token);
+          }
         }
         // Worker.lookup cannot resolve a deleted worker during the router redeploy.
         yield* attempt(() => routerBindings!.remove(name));

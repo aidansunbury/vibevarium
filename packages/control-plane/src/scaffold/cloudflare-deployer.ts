@@ -27,6 +27,13 @@ export interface CloudflareDeployment {
   readonly databaseName: string;
 }
 
+interface AppIdentity {
+  readonly oidc: { readonly clientId: string; readonly clientSecret: string };
+  readonly m2m: { readonly clientId: string; readonly clientSecret: string };
+  readonly issuer: string;
+  readonly platformAudience: string;
+}
+
 export class CloudflareDeployer {
   readonly #options: CloudflareDeployerOptions;
 
@@ -34,9 +41,11 @@ export class CloudflareDeployer {
     this.#options = options;
   }
 
-  private env(name: string, oidcClient?: { readonly clientId: string; readonly clientSecret: string }) {
+  private env(name: string, identity?: AppIdentity) {
     return {
       ...process.env,
+      CASDOOR_PROVISIONER_CLIENT_ID: undefined,
+      CASDOOR_PROVISIONER_CLIENT_SECRET: undefined,
       // Containers have no interactive alchemy profile; CI=1 makes alchemy
       // resolve credentials from environment variables (CLOUDFLARE_API_TOKEN).
       CI: "1",
@@ -49,9 +58,13 @@ export class CloudflareDeployer {
       // Option B′: the app's own audience + the platform audience it also accepts.
       TERRARIUM_AUDIENCE: `${name}.${this.#options.domain}`,
       TERRARIUM_PLATFORM_AUDIENCE: `https://mcp.${this.#options.domain}`,
-      ...(oidcClient === undefined ? {} : {
-        TERRARIUM_CLIENT_ID: oidcClient.clientId,
-        TERRARIUM_CLIENT_SECRET: oidcClient.clientSecret,
+      ...(identity === undefined ? {} : {
+        TERRARIUM_ISSUER: identity.issuer,
+        TERRARIUM_PLATFORM_AUDIENCE: identity.platformAudience,
+        TERRARIUM_CLIENT_ID: identity.oidc.clientId,
+        TERRARIUM_CLIENT_SECRET: identity.oidc.clientSecret,
+        TERRARIUM_M2M_CLIENT_ID: identity.m2m.clientId,
+        TERRARIUM_M2M_CLIENT_SECRET: identity.m2m.clientSecret,
       }),
     };
   }
@@ -59,12 +72,12 @@ export class CloudflareDeployer {
   private async alchemy(
     command: "deploy" | "destroy",
     deployment: CloudflareDeployment,
-    oidcClient?: { readonly clientId: string; readonly clientSecret: string },
+    identity?: AppIdentity,
   ) {
     if (this.#options.packageManager === "pnpm") {
       await execFileAsync("pnpm", ["install", "--frozen-lockfile=false"], {
         cwd: deployment.directory,
-        env: this.env(deployment.name, oidcClient),
+        env: this.env(deployment.name, identity),
         timeout: 3 * 60_000,
         maxBuffer: 4 * 1024 * 1024,
       });
@@ -81,7 +94,7 @@ export class CloudflareDeployer {
       try {
         return await execFileAsync(process.execPath, [alchemyCli, command, "--no-input", "--yes"], {
           cwd: deployment.directory,
-          env: this.env(deployment.name, oidcClient),
+          env: this.env(deployment.name, identity),
           timeout: 5 * 60_000,
           maxBuffer: 4 * 1024 * 1024,
         });
@@ -98,7 +111,7 @@ export class CloudflareDeployer {
   async deploy(
     name: string,
     directory: string,
-    oidcClient?: { readonly clientId: string; readonly clientSecret: string },
+    identity?: AppIdentity,
   ): Promise<CloudflareDeployment> {
     const deployment = {
       name,
@@ -108,7 +121,7 @@ export class CloudflareDeployer {
       hostname: `${name}.${this.#options.domain}`,
       databaseName: `${name}-data`,
     };
-    await this.alchemy("deploy", deployment, oidcClient);
+    await this.alchemy("deploy", deployment, identity);
     return deployment;
   }
 

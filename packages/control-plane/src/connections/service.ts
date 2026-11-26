@@ -222,7 +222,7 @@ export class Connections extends Context.Service<Connections, {
   }) => Effect.Effect<ReadonlyArray<ReturnType<typeof publicGrant>>>;
   readonly revokeGrant: (userSub: string, grantId: string) => Effect.Effect<ReturnType<typeof publicGrant>, ConnectionError>;
   readonly revokeConnection: (userSub: string, connectionId: string) => Effect.Effect<ReturnType<typeof publicConnection>, ConnectionError>;
-  readonly vend: (appId: string, provider: string) => Effect.Effect<{
+  readonly vend: (appId: string, provider: string, ownerSub?: string) => Effect.Effect<{
     readonly access_token: string;
     readonly token_type: "Bearer";
     readonly expires_at: string | null;
@@ -631,7 +631,7 @@ export class Connections extends Context.Service<Connections, {
           : Effect.void;
       };
 
-      const approvedGrantForApp = (appId: string, provider: string) =>
+      const approvedGrantForApp = (appId: string, provider: string, ownerSub?: string) =>
         Effect.promise(() =>
           db.select({ grant: connectionGrants, connection: connections, provider: oauthProviders })
             .from(connectionGrants)
@@ -641,6 +641,8 @@ export class Connections extends Context.Service<Connections, {
               eq(connectionGrants.appId, appId),
               eq(connectionGrants.provider, provider),
               eq(connectionGrants.status, "approved"),
+              ownerSub === undefined ? undefined : eq(connectionGrants.ownerSub, ownerSub),
+              ownerSub === undefined ? undefined : eq(connections.userSub, ownerSub),
               eq(connections.status, "active"),
             ))
             .orderBy(desc(connectionGrants.updatedAt))
@@ -675,12 +677,12 @@ export class Connections extends Context.Service<Connections, {
           })
         );
 
-      const usableToken = (appId: string, provider: string): Effect.Effect<UsableToken, ConnectionError> =>
+      const usableToken = (appId: string, provider: string, ownerSub?: string): Effect.Effect<UsableToken, ConnectionError> =>
         Effect.gen(function*() {
           if (!configuredProviders.has(provider)) {
             return yield* fail(404, "unknown_provider", `Unknown provider: ${provider}`);
           }
-          const selected = yield* approvedGrantForApp(appId, provider);
+          const selected = yield* approvedGrantForApp(appId, provider, ownerSub);
           if (selected === undefined) {
             return yield* fail(403, "grant_required", "No approved, active grant covers this app and provider");
           }
@@ -752,8 +754,8 @@ export class Connections extends Context.Service<Connections, {
           }));
         });
 
-      const vend = Effect.fnUntraced(function*(appId: string, provider: string) {
-        const usable = yield* usableToken(appId, provider);
+      const vend = Effect.fnUntraced(function*(appId: string, provider: string, ownerSub?: string) {
+        const usable = yield* usableToken(appId, provider, ownerSub);
         return {
           access_token: usable.accessToken,
           token_type: "Bearer" as const,
@@ -864,7 +866,7 @@ export class Connections extends Context.Service<Connections, {
 
       const proxy = Effect.fnUntraced(function*(call: ProxyCallInput) {
         const started = Date.now();
-        return yield* usableToken(call.appId, call.provider).pipe(
+        return yield* usableToken(call.appId, call.provider, call.callerKind === "user" ? call.caller : undefined).pipe(
           Effect.match({
             onFailure: (error: ConnectionError) =>
               Effect.andThen(

@@ -1,6 +1,6 @@
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as HttpMiddleware from "effect/http/HttpMiddleware";
-import { Auth, CurrentActor, requireAuth } from "@vibevarium/auth";
+import { Auth, CurrentActor, InvalidTokenError, requireAuth } from "@vibevarium/auth";
 import { McpProtocol, McpServer } from "effect/ai";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -275,7 +275,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const connectionsBaseUrl = options.guiAuth?.baseUrl ?? `http://127.0.0.1:${options.port ?? 4100}`;
   const secretsLayer = Layer.unwrap(Effect.sync(SecretsProvider.layerFromEnv));
   const connectionsLayer = Connections.layer({ baseUrl: connectionsBaseUrl, refreshSkewMs: options.connectionsRefreshSkewMs }).pipe(
-    Layer.provide(databaseLayer),
+    Layer.provideMerge(databaseLayer),
     Layer.provide(secretsLayer),
     Layer.provide(connectionsConfigLayer),
   );
@@ -308,7 +308,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       .map((part) => part.trim())
       .filter((part) => part.length > 0),
   }).pipe(Layer.provide(databaseLayer));
-  const scaffoldLayer = Scaffold.layer(options.scaffold).pipe(Layer.provide(aclLayer));
+  const scaffoldLayer = Scaffold.layer(options.scaffold).pipe(Layer.provide(Layer.merge(aclLayer, secretsLayer)));
   // Per-app secrets → the app's own Worker secrets (Cloudflare). Built only
   // when the Cloudflare target is configured; the CF API token resolves via
   // the SecretsProvider (CLOUDFLARE_API_TOKEN). Absent otherwise — the routes
@@ -362,6 +362,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   );
 
   const provisioningLayer = Provisioning.layer.pipe(
+    Layer.provide(scaffoldLayer),
     Layer.provide(databaseLayer),
     Layer.provide(configLayer),
     Layer.provide(jobRunnerLayer),
@@ -538,7 +539,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
     ? Layer.succeed(Auth, Auth.of({
         issuer: "auth-disabled",
         audience: "auth-disabled",
-        verify: () => Effect.die("Authentication is disabled"),
+        verify: () => Effect.fail(new InvalidTokenError({ message: "Bearer authentication is disabled", cause: undefined })),
         refreshJwks: () => Effect.void,
       }))
     : Auth.layer(options.oidc);

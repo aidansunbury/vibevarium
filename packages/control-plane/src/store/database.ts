@@ -51,6 +51,12 @@ const BOOT_DDL = `
 
   -- Idempotent column adds for tables created before the column existed.
   ALTER TABLE registry_apps ADD COLUMN IF NOT EXISTS oidc_client_id text;
+  ALTER TABLE registry_apps ADD COLUMN IF NOT EXISTS m2m_client_id text;
+  CREATE UNIQUE INDEX IF NOT EXISTS registry_apps_m2m_client_id_unique ON registry_apps (m2m_client_id);
+  CREATE TABLE IF NOT EXISTS app_oidc_registrations (
+    app text PRIMARY KEY REFERENCES registry_apps(name) ON DELETE CASCADE,
+    access_token text NOT NULL
+  );
   -- Preview lineage (docs/previews-and-acl.md): previews are registry apps too,
   -- flagged with their parent app + PR.
   ALTER TABLE registry_apps ADD COLUMN IF NOT EXISTS preview_of text;

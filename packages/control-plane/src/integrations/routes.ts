@@ -1,16 +1,17 @@
-import { Auth, type Actor } from "@vibevarium/auth";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as Option from "effect/Option";
+import { authenticatedApp, delegatedUser } from "../app-auth.ts";
 import { Connections } from "../connections/service.ts";
+import { Registry } from "../registry/index.ts";
 import { IntegrationError, Integrations } from "./service.ts";
 
 export interface IntegrationRouteOptions {
   /** When false (no OIDC configured), admin routes run unauthenticated (dev only). */
   readonly authEnabled: boolean;
-  /** Pre-M2M placeholder app credentials: app name → shared secret. Real app M2M creds arrive with Logto. */
+  /** Local development credentials, enabled when OIDC is off. */
   readonly appSecrets: Readonly<Record<string, string>>;
 }
 
@@ -36,53 +37,6 @@ const parseJsonBody = Effect.gen(function*() {
 const invalidBody = (description: string) =>
   json({ error: "invalid_body", error_description: description }, 400);
 
-type Caller =
-  | { readonly kind: "user"; readonly actor: Actor }
-  | { readonly kind: "app"; readonly app: string };
-
-/**
- * Caller auth for the proxy: a user bearer token (auth-enabled) or the
- * pre-M2M app-id + shared secret headers.
- */
-const resolveCaller = (options: IntegrationRouteOptions) =>
-  Effect.gen(function*() {
-    const request = yield* HttpServerRequest;
-    const appId = request.headers["x-vibevarium-app"];
-    if (typeof appId === "string" && appId.length > 0) {
-      const expected = options.appSecrets[appId];
-      if (expected === undefined) {
-        return yield* Effect.fail(
-          yield* json({ error: "invalid_app_credential", error_description: `Unknown app ${appId}` }, 401),
-        );
-      }
-      if (request.headers["x-vibevarium-app-secret"] !== expected) {
-        return yield* Effect.fail(
-          yield* json({ error: "invalid_app_credential", error_description: `Bad shared secret for app ${appId}` }, 401),
-        );
-      }
-      return { kind: "app", app: appId } satisfies Caller;
-    }
-    const match = request.headers.authorization?.match(/^Bearer\s+(\S+)$/i);
-    if (!match || !options.authEnabled) {
-      return yield* Effect.fail(
-        yield* json({
-          error: "invalid_caller",
-          error_description: options.authEnabled
-            ? "Expected a user bearer token or x-vibevarium-app + x-vibevarium-app-secret headers"
-            : "Expected x-vibevarium-app + x-vibevarium-app-secret headers (control-plane auth is disabled)",
-        }, 401),
-      );
-    }
-    const auth = yield* Auth;
-    const verified = yield* Effect.result(auth.verify(match[1]));
-    if (verified._tag === "Failure") {
-      return yield* Effect.fail(
-        yield* json({ error: "invalid_token", error_description: "Token verification failed" }, 401),
-      );
-    }
-    return { kind: "user", actor: verified.success } satisfies Caller;
-  });
-
 /** Wrap an admin handler with the shared GUI-session-or-bearer gate when auth is configured. */
 const admin = <R>(
   options: IntegrationRouteOptions,
@@ -103,6 +57,7 @@ export const integrationRoutes = (options: IntegrationRouteOptions, gated: Gated
   HttpRouter.use((router) =>
     Effect.gen(function*() {
       const integrations = yield* Integrations;
+      const registry = yield* Registry;
       const adminRoute = <R>(handler: Effect.Effect<Response, IntegrationError, R>) => admin(options, gated, handler);
 
       // Definitions come from config/connections.config.ts. Only grants and
@@ -162,28 +117,29 @@ export const integrationRoutes = (options: IntegrationRouteOptions, gated: Gated
         if (match === null || target === undefined) {
           return yield* json({ error: "not_found", error_description: "Expected /proxy/:target/*" }, 404);
         }
-        const caller = yield* resolveCaller(options).pipe(
-          Effect.catch((response: Response) => Effect.succeed({ response })),
-        );
-        if ("response" in caller) return caller.response;
+        const app = yield* authenticatedApp(options, registry);
+        if (app === undefined) {
+          return yield* json({ error: "invalid_app_credential", error_description: "Expected valid app credentials" }, 401);
+        }
+        const decodedTarget = decodeURIComponent(target);
+        const path = match[2] ?? "";
+        const provider = Option.isSome(connections) && (yield* connections.value.isProvider(decodedTarget))
+          ? connections.value
+          : undefined;
+        const user = provider !== undefined && options.authEnabled ? yield* delegatedUser : undefined;
+        if (provider !== undefined && options.authEnabled && user === undefined) {
+          return yield* json({ error: "invalid_user_credential", error_description: "Expected a user access token" }, 401);
+        }
         const body = yield* request.arrayBuffer.pipe(Effect.catch(() => Effect.succeed(new ArrayBuffer(0))));
         const headers: Record<string, string> = {};
         for (const [name, value] of Object.entries(request.headers)) {
-          if (typeof value === "string") headers[name] = value;
+          if (typeof value === "string" && name !== "x-vibevarium-user-authorization") headers[name] = value;
         }
-        // User-context proxying: the app dimension of the grant check is the app
-        // the user is operating, named by header (default "user").
-        const onBehalfOf = headers["x-vibevarium-on-behalf-of-app"];
-        const app = caller.kind === "app"
-          ? caller.app
-          : (typeof onBehalfOf === "string" && onBehalfOf.length > 0 ? onBehalfOf : "user");
-        const decodedTarget = decodeURIComponent(target);
-        const path = match[2] ?? "";
-        if (Option.isSome(connections) && (yield* connections.value.isProvider(decodedTarget))) {
-          const result = yield* connections.value.proxy({
+        if (provider !== undefined) {
+          const result = yield* provider.proxy({
             appId: app,
-            callerKind: caller.kind,
-            caller: caller.kind === "user" ? caller.actor.sub : caller.app,
+            callerKind: user === undefined ? "app" : "user",
+            caller: user?.sub ?? app,
             provider: decodedTarget,
             path,
             query: url.search,
@@ -197,8 +153,8 @@ export const integrationRoutes = (options: IntegrationRouteOptions, gated: Gated
           });
         }
         const result = yield* integrations.proxy({
-          callerKind: caller.kind,
-          caller: caller.kind === "user" ? caller.actor.sub : caller.app,
+          callerKind: "app",
+          caller: app,
           app,
           integration: decodedTarget,
           method: request.method,

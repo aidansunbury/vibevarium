@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
 # Casdoor bootstrap — idempotent config of a fresh Casdoor for vibevarium.
 #
-# Why this exists (no Terraform): Casdoor's admin surface is a runtime REST
-# API, not declarative config. The only things that need one-time setup are the
-# org, the DCR toggle, and the GUI application — per-app OIDC clients are then
-# created on demand via DCR (RFC 7591), never declaratively. This script does
-# those three setup calls idempotently using an admin *session cookie* (the
-# admin API rejects client-credentials tokens, and access-key secrets are
-# masked on read — so a session is the workable admin credential).
+# Configure the organization, GUI client, and app provisioner using a Casdoor
+# admin session. The control plane uses DCR for user sign-in clients and the
+# organization provisioner for client-credentials applications.
 #
 # Usage:
 #   CASDOOR_URL=https://auth.vibevarium.com \
@@ -86,7 +82,14 @@ else
     | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d;print('  created GUI application $ORG')"
 fi
 
-# 5. Write the GUI app credentials to AWS Secrets Manager (never printed).
+# 5. Create the organization-scoped application provisioner once.
+PROVISIONER_NAME="vibevarium-app-provisioner"
+if ! api GET "/api/get-application?id=admin/$PROVISIONER_NAME" | python3 -c "import sys,json;exit(0 if json.load(sys.stdin).get('data') else 1)"; then
+  api POST "/api/add-application" "{\"owner\":\"admin\",\"name\":\"$PROVISIONER_NAME\",\"organization\":\"$ORG\",\"displayName\":\"Vibevarium app provisioner\",\"disableSignin\":true}" \
+    | python3 -c "import sys,json;d=json.load(sys.stdin);assert d.get('status')=='ok',d.get('msg');print('  created app provisioner')"
+fi
+
+# 6. Write the control-plane credentials to AWS Secrets Manager (never printed).
 if command -v aws >/dev/null 2>&1 && { [ -n "${AWS_PROFILE:-}" ] || [ -n "${AWS_ACCESS_KEY_ID:-}" ]; }; then
   CREDS=$(api GET "/api/get-organization-applications?organization=$ORG" | python3 -c "
 import sys,json
@@ -102,8 +105,18 @@ print(app['clientId']); print(app.get('clientSecret',''))
   }
   upsert "/vibevarium/prod/GUI_APP_ID" "$GID" && echo "  stored /vibevarium/prod/GUI_APP_ID"
   upsert "/vibevarium/prod/GUI_APP_SECRET" "$GSEC" && echo "  stored /vibevarium/prod/GUI_APP_SECRET"
+  PROVISIONER_CREDS=$(api GET "/api/get-application?id=admin/$PROVISIONER_NAME" | python3 -c "
+import sys,json
+app=json.load(sys.stdin)['data']
+assert app.get('clientId') and app.get('clientSecret') not in (None, '', '***'), 'Provisioner credentials unavailable'
+print(app['clientId']); print(app['clientSecret'])
+")
+  upsert "/vibevarium/prod/CASDOOR_PROVISIONER_CLIENT_ID" "$(echo "$PROVISIONER_CREDS" | sed -n '1p')"
+  upsert "/vibevarium/prod/CASDOOR_PROVISIONER_CLIENT_SECRET" "$(echo "$PROVISIONER_CREDS" | sed -n '2p')"
+  echo "  stored Casdoor app provisioner credentials"
 else
-  echo "  (AWS CLI credentials not set — store the GUI creds in AWS SM manually as"
-  echo "   /vibevarium/prod/GUI_APP_ID and /vibevarium/prod/GUI_APP_SECRET)"
+  echo "  (AWS CLI credentials not set — configure GUI_APP_ID and GUI_APP_SECRET"
+  echo "   from $ORG, and CASDOOR_PROVISIONER_CLIENT_ID and"
+  echo "   CASDOOR_PROVISIONER_CLIENT_SECRET from $PROVISIONER_NAME.)"
 fi
 echo "=== Bootstrap complete ==="
