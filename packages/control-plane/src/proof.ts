@@ -233,7 +233,8 @@ export const runGatewayProof = Effect.gen(function*() {
       ["tickets-a", "up"],
       ["tickets-b", "up"],
     ]);
-    assert.equal(initialTools.length, 10, "8 app tools plus 2 directory tools");
+    const appTools = initialTools.filter(({ name }) => name.startsWith("tickets-a_") || name.startsWith("tickets-b_"));
+    assert.equal(appTools.length, 8, "four tools per registered app");
     for (const name of [
       "tickets-a_TicketsApi_OpenTicket_send",
       "tickets-a_TicketsApi_CloseTicket_send",
@@ -282,7 +283,7 @@ export const runGatewayProof = Effect.gen(function*() {
     assert.match(JSON.stringify(ticketAAfterKill), /App A still works after app B died/);
 
     assert.ok(forwardedHeaderProof, "the child MCP transport must carry the caller marker header");
-    assert.equal(forwardedHeaderProof.headers.authorization, "Bearer proof-token");
+    assert.equal(forwardedHeaderProof.headers.authorization, undefined, "the unauthenticated MCP gate strips unverified tokens");
     assert.equal(forwardedHeaderProof.headers["x-spike-marker"], MARKER);
   });
 

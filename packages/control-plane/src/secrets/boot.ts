@@ -27,9 +27,7 @@ export const AWS_BOOT_SECRETS = {
   GITHUB_APP_ID: "GITHUB_APP_ID",
   GITHUB_APP_PRIVATE_KEY: "GITHUB_APP_PRIVATE_KEY",
   CLOUDFLARE_API_TOKEN: "CLOUDFLARE_API_TOKEN",
-  // Casdoor (TERRARIUM_AUTH_PROVIDER=casdoor): the GUI app's OIDC credentials.
-  // Per-app client registration is unauthenticated DCR, so there are no M2M
-  // credentials to fetch — only the GUI client id/secret live here.
+  // Casdoor GUI OIDC credentials. Provisioner credentials resolve at scaffold time.
   GUI_APP_ID: "GUI_APP_ID",
   GUI_APP_SECRET: "GUI_APP_SECRET",
   // WorkOS AuthKit (TERRARIUM_AUTH_PROVIDER=workos): the public OAuth client +

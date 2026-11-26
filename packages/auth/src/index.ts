@@ -9,7 +9,9 @@ import type { RemoteJWKSet } from "jose"
 
 export const Actor = Schema.Struct({
   sub: Schema.String,
-  name: Schema.optional(Schema.String)
+  name: Schema.optional(Schema.String),
+  azp: Schema.optional(Schema.String),
+  tokenType: Schema.optional(Schema.String)
 })
 export type Actor = typeof Actor.Type
 
@@ -118,17 +120,21 @@ const makeAuth = (config: AuthConfig) =>
       ...config.jwksCooldown === undefined ? {} : { cooldownDuration: config.jwksCooldown }
     })
 
-    const verify = Effect.fnUntraced(function*(token: string) {
+    const verify = Effect.fnUntraced(function*(token: string, audience = config.audience) {
       const { payload } = yield* Effect.tryPromise({
         try: () =>
           jwtVerify(token, jwks, {
             issuer,
-            audience: config.audience,
+            audience,
             ...config.clockTolerance === undefined ? {} : { clockTolerance: config.clockTolerance },
             requiredClaims: ["sub", "exp"]
           }),
         catch: mapJwtError
       })
+      if (audience === config.audience && typeof payload.sub === "string" &&
+          payload.sub.startsWith("admin/vibevarium-m2m-")) {
+        return yield* new InvalidTokenError({ message: "App credentials require the app audience", cause: undefined })
+      }
       return yield* Schema.decodeUnknownEffect(Actor)(payload).pipe(
         Effect.mapError((cause) =>
           new InvalidTokenError({ message: "Verified token has invalid actor claims", cause })
@@ -151,7 +157,7 @@ const makeAuth = (config: AuthConfig) =>
 export class Auth extends Context.Service<Auth, {
   readonly issuer: string
   readonly audience: string
-  readonly verify: (token: string) => Effect.Effect<Actor, AuthError>
+  readonly verify: (token: string, audience?: string) => Effect.Effect<Actor, AuthError>
   readonly refreshJwks: () => Effect.Effect<void, KeyRefreshError>
 }>()("@vibevarium/auth/Auth") {
   static readonly layer = (config: AuthConfig): Layer.Layer<Auth, DiscoveryError> =>

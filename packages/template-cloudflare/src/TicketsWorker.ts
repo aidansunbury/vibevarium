@@ -1,3 +1,4 @@
+import * as Redacted from "effect/Redacted";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as DomainCloudflare from "@alchemy.run/domain/Cloudflare";
 import { McpProtocol, McpServer } from "effect/ai";
@@ -108,6 +109,12 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
         ...(process.env.TERRARIUM_CLIENT_SECRET === undefined
           ? {}
           : { TERRARIUM_CLIENT_SECRET: process.env.TERRARIUM_CLIENT_SECRET }),
+        ...(process.env.TERRARIUM_M2M_CLIENT_ID === undefined
+          ? {}
+          : { TERRARIUM_M2M_CLIENT_ID: process.env.TERRARIUM_M2M_CLIENT_ID }),
+        ...(process.env.TERRARIUM_M2M_CLIENT_SECRET === undefined
+          ? {}
+          : { TERRARIUM_M2M_CLIENT_SECRET: Redacted.make(process.env.TERRARIUM_M2M_CLIENT_SECRET) }),
         // Platform event delivery secret (docs/internal/events.md): the control plane
         // signs each /hooks/platform delivery with it. Provisioned by the
         // scaffold; unset → the events seam is off.

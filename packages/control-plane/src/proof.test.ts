@@ -6,7 +6,8 @@ describe("meta-MCP gateway", () => {
   it("aggregates two apps, proxies with headers, and isolates a killed app", async () => {
     const report = await Effect.runPromise(Effect.scoped(runGatewayProof));
 
-    expect(report.gatewayToolsList.tools).toHaveLength(10);
+    expect(report.gatewayToolsList.tools.filter(({ name }) => name.startsWith("tickets-a_") || name.startsWith("tickets-b_")))
+      .toHaveLength(8);
     expect(report.callThroughGatewayToA.structuredContent).toMatchObject({ stream: "Ticket/proof-a-1" });
     expect(report.killAppB.registryRow?.status).toBe("down");
     expect(report.killAppB.retainedTools).toHaveLength(4);

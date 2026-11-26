@@ -102,6 +102,9 @@ const makeAuth = (config: AuthConfig) =>
           }),
         catch: (cause) => new AuthError({ message: errorMessage(cause), cause }),
       });
+      if (typeof payload.sub === "string" && payload.sub.startsWith("admin/vibevarium-m2m-")) {
+        return yield* new AuthError({ message: "App credentials are scoped to platform proxy calls", cause: undefined });
+      }
       return yield* Schema.decodeUnknownEffect(Actor)(payload).pipe(
         Effect.mapError((cause) => new AuthError({ message: "Verified token has invalid actor claims", cause })),
       );

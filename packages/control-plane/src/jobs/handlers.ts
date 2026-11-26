@@ -61,7 +61,7 @@ export const provisionStepPlan = (spec: {
 }): ReadonlyArray<{ readonly stepId: string; readonly label: string }> => {
   const steps: Array<{ stepId: string; label: string }> = [
     { stepId: "repo", label: "Create repository" },
-    { stepId: "oidc", label: "Register OIDC client" },
+    { stepId: "oidc", label: "Register app credentials" },
     { stepId: "deploy", label: `Deploy (${spec.target})` },
     { stepId: "router", label: "Bind domain + router" },
     { stepId: "directory", label: "Register + discover tools" },

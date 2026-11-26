@@ -65,3 +65,16 @@ curl -X POST "$WORKER_URL/OpenTicket" -H 'content-type: application/json' \
   -d '{"target":"demo-1","input":{"title":"Real deployment","reporter":"demo"}}'
 curl "$WORKER_URL/TicketById/demo-1?stream=Ticket%2Fdemo-1&version=1"
 ```
+
+## Platform integration calls
+
+New Casdoor-backed Workers receive an app-specific client ID and secret at
+provisioning. On the server, use `platformCredentialHeaders(env)` from
+`src/platform-credentials.ts` for requests to the control plane's
+`/proxy/<integration>/<path>`. The control plane looks up the app from the
+signed access token and checks the integration grant for that app.
+
+For an OAuth provider, call `platformCredentialHeaders(env, session.accessToken)`
+with the signed-in user's platform access token. The control plane checks for an
+approved connection grant belonging to that user and app. Keep both tokens on
+the server and send these headers only to the control plane.

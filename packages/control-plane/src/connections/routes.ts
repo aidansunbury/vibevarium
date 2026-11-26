@@ -3,13 +3,15 @@ import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { authenticatedApp, delegatedUser } from "../app-auth.ts";
 import { GuiAuth, sessionFromRequest } from "../auth-flow.ts";
+import { Registry } from "../registry/index.ts";
 import { ConnectionError, Connections } from "./service.ts";
 
 export interface ConnectionsRouteOptions {
   readonly authEnabled: boolean;
   readonly guiAuthEnabled: boolean;
-  /** Pre-M2M app credentials: app name → shared secret (same placeholder as the integrations proxy). */
+  /** Local development credentials, enabled when OIDC is off. */
   readonly appSecrets: Readonly<Record<string, string>>;
 }
 
@@ -100,6 +102,7 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
   HttpRouter.use((router) =>
     Effect.gen(function*() {
       const connections = yield* Connections;
+      const registry = yield* Registry;
 
       // ---- User routes: GUI session cookie (or bearer fallback) ----
 
@@ -290,40 +293,13 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
           return yield* json(yield* connections.revokeGrant(actor.sub, body.grantId));
         }).pipe(catchConnection)));
 
-      // ---- App routes: app credential (pre-M2M shared secret headers) ----
-
-      // App credential check. Succeeds with a tagged union: the app id on
-      // valid credentials, or the 401 response to send. No failure channel, so
-      // route composition is plain.
-      const unauthorizedApp = (description: string) =>
-        HttpServerResponse.jsonUnsafe(
-          { error: "invalid_app_credential", error_description: description },
-          { status: 401 },
-        );
-      type AppAuth =
-        | { readonly ok: true; readonly appId: string }
-        | { readonly ok: false; readonly response: Response };
-      const authenticateApp: Effect.Effect<AppAuth, never, HttpServerRequest.HttpServerRequest> =
+      const appRoute = <R>(handler: (appId: string) => Effect.Effect<Response, never, R>) =>
         Effect.gen(function*() {
-          const request = yield* HttpServerRequest.HttpServerRequest;
-          const appId = request.headers["x-vibevarium-app"];
-          if (typeof appId !== "string" || appId.length === 0) {
-            return { ok: false, response: unauthorizedApp("Expected x-vibevarium-app + x-vibevarium-app-secret headers") } satisfies AppAuth;
+          const appId = yield* authenticatedApp(options, registry);
+          if (appId === undefined) {
+            return yield* json({ error: "invalid_app_credential", error_description: "Expected valid app credentials" }, 401);
           }
-          const expected = options.appSecrets[appId];
-          if (expected === undefined || request.headers["x-vibevarium-app-secret"] !== expected) {
-            return { ok: false, response: unauthorizedApp(`Bad credentials for app ${appId}`) } satisfies AppAuth;
-          }
-          return { ok: true, appId } satisfies AppAuth;
-        });
-
-      const appRoute = <R>(
-        handler: (appId: string) => Effect.Effect<Response, never, R>,
-      ): Effect.Effect<Response, never, R | HttpServerRequest.HttpServerRequest> =>
-        Effect.gen(function*() {
-          const authed = yield* authenticateApp;
-          if (!authed.ok) return authed.response;
-          return yield* handler(authed.appId);
+          return yield* handler(appId);
         });
 
       yield* router.add("POST", "/grants/request", appRoute((appId) =>
@@ -354,7 +330,11 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
           if (body.appId !== undefined && body.appId !== appId) {
             return yield* json({ error: "app_mismatch", error_description: "Body appId does not match the authenticated app" }, 403);
           }
-          return yield* json(yield* connections.vend(appId, body.provider));
+          const user = options.authEnabled ? yield* delegatedUser : undefined;
+          if (options.authEnabled && user === undefined) {
+            return yield* json({ error: "invalid_user_credential", error_description: "Expected a user access token" }, 401);
+          }
+          return yield* json(yield* connections.vend(appId, body.provider, user?.sub));
         }).pipe(catchConnection)));
 
       // NOTE: there is deliberately NO connections-specific proxy route here.
