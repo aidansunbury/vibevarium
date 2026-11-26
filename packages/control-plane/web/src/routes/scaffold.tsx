@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import * as Schema from "effect/Schema";
 import { api, type CapabilityStatus, type ProvisionStatus } from "../api";
 import { Button } from "@vibevarium/ui/components/button";
 import { Badge } from "@vibevarium/ui/components/badge";
@@ -11,7 +12,12 @@ import { Separator } from "@vibevarium/ui/components/separator";
 import { toast } from "@vibevarium/ui/lib/toast";
 import { Check, ChevronLeft, ChevronRight, Loader2, PlusIcon, X } from "lucide-react";
 
-export const Route = createFileRoute("/scaffold")({ component: ScaffoldWizard });
+const ScaffoldSearch = Schema.Struct({ job: Schema.optional(Schema.String) });
+
+export const Route = createFileRoute("/scaffold")({
+  validateSearch: Schema.toStandardSchemaV1(ScaffoldSearch),
+  component: ScaffoldWizard,
+});
 
 const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -23,12 +29,13 @@ type Database = "cf-d1" | "planetscale-hyperdrive";
 
 function ScaffoldWizard() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate({ from: "/scaffold" });
+  const { job: jobId } = Route.useSearch();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [target, setTarget] = useState<Target | null>(null);
   const [database, setDatabase] = useState<Database | null>(null);
   const [features, setFeatures] = useState<Array<"r2" | "hyperdrive">>([]);
-  const [jobId, setJobId] = useState<string | null>(null);
 
   const options = useQuery({ queryKey: ["provisioning-options"], queryFn: api.provisioningOptions });
 
@@ -42,9 +49,11 @@ function ScaffoldWizard() {
   const provisionStatus = useQuery({
     queryKey: ["provision", jobId],
     queryFn: () => api.provisionStatus(jobId!),
-    enabled: jobId !== null,
-    refetchInterval: (query) =>
-      query.state.data?.status === "running" || query.state.data === undefined ? 1500 : false,
+    enabled: jobId !== undefined,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === undefined || status === "pending" || status === "running" ? 2_000 : false;
+    },
   });
 
   // When the job finishes, refresh the apps + directory so the new app shows up.
@@ -65,7 +74,7 @@ function ScaffoldWizard() {
         database,
         ...(features.length === 0 ? {} : { features }),
       });
-      setJobId(started.jobId);
+      await navigate({ search: { job: started.jobId }, replace: true });
       toast.success(`Provisioning ${name.trim()}`);
     } catch (error) {
       toast.error(message(error));
@@ -75,7 +84,7 @@ function ScaffoldWizard() {
   const reset = () => {
     setStep(0);
     setName("");
-    setJobId(null);
+    void navigate({ search: {}, replace: true });
     setFeatures([]);
     setTarget(options.data?.defaultTarget ?? null);
     setDatabase(options.data?.defaultDatabase ?? null);
@@ -105,11 +114,13 @@ function ScaffoldWizard() {
   const nameValid = dnsLabel.test(name.trim());
 
   // A job in flight takes over the whole card with the live stepper.
-  if (jobId !== null) {
+  if (jobId !== undefined) {
     return (
       <ProvisioningRun
         status={provisionStatus.data}
         isLoading={provisionStatus.isLoading}
+        error={provisionStatus.error}
+        onRetry={() => void provisionStatus.refetch()}
         onDone={reset}
       />
     );
@@ -411,20 +422,25 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 function ProvisioningRun({
   status,
   isLoading,
+  error,
+  onRetry,
   onDone,
 }: {
   status: ProvisionStatus | undefined;
   isLoading: boolean;
+  error: Error | null;
+  onRetry: () => void;
   onDone: () => void;
 }) {
-  const finished = status?.status === "succeeded" || status?.status === "failed";
+  const failed = status?.status === "failed" || status?.status === "dead";
+  const finished = status?.status === "succeeded" || failed;
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           {status?.status === "succeeded" ? (
             <Badge variant="success">provisioned</Badge>
-          ) : status?.status === "failed" ? (
+          ) : failed ? (
             <Badge variant="destructive">failed</Badge>
           ) : (
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -434,9 +450,11 @@ function ProvisioningRun({
         <CardDescription>
           {isLoading || status === undefined
             ? "Starting the job…"
-            : status.status === "running"
+            : status.status === "pending"
+              ? "The job is queued and will start shortly."
+              : status.status === "running"
               ? "The job is running — each step flips as it completes."
-              : status.status === "failed"
+              : failed
                 ? (status.error ?? "The provisioning job failed.")
                 : "All steps completed."}
         </CardDescription>
@@ -473,6 +491,13 @@ function ProvisioningRun({
             </li>
           ))}
         </ol>
+
+        {error !== null && (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <span>Could not refresh this job: {message(error)}</span>
+            <Button variant="outline" size="sm" onClick={onRetry}>Retry</Button>
+          </div>
+        )}
 
         {status?.status === "succeeded" && status.result !== undefined && (
           <div className="rounded-md bg-muted p-3 text-xs">

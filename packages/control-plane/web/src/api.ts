@@ -302,7 +302,7 @@ export type ProvisionSpec = typeof ProvisionSpec.Type;
 export const ProvisionStep = Schema.Struct({
   id: Schema.String,
   label: Schema.String,
-  state: Schema.Literals(["pending", "running", "done", "failed"]),
+  state: Schema.Literals(["pending", "running", "done", "failed", "skipped"]),
   detail: Schema.optional(Schema.String),
 });
 export type ProvisionStep = typeof ProvisionStep.Type;
@@ -310,7 +310,7 @@ export type ProvisionStep = typeof ProvisionStep.Type;
 export const ProvisionStatus = Schema.Struct({
   jobId: Schema.String,
   name: Schema.String,
-  status: Schema.Literals(["running", "succeeded", "failed"]),
+  status: Schema.Literals(["pending", "running", "succeeded", "failed", "dead"]),
   steps: Schema.Array(ProvisionStep),
   result: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   error: Schema.optional(Schema.String),

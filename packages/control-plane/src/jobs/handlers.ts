@@ -78,7 +78,7 @@ export const provisionStepPlan = (spec: {
 export const provisionHandler = Effect.gen(function*() {
   const scaffold = yield* Scaffold;
 
-  const handler: JobHandler = ({ job, markStep }) =>
+  const handler: JobHandler = ({ job, steps, markStep }) =>
     Effect.gen(function*() {
       const spec = job.payload as unknown as ProvisionPayload;
 
@@ -91,26 +91,47 @@ export const provisionHandler = Effect.gen(function*() {
         } satisfies Outcome;
       }
 
-      yield* markStep("repo", "running");
+      const done = new Set(steps.filter((step) => step.state === "done").map((step) => step.stepId));
+      let activeStepId = steps.find((step) => step.state !== "done")?.stepId;
+      let latestDetail: string | undefined;
+      const markPhase = (stepId: "repo" | "oidc" | "deploy" | "router" | "directory", detail?: string) =>
+        Effect.gen(function*() {
+          const currentIndex = steps.findIndex((step) => step.stepId === stepId);
+          if (currentIndex > 0) {
+            const previous = steps[currentIndex - 1];
+            if (previous !== undefined && previous.state !== "done" && !done.has(previous.stepId)) {
+              yield* markStep(previous.stepId, "done");
+              done.add(previous.stepId);
+            }
+          }
+          yield* markStep(stepId, "done", detail);
+          done.add(stepId);
+          latestDetail = detail;
+          const nextStep = steps[currentIndex + 1];
+          if (nextStep !== undefined && !done.has(nextStep.stepId)) {
+            yield* markStep(nextStep.stepId, "running");
+            activeStepId = nextStep.stepId;
+          } else {
+            activeStepId = undefined;
+          }
+        });
+      const next = steps.find((step) => step.state !== "done");
+      if (next !== undefined) yield* markStep(next.stepId, "running");
 
       // The work reuses the Scaffold.create pipeline (repo → OIDC → deploy →
       // router → directory → discovery); we checkpoint coarse step progress
       // around it. On resume after a redeploy the pipeline re-runs
       // idempotently, so a completed run is never double-provisioned.
-      const result = yield* scaffold.create(
+      const result = yield* scaffold.createTracked(
         spec.name,
         spec.previewOf === undefined ? undefined : { previewOf: spec.previewOf, previewPr: spec.previewPr ?? "" },
         spec.actorSub,
+        markPhase,
       ).pipe(
-        Effect.tap(() => markStep("repo", "done")),
-        Effect.tap(() => markStep("oidc", "done")),
         Effect.tap(() =>
           spec.database === "planetscale-hyperdrive" ? markStep("database", "done", "Hyperdrive bound (config)") : Effect.void
         ),
         Effect.tap(() => (spec.features.includes("r2") ? markStep("r2", "done", "R2 bucket (config)") : Effect.void)),
-        Effect.tap((value) => markStep("deploy", "done", value.hostname ?? value.url)),
-        Effect.tap(() => markStep("router", "done")),
-        Effect.tap(() => markStep("directory", "done")),
         Effect.map((value) =>
           ({
             kind: "done",
@@ -124,7 +145,10 @@ export const provisionHandler = Effect.gen(function*() {
         ),
         Effect.catch((error) => {
           const e = asScaffoldError(error);
-          return Effect.succeed({ kind: "dead", error: e.message } satisfies Outcome);
+          const detail = latestDetail === undefined ? e.message : `${e.message} (after ${latestDetail})`;
+          return (activeStepId === undefined ? Effect.void : markStep(activeStepId, "failed", detail)).pipe(
+            Effect.as({ kind: "dead", error: detail } satisfies Outcome),
+          );
         }),
       );
       return result;

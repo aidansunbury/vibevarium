@@ -21,6 +21,11 @@ export interface GitProviderShape {
     name: string,
     files: Readonly<Record<string, string>>,
   ) => Effect.Effect<GitRepo, ScaffoldError>;
+  /** Materialize an already-created repository for a resumed provision job. */
+  readonly resumeRepo?: (
+    name: string,
+    files: Readonly<Record<string, string>>,
+  ) => Effect.Effect<GitRepo, ScaffoldError>;
   readonly deleteRepo?: (name: string) => Effect.Effect<void, ScaffoldError>;
 }
 
