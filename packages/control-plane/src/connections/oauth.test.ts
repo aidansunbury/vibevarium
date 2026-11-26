@@ -30,4 +30,10 @@ describe("fetchProviderIdentity", () => {
       expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer token" }) }),
     );
   });
+
+  it("falls back to login when GitHub name and email are null", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id: 43, login: "octocat", name: null, email: null }));
+
+    await expect(fetchProviderIdentity(provider, "token")).resolves.toEqual({ sub: "43", label: "octocat" });
+  });
 });
