@@ -97,6 +97,18 @@ export interface ScaffoldResult {
   };
 }
 
+export interface ScaffoldRequirement {
+  readonly id: "registry" | "repository" | "domain";
+  readonly label: string;
+  readonly available: boolean;
+  readonly detail: string;
+}
+
+export interface ScaffoldRequirements {
+  readonly available: boolean;
+  readonly checks: ReadonlyArray<ScaffoldRequirement>;
+}
+
 const generatedFiles = (name: string): Readonly<Record<string, string>> => ({
   "package.json": `${JSON.stringify({
     name: `@vibevarium-app/${name}`,
@@ -171,11 +183,23 @@ const registerGeneratedRoutes = (gated: Gated) =>
   );
 
 export class Scaffold extends Context.Service<Scaffold, {
+  /** Verify names before a job is accepted; performs no writes. */
+  readonly requirements: (name: string) => Effect.Effect<ScaffoldRequirements, ScaffoldError>;
   readonly create: (
     name: string,
     preview?: { readonly previewOf: string; readonly previewPr: string },
     /** The creator's sub (from CurrentActor at the gated route) — seeded as the app's ACL admin. */
     actorSub?: string,
+  ) => Effect.Effect<ScaffoldResult, ScaffoldError>;
+  /**
+   * Provision with phase callbacks. The job runner uses this to persist honest
+   * progress and to resume after a process restart or a partially-created repo.
+   */
+  readonly createTracked: (
+    name: string,
+    preview: { readonly previewOf: string; readonly previewPr: string } | undefined,
+    actorSub: string | undefined,
+    phase: (stepId: "repo" | "oidc" | "deploy" | "router" | "directory", detail?: string) => Effect.Effect<void>,
   ) => Effect.Effect<ScaffoldResult, ScaffoldError>;
   readonly remove: (
     name: string,
@@ -218,7 +242,55 @@ export class Scaffold extends Context.Service<Scaffold, {
             accountId: options.cloudflare.accountId,
             namespaceId: options.cloudflare.routerNamespaceId,
             zoneId: options.cloudflare.zoneId,
-          });
+           });
+
+      const requirements = Effect.fnUntraced(function*(name: string) {
+        if (!dnsLabel.test(name)) {
+          return yield* Effect.fail(new ScaffoldError(400, "Invalid DNS-label-safe app name"));
+        }
+        const registered = Option.isSome(yield* registry.get(name));
+        const repositoryExists = git.repoExists === undefined ? false : yield* git.repoExists(name);
+        const hostname = options.cloudflare === undefined ? undefined : `${name}.${options.cloudflare.domain}`;
+        const domainExists = hostname === undefined
+          ? false
+          : yield* Effect.tryPromise({
+              try: async () => {
+                const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`, {
+                  headers: { accept: "application/dns-json" },
+                  signal: AbortSignal.timeout(5_000),
+                });
+                if (!response.ok) throw new Error(`DNS lookup returned HTTP ${response.status}`);
+                const body = await response.json() as { Answer?: ReadonlyArray<unknown> };
+                return (body.Answer?.length ?? 0) > 0;
+              },
+              catch: (cause) => new ScaffoldError(502, `Could not verify ${hostname}: ${String(cause)}`),
+            });
+        const checks: ReadonlyArray<ScaffoldRequirement> = [
+          {
+            id: "registry",
+            label: "App name",
+            available: !registered,
+            detail: registered ? `App “${name}” is already registered` : `App name “${name}” is available`,
+          },
+          {
+            id: "repository",
+            label: "Repository",
+            available: !repositoryExists,
+            detail: repositoryExists
+              ? `Repository already exists: https://github.com/${options.github?.org ?? ""}/${name}`
+              : `Repository name “${name}” is available`,
+          },
+          {
+            id: "domain",
+            label: "Domain",
+            available: !domainExists,
+            detail: hostname === undefined
+              ? "Custom domain is not used by this target"
+              : domainExists ? `Domain already resolves: ${hostname}` : `Domain is available: ${hostname}`,
+          },
+        ];
+        return { available: checks.every((check) => check.available), checks } satisfies ScaffoldRequirements;
+      });
 
       const register = Effect.fnUntraced(function*(
         name: string,
@@ -304,6 +376,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         name: string,
         preview?: { readonly previewOf: string; readonly previewPr: string },
         actorSub?: string,
+        phase?: (stepId: "repo" | "oidc" | "deploy" | "router" | "directory", detail?: string) => Effect.Effect<void>,
       ) {
         if (deployer === undefined) {
           return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
@@ -326,14 +399,25 @@ export class Scaffold extends Context.Service<Scaffold, {
               },
             );
         const files = yield* attempt(() => materializeCloudflareTemplate(templateRoot, name));
-        const repo = yield* git.createRepo(name, files);
+        const repo = yield* git.createRepo(name, files).pipe(
+          Effect.catch((error) =>
+            error.status === 409 && git.resumeRepo !== undefined
+              ? git.resumeRepo(name, files)
+              : Effect.fail(error)
+          ),
+        );
+        if (phase !== undefined) yield* phase("repo", repo.repoUrl);
+        if (phase !== undefined) yield* phase("oidc", oidcClient?.clientId ?? "OIDC registration not configured");
         const deployment = yield* attempt(() => deployer.deploy(name, repo.directory, oidcClient));
+        if (phase !== undefined) yield* phase("deploy", deployment.hostname);
         yield* attempt(() => routerBindings!.add(name));
         yield* attempt(() => routerDirectory!.put(name, name));
+        if (phase !== undefined) yield* phase("router", appUrl);
         // Register the public hostname (not the workers.dev origin) so the
         // gallery + gateway point at the app's real URL. Preview lineage goes
         // on the row so the dashboard can group previews under their parent.
         const directoryEntry = yield* register(name, `${appUrl}/mcp`, oidcClient?.clientId, preview, actorSub);
+        if (phase !== undefined) yield* phase("directory");
         return {
           name,
           url: appUrl,
@@ -381,6 +465,33 @@ export class Scaffold extends Context.Service<Scaffold, {
         return yield* (mode === "cloudflare" ? createCloudflare(name, preview, actorSub) : createLocal(name, actorSub));
       });
 
+      const createTracked = Effect.fnUntraced(function*(
+        name: string,
+        preview: { readonly previewOf: string; readonly previewPr: string } | undefined,
+        actorSub: string | undefined,
+        phase: (stepId: "repo" | "oidc" | "deploy" | "router" | "directory", detail?: string) => Effect.Effect<void>,
+      ) {
+        if (!dnsLabel.test(name)) {
+          return yield* Effect.fail(new ScaffoldError(400, "Invalid DNS-label-safe app name"));
+        }
+        const existing = yield* registry.get(name);
+        if (Option.isSome(existing)) {
+          return yield* Effect.fail(new ScaffoldError(409, `App ${name} is already registered`));
+        }
+        if (preview !== undefined) {
+          if (mode !== "cloudflare") {
+            return yield* Effect.fail(new ScaffoldError(400, "Preview deploys require the Cloudflare target"));
+          }
+          const parent = yield* registry.get(preview.previewOf);
+          if (Option.isNone(parent)) {
+            return yield* Effect.fail(new ScaffoldError(404, `Parent app ${preview.previewOf} is not registered`));
+          }
+        }
+        return yield* (mode === "cloudflare"
+          ? createCloudflare(name, preview, actorSub, phase)
+          : createLocal(name, actorSub));
+      });
+
       const removeLocal = Effect.fnUntraced(function*(name: string) {
         yield* attempt(() => processes.stop(name));
         yield* registry.remove(name);
@@ -425,7 +536,7 @@ export class Scaffold extends Context.Service<Scaffold, {
       });
 
       yield* syncCloudflareDirectory();
-      return Scaffold.of({ create, remove });
+      return Scaffold.of({ requirements, create, createTracked, remove });
     })).pipe(
       Layer.provide(options.github === undefined
         ? LocalGitProvider.layer(options.appsRoot ?? join(options.workspaceRoot ?? defaultWorkspaceRoot, "apps"))

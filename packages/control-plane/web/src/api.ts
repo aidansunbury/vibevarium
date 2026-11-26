@@ -291,6 +291,17 @@ export const ProvisioningOptions = Schema.Struct({
 });
 export type ProvisioningOptions = typeof ProvisioningOptions.Type;
 
+export const ProvisionRequirements = Schema.Struct({
+  available: Schema.Boolean,
+  checks: Schema.Array(Schema.Struct({
+    id: Schema.Literals(["registry", "repository", "domain"]),
+    label: Schema.String,
+    available: Schema.Boolean,
+    detail: Schema.String,
+  })),
+});
+export type ProvisionRequirements = typeof ProvisionRequirements.Type;
+
 export const ProvisionSpec = Schema.Struct({
   name: Schema.String,
   target: Schema.optional(Schema.Literals(["cloudflare", "aws"])),
@@ -302,7 +313,7 @@ export type ProvisionSpec = typeof ProvisionSpec.Type;
 export const ProvisionStep = Schema.Struct({
   id: Schema.String,
   label: Schema.String,
-  state: Schema.Literals(["pending", "running", "done", "failed"]),
+  state: Schema.Literals(["pending", "running", "done", "failed", "skipped"]),
   detail: Schema.optional(Schema.String),
 });
 export type ProvisionStep = typeof ProvisionStep.Type;
@@ -310,7 +321,7 @@ export type ProvisionStep = typeof ProvisionStep.Type;
 export const ProvisionStatus = Schema.Struct({
   jobId: Schema.String,
   name: Schema.String,
-  status: Schema.Literals(["running", "succeeded", "failed"]),
+  status: Schema.Literals(["pending", "running", "succeeded", "failed", "dead"]),
   steps: Schema.Array(ProvisionStep),
   result: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   error: Schema.optional(Schema.String),
@@ -353,6 +364,11 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.post("provision", "/provisioning", {
         payload: ProvisionSpec,
         success: Schema.Struct({ jobId: Schema.String }),
+        error: Unauthorized,
+      }))
+      .add(HttpApiEndpoint.get("provisionRequirements", "/provisioning/requirements/:name", {
+        params: { name: Schema.String },
+        success: ProvisionRequirements,
         error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("provisionStatus", "/provisioning/:jobId", {
@@ -582,6 +598,8 @@ export const api = {
 
   provisioningOptions: () => clientPromise.then((client) => run(client.provisioningOptions())),
   provision: (spec: ProvisionSpec) => clientPromise.then((client) => run(client.provision({ payload: spec }))),
+  provisionRequirements: (name: string) =>
+    clientPromise.then((client) => run(client.provisionRequirements({ params: { name } }))),
   provisionStatus: (jobId: string) =>
     clientPromise.then((client) => run(client.provisionStatus({ params: { jobId } }))),
   createPreview: (name: string, pr: string) =>

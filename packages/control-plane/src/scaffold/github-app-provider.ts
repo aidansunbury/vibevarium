@@ -1,7 +1,7 @@
 import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "octokit";
 import * as Layer from "effect/Layer";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { attempt, ScaffoldError } from "./errors.ts";
 import { GitProvider, type GitProviderShape } from "./git-provider.ts";
@@ -39,6 +39,29 @@ export const GitHubAppProvider = {
         },
       });
       const shape: GitProviderShape = {
+        repoExists: (name) => attempt(async () => {
+          try {
+            await octokit.rest.repos.get({ owner: options.org, repo: name });
+            return true;
+          } catch (cause) {
+            if ((cause as { status?: number }).status === 404) return false;
+            throw asError(cause);
+          }
+        }),
+        resumeRepo: (name, files) => attempt(async () => {
+          const directory = join(options.appsRoot, name);
+          await rm(directory, { recursive: true, force: true });
+          await mkdir(directory, { recursive: true });
+          for (const [filePath, content] of Object.entries(files)) {
+            const destination = resolve(directory, filePath);
+            if (!destination.startsWith(`${directory}${sep}`)) {
+              throw new ScaffoldError(500, `Unsafe generated file path: ${filePath}`);
+            }
+            await mkdir(dirname(destination), { recursive: true });
+            await writeFile(destination, content, "utf8");
+          }
+          return { name, directory, repoUrl: `https://github.com/${options.org}/${name}` };
+        }),
         createRepo: (name, files) => attempt(async () => {
           const directory = join(options.appsRoot, name);
           await mkdir(directory, { recursive: true });
