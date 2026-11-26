@@ -50,7 +50,10 @@ jobs:
       - name: Validate
         run: |
           pnpm typecheck
-          pnpm --dir packages/control-plane exec vitest run src/config.test.ts src/config/connections-schema.test.ts src/secrets.test.ts src/mcp-gate.test.ts src/connections/oauth.test.ts src/connections/routes.test.ts src/app-auth.test.ts src/integrations/static-definitions.test.ts src/events.test.ts src/jobs.test.ts
+          # PGlite's WASM filesystem is not safe across Vitest workers; running
+          # these integration suites concurrently intermittently corrupts its
+          # temporary relation files ("unexpected data beyond EOF").
+          pnpm --dir packages/control-plane exec vitest run --maxWorkers=1 src/config.test.ts src/config/connections-schema.test.ts src/secrets.test.ts src/mcp-gate.test.ts src/connections/oauth.test.ts src/connections/routes.test.ts src/app-auth.test.ts src/integrations/static-definitions.test.ts src/events.test.ts src/jobs.test.ts
           pnpm --dir packages/control-plane/web build
           pnpm --dir packages/control-plane/web exec tsc --noEmit
 
