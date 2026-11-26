@@ -23,8 +23,9 @@ const TokenErrorSchema = Schema.Struct({
 
 const UserInfoSchema = Schema.Struct({
   sub: Schema.optional(Schema.String),
-  name: Schema.optional(Schema.String),
-  email: Schema.optional(Schema.String),
+  // GitHub returns null for a private email and may return a null display name.
+  name: Schema.optional(Schema.NullOr(Schema.String)),
+  email: Schema.optional(Schema.NullOr(Schema.String)),
   // GitHub's /user is not OIDC-shaped: id + login instead of sub.
   id: Schema.optional(Schema.Number),
   login: Schema.optional(Schema.String),
