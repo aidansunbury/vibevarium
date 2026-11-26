@@ -363,7 +363,7 @@ const OpsApi = HttpApi.make("ControlPlane")
       }))
       .add(HttpApiEndpoint.post("provision", "/provisioning", {
         payload: ProvisionSpec,
-        success: Schema.Struct({ jobId: Schema.String }),
+        success: Schema.Struct({ jobId: Schema.String }).pipe(HttpApiSchema.status(202)),
         error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("provisionRequirements", "/provisioning/requirements/:name", {
@@ -379,7 +379,7 @@ const OpsApi = HttpApi.make("ControlPlane")
       .add(HttpApiEndpoint.post("createPreview", "/apps/:name/previews", {
         params: { name: Schema.String },
         payload: Schema.Struct({ pr: Schema.String }),
-        success: Schema.Struct({ jobId: Schema.String }),
+        success: Schema.Struct({ jobId: Schema.String }).pipe(HttpApiSchema.status(202)),
         error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("previews", "/previews", {
