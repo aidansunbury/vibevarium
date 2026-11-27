@@ -9,6 +9,7 @@ const ENV_KEYS = [
   "GIT_PROVIDER",
   "GUI_APP_ID",
   "GUI_APP_SECRET",
+  "SESSION_ENCRYPTION_KEY",
   "WORKOS_CLIENT_ID",
   "WORKOS_API_KEY",
   "CLOUDFLARE_API_TOKEN",
@@ -32,6 +33,7 @@ const BASE_ENV = {
   GIT_PROVIDER: "local",
   GUI_APP_ID: "gui-client",
   GUI_APP_SECRET: "gui-secret",
+  SESSION_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef",
   CLOUDFLARE_API_TOKEN: "cloudflare-token",
   CONNECTIONS_TOKEN_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef",
   GITHUB_OAUTH_CLIENT_ID: "github-id",
@@ -92,6 +94,20 @@ describe("configuration-dependent required secrets", () => {
   it("accepts a fully configured provider catalog", async () => {
     const result = await withEnv({}, load);
     expect(result._tag).toBe("Success");
+  });
+
+  it("requires durable-session encryption for Casdoor and WorkOS GUI auth", async () => {
+    const casdoorError = await expectConfigError({ SESSION_ENCRYPTION_KEY: undefined });
+    expect(casdoorError).toContain("Durable GUI sessions");
+    expect(casdoorError).toContain("SESSION_ENCRYPTION_KEY");
+
+    const workosError = await expectConfigError({
+      TERRARIUM_AUTH_PROVIDER: "workos",
+      WORKOS_CLIENT_ID: "workos-client",
+      WORKOS_API_KEY: "workos-key",
+      SESSION_ENCRYPTION_KEY: undefined,
+    });
+    expect(workosError).toContain("SESSION_ENCRYPTION_KEY");
   });
 
   it("requires Cloudflare credentials only when its deploy target is enabled", async () => {

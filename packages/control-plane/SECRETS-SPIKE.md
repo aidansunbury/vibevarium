@@ -99,6 +99,13 @@ DATABASE_URL` is the full `postgres://…` URL for the RDS `control_plane` DB
 `DATABASE_URL` in `AWS_BOOT_SECRETS`. When unset, the control plane falls back
 to embedded PGlite — local dev is unchanged. See DB-SPIKE.md.
 
+`SESSION_ENCRYPTION_KEY` is a required boot secret whenever GUI auth is enabled.
+It must be provisioned once and remain stable across deploys: it encrypts GUI
+access/ID/refresh tokens and PKCE verifiers, and derives the separated cookie
+signing and lookup-HMAC keys. Boot fails without it; there is no process-memory
+fallback. Ciphertexts include a format version and key ID. `/config-check`
+exposes only whether this key is set and its source, never its value.
+
 ## Verifying
 
 `GET /config-check` (ungated, same trust level as `/health`) returns — names

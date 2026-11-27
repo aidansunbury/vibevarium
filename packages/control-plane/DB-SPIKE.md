@@ -34,6 +34,11 @@ casts the PGlite instance once, internally (`asDrizzleDb`). The alternative —
 typing `db` as a union of both flavors — makes every `.where()` chain fail to
 unify; the cast is the smaller lie and the boundary of it is this one file.
 
+The boot schema also includes durable GUI-auth `sessions` and
+`session_transactions` tables with matching Drizzle definitions. Both use
+`timestamptz` expiry columns and indexes, atomically consume login transactions
+with `DELETE … RETURNING`, and keep encrypted credentials driver-agnostic.
+
 **Env precedence**: `DATABASE_URL` wins; `DATABASE_PATH` is the PGlite
 fallback. Neither set → in-memory PGlite (the demo/proof path).
 

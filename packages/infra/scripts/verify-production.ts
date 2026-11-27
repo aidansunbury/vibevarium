@@ -29,6 +29,7 @@ for (const name of [
   "LINEAR_OAUTH_CLIENT_ID",
   "LINEAR_OAUTH_CLIENT_SECRET",
   "CONNECTIONS_TOKEN_ENCRYPTION_KEY",
+  "SESSION_ENCRYPTION_KEY",
 ]) {
   if (config.config?.[name]?.set !== true) throw new Error(`Required secret is unset: ${name}`);
 }

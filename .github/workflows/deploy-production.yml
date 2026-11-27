@@ -53,7 +53,7 @@ jobs:
           # PGlite's WASM filesystem is not safe across Vitest workers; running
           # these integration suites concurrently intermittently corrupts its
           # temporary relation files ("unexpected data beyond EOF").
-          pnpm --dir packages/control-plane exec vitest run --maxWorkers=1 src/config.test.ts src/config/connections-schema.test.ts src/secrets.test.ts src/mcp-gate.test.ts src/connections/oauth.test.ts src/connections/routes.test.ts src/app-auth.test.ts src/integrations/static-definitions.test.ts src/events.test.ts src/jobs.test.ts
+          pnpm --dir packages/control-plane exec vitest run --maxWorkers=1 src/config.test.ts src/config/connections-schema.test.ts src/secrets.test.ts src/auth-flow.test.ts src/mcp-gate.test.ts src/connections/oauth.test.ts src/connections/routes.test.ts src/app-auth.test.ts src/integrations/static-definitions.test.ts src/events.test.ts src/jobs.test.ts
           pnpm --dir packages/control-plane/web build
           pnpm --dir packages/control-plane/web exec tsc --noEmit
 
@@ -62,6 +62,17 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Ensure GUI session encryption secret
+        run: |
+          if aws secretsmanager describe-secret --secret-id /vibevarium/prod/SESSION_ENCRYPTION_KEY >/dev/null 2>&1; then
+            echo "SESSION_ENCRYPTION_KEY already exists; leaving it unchanged"
+          else
+            # Provision once before the auth layer boots. Never rotate an existing key.
+            aws secretsmanager create-secret \
+              --name /vibevarium/prod/SESSION_ENCRYPTION_KEY \
+              --secret-string "$(openssl rand -base64 48)" >/dev/null
+          fi
 
       - name: Check deployment environment
         working-directory: packages/infra

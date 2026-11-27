@@ -7,6 +7,8 @@ import { startControlPlane } from "../server.ts";
 describe("connection callback pages", () => {
   it("links back to the configured dashboard after a provider error", async () => {
     const scope = await Effect.runPromise(Scope.make());
+    const previousKey = process.env.SESSION_ENCRYPTION_KEY;
+    process.env.SESSION_ENCRYPTION_KEY = "connection-route-test-session-key";
     try {
       const controlPlane = await Effect.runPromise(
         Effect.provideService(startControlPlane({
@@ -36,6 +38,8 @@ describe("connection callback pages", () => {
       expect(body).toContain('href="https://platform.vibevarium.test/"');
     } finally {
       await Effect.runPromise(Scope.close(scope, Exit.void));
+      if (previousKey === undefined) delete process.env.SESSION_ENCRYPTION_KEY;
+      else process.env.SESSION_ENCRYPTION_KEY = previousKey;
     }
   }, 30_000);
 });

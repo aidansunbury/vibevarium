@@ -56,6 +56,11 @@ pnpm --dir packages/control-plane connections:demo
 pnpm --dir packages/control-plane proxy:demo
 ```
 
+When configuring the real GUI OIDC login locally, also set a stable
+`SESSION_ENCRYPTION_KEY` in the repo-root `.env` (generate one with
+`openssl rand -base64 48`). It encrypts database-backed GUI credentials and must
+stay unchanged between restarts. Auth-disabled local development does not need it.
+
 To test real GitHub/Linear connections locally, create OAuth apps with callback
 `http://127.0.0.1:4100/connections/callback` and drop the credentials in a
 repo-root `.env` (`GITHUB_OAUTH_CLIENT_ID=…` etc.). Providers are enabled by
