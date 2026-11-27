@@ -52,6 +52,7 @@ class CookieJar {
 const demo = Effect.gen(function*() {
   const guiSecret = process.env.LOGTO_GUI_APP_SECRET;
   assert.ok(guiSecret, "LOGTO_GUI_APP_SECRET must be set (repo-root .env)");
+  assert.ok(process.env.SESSION_ENCRYPTION_KEY, "SESSION_ENCRYPTION_KEY must be set (repo-root .env)");
 
   const dataDir = yield* Effect.acquireRelease(
     Effect.promise(() => mkdtemp(join("/tmp/opencode", "vibevarium-gui-auth-demo-"))),

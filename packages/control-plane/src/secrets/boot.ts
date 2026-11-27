@@ -30,6 +30,8 @@ export const AWS_BOOT_SECRETS = {
   // Casdoor GUI OIDC credentials. Provisioner credentials resolve at scaffold time.
   GUI_APP_ID: "GUI_APP_ID",
   GUI_APP_SECRET: "GUI_APP_SECRET",
+  // Durable GUI sessions: AES-256-GCM encryption + separated cookie/HMAC keys.
+  SESSION_ENCRYPTION_KEY: "SESSION_ENCRYPTION_KEY",
   // WorkOS AuthKit (TERRARIUM_AUTH_PROVIDER=workos): the public OAuth client +
   // server-side API key for user/org reads and DCR administration.
   WORKOS_CLIENT_ID: "WORKOS_CLIENT_ID",

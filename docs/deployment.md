@@ -34,6 +34,41 @@ an account-scoped Cloudflare credential allowed to create API tokens. It uses
 the current `gh` login to write the repository variables and the
 `CLOUDFLARE_API_TOKEN` Actions secret.
 
+## Durable GUI session rollout
+
+Provision the stable session key **before** deploying an auth layer that requires it.
+Generate it once; do not regenerate it during later deploys:
+
+```bash
+aws secretsmanager create-secret \
+  --name /vibevarium/prod/SESSION_ENCRYPTION_KEY \
+  --secret-string "$(openssl rand -base64 48)"
+```
+
+The existing task role reads this through `AWS_BOOT_SECRETS`; no task-definition
+secret ARN is needed. The automatic deployment workflow performs the same
+creation idempotently and never rotates an existing key. Boot creates the
+`sessions` and `session_transactions`
+tables idempotently. Existing in-memory sessions cannot be migrated, so the
+first deployment with durable sessions causes one final login. Later ECS
+restarts preserve both authenticated sessions and in-progress PKCE logins.
+
+GUI logins have an independent absolute lifetime, configured by
+`GUI_SESSION_TTL_MS` (default `604800000`, seven days). The session cookie uses
+the same lifetime. `GUI_SESSION_REFRESH_SKEW_MS` controls early access-token
+refresh (default `60000`). Changing the encryption key invalidates existing
+cookies and encrypted rows; plan a key-rotation migration instead of replacing
+it casually.
+
+Verify login, refresh, logout, and restart continuity after rollout. To revoke
+sessions manually, an operator with database access can run:
+
+```sql
+DELETE FROM sessions WHERE user_sub = 'the-oidc-subject'; -- one user
+DELETE FROM sessions;                                    -- all users
+DELETE FROM session_transactions;                        -- pending logins
+```
+
 ## Deploy manually
 
 ```bash
