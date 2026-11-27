@@ -55,22 +55,24 @@ anyway). With no `web/dist` the mount is inert.
 
 ## Auth seams
 
-- **Now (real Logto)**: `Log in` navigates to the server's `GET /auth/login`,
-  which 302s to the hosted Logto `/oidc/auth` (authorization code + PKCE S256,
-  RFC 8707 resource `https://api.vibevarium.com/mcp`, `prompt=consent` so
-  `offline_access` yields a refresh token). `GET /auth/callback` exchanges the
-  code with the GUI secret, verifies the ID token, and sets an httpOnly
-  SameSite=Lax session cookie (`vibevarium_session`, HMAC-signed, server-side
-  in-memory Map). The SPA holds no token — every API call is `credentials:
-  "same-origin"`. `GET /auth/me` returns the actor for the header; `POST
-  /auth/logout` destroys the session and redirects to Logto end-session.
-  Implemented in `src/auth-flow.ts`; wired in `src/server.ts` (ops gates accept
-  the session cookie OR a bearer token) and `src/main.ts` (env:
-  `LOGTO_GUI_APP_ID/SECRET`, `LOGTO_ISSUER`, `CONTROL_PLANE_BASE_URL`). Secret
-  locally from repo-root `.env`; production AWS Secrets Manager
-  `/vibevarium/prod/logto-gui-app-secret`. Proof: `scripts/logto-auth-demo.ts`.
-- **Dev fallback**: without `LOGTO_GUI_APP_SECRET` the auth flow is not mounted;
-  the control plane falls back to bearer-token `requireAuth` when
+- **OIDC authorization code + PKCE**: `GET /auth/login` redirects to the
+  configured Casdoor or WorkOS issuer. Pending PKCE transactions live in the
+  `session_transactions` table and are atomically consumed on callback, so a
+  deploy between login and callback does not break sign-in. `GET /auth/callback`
+  creates a row in `sessions` and sets the opaque, HMAC-signed
+  `vibevarium_session` cookie. Raw cookie IDs are never stored; tokens and PKCE
+  verifiers use versioned AES-256-GCM ciphertext under the stable
+  `SESSION_ENCRYPTION_KEY` resolved through `SecretsProvider`.
+- **Independent token/session lifetimes**: the absolute login lifetime defaults
+  to seven days (`GUI_SESSION_TTL_MS`) and matches the cookie `Max-Age`.
+  `GuiAuth.getSession` refreshes near-expiry access tokens through discovery,
+  persists rotated credentials, preserves omitted replacement tokens, and
+  serializes same-process refreshes plus cross-task database row locks.
+  Invalid grants delete the session; transient issuer failures preserve it and
+  produce a temporary 503 instead of a login redirect loop. Logout deletes the
+  durable row. The SPA never receives access, ID, or refresh tokens.
+- **Dev fallback**: without GUI auth configuration the flow is not mounted; the
+  control plane falls back to bearer-token `requireAuth` when
   `CONTROL_PLANE_ISSUER` is set, else dev-open (header shows "auth off").
 
 ## What the GUI calls
@@ -115,4 +117,5 @@ Running `pnpm --filter @vibevarium/control-plane dev` and opening
 - The integrations panel is admin-shaped (raw forms), not the consent UX of
   docs/connections.md — that second-order consent screen is a separate product
   surface.
-- No tests, per spike convention; proof is the running stack above.
+- GUI auth persistence, refresh, replay, and HTTP restart flows are covered by
+  `src/auth-flow.test.ts`; broader visual/playground work remains manual.

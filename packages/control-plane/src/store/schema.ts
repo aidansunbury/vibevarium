@@ -156,6 +156,46 @@ export type ConnectionRow = typeof connections.$inferSelect;
 export type ConnectionGrantRow = typeof connectionGrants.$inferSelect;
 export type OAuthSessionRow = typeof oauthSessions.$inferSelect;
 
+// --- Control-plane GUI auth ---------------------------------------------------
+// Opaque browser cookies reference these durable rows by HMAC. Credentials and
+// PKCE verifiers are AES-256-GCM encrypted before they reach the database.
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    idHash: text("id_hash").primaryKey(),
+    userSub: text("user_sub").notNull(),
+    userName: text("user_name").notNull(),
+    accessTokenEncrypted: text("access_token_encrypted").notNull(),
+    idTokenEncrypted: text("id_token_encrypted").notNull(),
+    refreshTokenEncrypted: text("refresh_token_encrypted"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true, mode: "string" }).notNull(),
+    sessionExpiresAt: timestamp("session_expires_at", { withTimezone: true, mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("sessions_expiry_idx").on(table.sessionExpiresAt),
+    index("sessions_user_sub_idx").on(table.userSub),
+  ],
+);
+
+export const sessionTransactions = pgTable(
+  "session_transactions",
+  {
+    idHash: text("id_hash").primaryKey(),
+    pkceVerifierEncrypted: text("pkce_verifier_encrypted").notNull(),
+    stateHash: text("state_hash").notNull(),
+    returnTo: text("return_to"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [index("session_transactions_expiry_idx").on(table.expiresAt)],
+);
+
+export type SessionRow = typeof sessions.$inferSelect;
+export type SessionTransactionRow = typeof sessionTransactions.$inferSelect;
+
 // --- Jobs (docs/internal/jobs.md): the unified durable-async primitive ---------------
 // One jobs row = one unit of durable background work (provision an app,
 // deliver a webhook). The JobRunner drains due rows and dispatches on `kind`;

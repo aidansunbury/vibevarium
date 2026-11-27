@@ -107,6 +107,8 @@ const flatConfig = Config.all({
   appsRoot: Config.option(Config.NonEmptyString("TERRARIUM_APPS_ROOT")),
   issuer: Config.option(Config.NonEmptyString("TERRARIUM_ISSUER")),
   connectionsRefreshSkewMs: Config.option(Config.Int("CONNECTIONS_REFRESH_SKEW_MS")),
+  guiSessionTtlMs: Config.Int("GUI_SESSION_TTL_MS").pipe(Config.withDefault(7 * 24 * 60 * 60_000)),
+  guiSessionRefreshSkewMs: Config.Int("GUI_SESSION_REFRESH_SKEW_MS").pipe(Config.withDefault(60_000)),
 
   // Block marker keys (presence turns a whole optional block on).
   casdoorIssuer: Config.String("CASDOOR_ISSUER").pipe(Config.withDefault("")),
@@ -191,6 +193,8 @@ export interface PlatformConfig {
         readonly guiOrigin: string | undefined;
         readonly cookieDomain: string | undefined;
         readonly resource: string;
+        readonly sessionTtlMs: number;
+        readonly refreshSkewMs: number;
       }
     | undefined;
 
@@ -347,6 +351,8 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
             guiOrigin: get(flat.guiOrigin),
             cookieDomain: get(flat.cookieDomain),
             resource: platformAudience,
+            sessionTtlMs: flat.guiSessionTtlMs,
+            refreshSkewMs: flat.guiSessionRefreshSkewMs,
           }
       : guiAppSecret === undefined
         ? undefined
@@ -358,6 +364,8 @@ export const makePlatformConfig = (flat: FlatConfig): PlatformConfig => {
             guiOrigin: get(flat.guiOrigin),
             cookieDomain: get(flat.cookieDomain),
             resource: platformAudience,
+            sessionTtlMs: flat.guiSessionTtlMs,
+            refreshSkewMs: flat.guiSessionRefreshSkewMs,
           };
 
   const controlPlaneIssuer = get(flat.controlPlaneIssuer);
@@ -639,9 +647,15 @@ export const requiredSecretsForConfig = (flat: FlatConfig, env: NodeJS.ProcessEn
   const requirements: Array<SecretRequirement> = [];
 
   if (flat.authProvider === "casdoor") {
-    requirements.push(allOf("Casdoor GUI auth", "GUI_APP_ID", "GUI_APP_SECRET"));
+    requirements.push(
+      allOf("Casdoor GUI auth", "GUI_APP_ID", "GUI_APP_SECRET"),
+      allOf("Durable GUI sessions", "SESSION_ENCRYPTION_KEY"),
+    );
   } else {
-    requirements.push(allOf("WorkOS auth", "WORKOS_CLIENT_ID", "WORKOS_API_KEY"));
+    requirements.push(
+      allOf("WorkOS auth", "WORKOS_CLIENT_ID", "WORKOS_API_KEY"),
+      allOf("Durable GUI sessions", "SESSION_ENCRYPTION_KEY"),
+    );
   }
 
   if (flat.deployTargets.includes("cloudflare")) {

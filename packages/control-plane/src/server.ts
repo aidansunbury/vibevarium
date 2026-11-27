@@ -20,7 +20,7 @@ import { AppProxy } from "./gateway/proxy.ts";
 import { controlToolsRegistration } from "./gateway/control-tools.ts";
 import { MCP_INTERNAL_PATH, mcpGateRoutes } from "./gateway/mcp-gate.ts";
 import { gatewayRegistrations, syncGatewayTools } from "./gateway/tools.ts";
-import { GuiAuth, authFlowRoutes, sessionFromRequest } from "./auth-flow.ts";
+import { GuiAuth, authFlowRoutes, sessionFromRequest, sessionRefreshErrorResponse } from "./auth-flow.ts";
 import { guiRoutes } from "./gui.ts";
 import { Connections } from "./connections/index.ts";
 import { connectionRoutes } from "./connections/routes.ts";
@@ -100,6 +100,8 @@ export interface ControlPlaneOptions {
     readonly guiOrigin?: string | undefined;
     readonly cookieDomain?: string | undefined;
     readonly resource: string;
+    readonly sessionTtlMs?: number | undefined;
+    readonly refreshSkewMs?: number | undefined;
   } | undefined;
 }
 
@@ -137,10 +139,12 @@ const makeGated = (options: { readonly authEnabled: boolean; readonly guiAuthEna
       > =>
         Effect.gen(function*() {
           if (options.guiAuthEnabled) {
-            const session = yield* sessionFromRequest.pipe(Effect.option);
-            if (session._tag === "Some" && session.value !== undefined) {
+            const resolved = yield* Effect.result(sessionFromRequest);
+            if (resolved._tag === "Failure") return sessionRefreshErrorResponse();
+            const session = resolved.success;
+            if (session !== undefined) {
               return yield* handler.pipe(
-                Effect.provideService(CurrentActor, { sub: session.value.sub, name: session.value.name }),
+                Effect.provideService(CurrentActor, { sub: session.sub, name: session.name }),
               );
             }
           }
@@ -283,13 +287,16 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
   const guiAuthLayer = options.guiAuth === undefined
     ? Layer.succeed(GuiAuth, GuiAuth.of({
         options: { issuer: "", clientId: "", clientSecret: "", baseUrl: "", resource: "" },
-        createSession: () => "",
-        getSession: () => undefined,
-        destroySession: () => {},
-        rememberPending: () => {},
-        takePending: () => undefined,
+        createSession: () => Effect.succeed(""),
+        getSession: () => Effect.succeed(undefined),
+        destroySession: () => Effect.void,
+        rememberPending: () => Effect.succeed(""),
+        takePending: () => Effect.succeed(undefined),
       }))
-    : GuiAuth.layer(options.guiAuth);
+    : GuiAuth.layer(options.guiAuth).pipe(
+        Layer.provide(databaseLayer),
+        Layer.provide(secretsLayer),
+      );
 
   // Provisioning (docs/internal/provisioning.md): the config service + job engine. The
   // config layer parses env (Effect Config) once; provisioning consumes it,
@@ -476,6 +483,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
         ["CASDOOR_ISSUER", process.env.CASDOOR_ISSUER],
         ["GUI_APP_ID", process.env.GUI_APP_ID],
         ["GUI_APP_SECRET", process.env.GUI_APP_SECRET],
+        ["SESSION_ENCRYPTION_KEY", process.env.SESSION_ENCRYPTION_KEY],
         ["WORKOS_CLIENT_ID", process.env.WORKOS_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_ID", process.env.GITHUB_OAUTH_CLIENT_ID],
         ["GITHUB_OAUTH_CLIENT_SECRET", process.env.GITHUB_OAUTH_CLIENT_SECRET],

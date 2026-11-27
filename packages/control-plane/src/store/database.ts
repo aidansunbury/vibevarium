@@ -160,6 +160,33 @@ const BOOT_DDL = `
   );
   CREATE INDEX IF NOT EXISTS oauth_sessions_expiry_idx ON oauth_sessions(expires_at);
 
+  -- Durable control-plane GUI sessions and one-time OIDC/PKCE transactions.
+  -- Raw cookie IDs and state are HMAC/SHA-256 hashes; credentials are encrypted.
+  CREATE TABLE IF NOT EXISTS sessions (
+    id_hash text PRIMARY KEY,
+    user_sub text NOT NULL,
+    user_name text NOT NULL,
+    access_token_encrypted text NOT NULL,
+    id_token_encrypted text NOT NULL,
+    refresh_token_encrypted text,
+    access_token_expires_at timestamptz NOT NULL,
+    session_expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(session_expires_at);
+  CREATE INDEX IF NOT EXISTS sessions_user_sub_idx ON sessions(user_sub);
+
+  CREATE TABLE IF NOT EXISTS session_transactions (
+    id_hash text PRIMARY KEY,
+    pkce_verifier_encrypted text NOT NULL,
+    state_hash text NOT NULL,
+    return_to text,
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS session_transactions_expiry_idx ON session_transactions(expires_at);
+
   -- Jobs (docs/internal/jobs.md): the unified durable-async engine. One jobs row per
   -- unit of background work (provision, deliver_webhook); job_steps checkpoint
   -- each step so a restarted process resumes where the dead one stopped. The

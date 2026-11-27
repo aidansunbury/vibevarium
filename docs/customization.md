@@ -62,6 +62,7 @@ runtime environment variables.
 | `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` | Same names | The GitHub App that creates app repos |
 | `CLOUDFLARE_API_TOKEN` | Same name | Deploying app Workers + DNS |
 | `GUI_APP_ID` / `GUI_APP_SECRET` | Same names | The control plane GUI's own OIDC client |
+| `SESSION_ENCRYPTION_KEY` | Same name | Stable AES-256-GCM key for GUI tokens and PKCE verifiers; also derives cookie-signing and lookup keys |
 | `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | Same names | The GitHub **connection** (below) |
 | `LINEAR_OAUTH_CLIENT_ID` / `LINEAR_OAUTH_CLIENT_SECRET` | Same names | The Linear connection |
 | `CONNECTIONS_TOKEN_ENCRYPTION_KEY` | Same name | AES-256-GCM key for provider tokens at rest |

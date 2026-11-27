@@ -4,7 +4,7 @@ import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { authenticatedApp, delegatedUser } from "../app-auth.ts";
-import { GuiAuth, sessionFromRequest } from "../auth-flow.ts";
+import { GuiAuth, SessionRefreshError, sessionFromRequest, sessionRefreshErrorResponse } from "../auth-flow.ts";
 import { Registry } from "../registry/index.ts";
 import { ConnectionError, Connections } from "./service.ts";
 
@@ -32,6 +32,14 @@ const errorJson = (error: ConnectionError) =>
 /** Recover from ConnectionError into its JSON response; usable with .pipe on any failing Effect. */
 const catchConnection = <A, R>(self: Effect.Effect<A, ConnectionError, R>): Effect.Effect<A | Response, never, R> =>
   self.pipe(Effect.catch((error: ConnectionError) => errorJson(error)));
+
+const catchSessionRefresh = <E, R>(
+  self: Effect.Effect<Response, E | SessionRefreshError, R>,
+): Effect.Effect<Response, E, R> =>
+  self.pipe(Effect.catchIf(
+    (error): error is SessionRefreshError => error instanceof SessionRefreshError,
+    () => Effect.succeed(sessionRefreshErrorResponse()),
+  ));
 
 const parseJsonBody = Effect.gen(function*() {
   const request = yield* HttpServerRequest.HttpServerRequest;
@@ -120,7 +128,7 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
             }, 401);
           }
           return yield* handler(actor);
-        });
+        }).pipe(catchSessionRefresh);
 
       yield* router.add("GET", "/connections/providers", userGate(() =>
         Effect.gen(function*() {
@@ -227,7 +235,7 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
             return Effect.succeed(htmlResponse(page("Grant error", `<h1>Grant error</h1><p class="error">${escapeHtml(error.message)}</p>`), error.status));
           }),
         );
-      }));
+      }).pipe(catchSessionRefresh));
 
       // Convenience: the consent screen's "connect first" button posts here,
       // which starts the provider flow and redirects to the provider.
@@ -245,7 +253,7 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
             Effect.succeed(htmlResponse(page("Connect failed", `<h1>Connect failed</h1><p class="error">${escapeHtml(error.message)}</p>`), error.status))
           ),
         );
-      }));
+      }).pipe(catchSessionRefresh));
 
       const decisionHandler = Effect.gen(function*() {
         const request = yield* HttpServerRequest.HttpServerRequest;
@@ -276,7 +284,7 @@ export const connectionRoutes = (options: ConnectionsRouteOptions) =>
               : Effect.succeed(htmlResponse(page("Grant error", `<h1>Grant error</h1><p class="error">${escapeHtml(error.message)}</p>`), error.status))
           ),
         );
-      });
+      }).pipe(catchSessionRefresh);
       yield* router.add("POST", "/grants/decision", decisionHandler);
 
       yield* router.add("GET", "/grants", userGate((actor) =>
