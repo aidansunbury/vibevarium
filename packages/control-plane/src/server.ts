@@ -404,7 +404,7 @@ export const controlPlaneServer = (options: ControlPlaneOptions = {}) => {
       Layer.provide(connectionsConfigLayer),
     ),
     jobRunnerWorkerLayer,
-    authFlowRoutes,
+    authFlowRoutes.pipe(Layer.provide(aclLayer)),
     Scaffold.routes(makeGated({ authEnabled, guiAuthEnabled })).pipe(Layer.provide(scaffoldLayer)),
     Provisioning.routes(makeGated({ authEnabled, guiAuthEnabled })).pipe(
       Layer.provide(provisioningLayer),

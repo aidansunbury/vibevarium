@@ -27,9 +27,11 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PartitionedSemaphore from "effect/PartitionedSemaphore";
 import * as Schema from "effect/Schema";
+import { Acl } from "./acl/index.ts";
 import { SecretsProvider } from "./integrations/secrets.ts";
 import { Database } from "./store/database.ts";
 import {
+  platformUsers,
   sessionTransactions,
   sessions,
   type SessionRow,
@@ -74,6 +76,7 @@ export const pkcePair = () => {
 export interface Session {
   readonly sub: string;
   readonly name: string;
+  readonly email?: string | undefined;
   readonly accessToken: string;
   readonly idToken: string;
   readonly refreshToken?: string | undefined;
@@ -374,6 +377,20 @@ export class GuiAuth extends Context.Service<GuiAuth, GuiAuthService>()("@vibeva
             createdAt: now,
             updatedAt: now,
           }));
+          yield* Effect.promise(() => db.insert(platformUsers).values({
+            sub: session.sub,
+            name: session.name,
+            email: session.email ?? null,
+            firstSeenAt: now,
+            lastSeenAt: now,
+          }).onConflictDoUpdate({
+            target: platformUsers.sub,
+            set: {
+              name: session.name,
+              email: sql`coalesce(excluded.email, ${platformUsers.email})`,
+              lastSeenAt: now,
+            },
+          }));
           return sign(rawId, sessionSigningKey);
         }),
         getSession,
@@ -576,12 +593,14 @@ const callbackRoute = Effect.gen(function*() {
     (claims.preferred_username as string | undefined) ??
     (claims.username as string | undefined) ??
     sub;
+  const email = typeof claims.email === "string" && claims.email.length > 0 ? claims.email : undefined;
 
   const now = Date.now();
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const sessionCookie = yield* guiAuth.createSession({
     sub,
     name,
+    ...(email === undefined ? {} : { email }),
     accessToken: tokenResponse.access_token,
     idToken: tokenResponse.id_token,
     refreshToken: tokenResponse.refresh_token,
@@ -620,17 +639,20 @@ const logoutRoute = Effect.gen(function*() {
 /** GET /auth/me — the actor for the GUI header. */
 const meRoute = Effect.gen(function*() {
   const guiAuth = yield* GuiAuth;
+  const acl = yield* Effect.serviceOption(Acl);
   const request = yield* HttpServerRequest.HttpServerRequest;
   const sessionId = request.cookies[SESSION_COOKIE];
   const resolved = yield* Effect.result(sessionId === undefined ? Effect.succeed(undefined) : guiAuth.getSession(sessionId));
   if (resolved._tag === "Failure") return sessionRefreshErrorResponse();
   const session = resolved.success;
   if (session === undefined) {
-    return HttpServerResponse.jsonUnsafe({ actor: null, auth: "on" });
+    return HttpServerResponse.jsonUnsafe({ actor: null, auth: "on", isSuperadmin: false });
   }
+  const isSuperadmin = Option.isSome(acl) ? yield* acl.value.isSuperadmin(session.sub) : false;
   return yield* HttpServerResponse.json({
     actor: { sub: session.sub, name: session.name },
     auth: "on",
+    isSuperadmin,
   });
 });
 

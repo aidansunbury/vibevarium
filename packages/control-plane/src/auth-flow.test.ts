@@ -534,7 +534,7 @@ describe("OIDC HTTP flow", () => {
       gui = await startGui(issuer.url, databasePath, port);
       const me = await fetch(`${gui.url}/auth/me`, { headers: { cookie: sessionCookie } });
       expect(me.status).toBe(200);
-      expect(await me.json()).toEqual({ actor: { sub: "user-123", name: "Ada" }, auth: "on" });
+      expect(await me.json()).toEqual({ actor: { sub: "user-123", name: "Ada" }, auth: "on", isSuperadmin: false });
 
       const configCheck = await fetch(`${gui.url}/config-check`);
       const configText = await configCheck.text();
@@ -549,7 +549,7 @@ describe("OIDC HTTP flow", () => {
       expect(logout.status).toBe(302);
       expect(logout.headers.get("set-cookie")).toContain("Max-Age=0");
       const afterLogout = await fetch(`${gui.url}/auth/me`, { headers: { cookie: sessionCookie } });
-      expect(await afterLogout.json()).toEqual({ actor: null, auth: "on" });
+      expect(await afterLogout.json()).toEqual({ actor: null, auth: "on", isSuperadmin: false });
       expect(issuer.tokenRequests).toHaveLength(1);
       expect(issuer.tokenRequests[0]!.get("code_verifier")).toBeTruthy();
     } finally {
@@ -616,7 +616,7 @@ describe("OIDC HTTP flow", () => {
       issuer.setRefreshResponse(200, { access_token: "recovered-access", refresh_token: "recovered-refresh", expires_in: 3600 });
       const recovered = await fetch(`${gui.url}/auth/me`, { headers: { cookie: sessionCookie } });
       expect(recovered.status).toBe(200);
-      expect(await recovered.json()).toEqual({ actor: { sub: "user-123", name: "Ada" }, auth: "on" });
+      expect(await recovered.json()).toEqual({ actor: { sub: "user-123", name: "Ada" }, auth: "on", isSuperadmin: false });
       expect(issuer.tokenRequests.map((form) => form.get("grant_type"))).toEqual([
         "authorization_code",
         "refresh_token",

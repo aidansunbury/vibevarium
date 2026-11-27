@@ -300,9 +300,19 @@ export const platformRoles = pgTable("platform_roles", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });
 
+/** Durable record of users who have signed into the platform. */
+export const platformUsers = pgTable("platform_users", {
+  sub: text("sub").primaryKey(),
+  name: text("name"),
+  email: text("email"),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
 export type AppAclRow = typeof appAcl.$inferSelect;
 export type AppAclMemberRow = typeof appAclMembers.$inferSelect;
 export type PlatformRoleRow = typeof platformRoles.$inferSelect;
+export type PlatformUserRow = typeof platformUsers.$inferSelect;
 
 // --- Events (docs/internal/events.md): provider webhook sources + per-app subscriptions ---
 // The control plane owns a central ingress per source; providers POST their

@@ -10,14 +10,22 @@ import { api, isUnauthenticated, isSessionExpired } from "./api";
 export interface Session {
   readonly authOn: boolean;
   readonly actor: { readonly sub: string; readonly name?: string } | null;
+  readonly isSuperadmin: boolean;
 }
 
 export const loadSession = async (): Promise<Session> => {
   try {
     const me = await api.me();
-    return { authOn: me.auth === "on", actor: me.actor };
+    const authOn = me.auth === "on";
+    return {
+      authOn,
+      actor: me.actor,
+      isSuperadmin: authOn ? Boolean(me.isSuperadmin) : true,
+    };
   } catch (error) {
-    if (isUnauthenticated(error) || isSessionExpired(error)) return { authOn: true, actor: null };
+    if (isUnauthenticated(error) || isSessionExpired(error)) {
+      return { authOn: true, actor: null, isSuperadmin: false };
+    }
     throw error;
   }
 };

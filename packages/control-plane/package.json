@@ -20,7 +20,7 @@
     "real:demo": "tsx scripts/real-deploy-demo.ts",
     "github:demo": "tsx scripts/github-provider-proof.ts",
     "router:deploy": "alchemy deploy --config src/router/alchemy.run.ts",
-    "test": "vitest run src/proof.test.ts src/mcp-gate.test.ts src/config.test.ts src/config/connections-schema.test.ts src/secrets.test.ts src/auth-flow.test.ts src/connections/oauth.test.ts src/connections/routes.test.ts src/app-auth.test.ts src/integrations/static-definitions.test.ts src/events.test.ts src/jobs.test.ts",
+    "test": "vitest run src/proof.test.ts src/mcp-gate.test.ts src/config.test.ts src/config/connections-schema.test.ts src/secrets.test.ts src/auth-flow.test.ts src/acl/admin.test.ts src/connections/oauth.test.ts src/connections/routes.test.ts src/app-auth.test.ts src/integrations/static-definitions.test.ts src/events.test.ts src/jobs.test.ts",
     "typecheck": "tsrs --noEmit -p tsconfig.json"
   },
   "dependencies": {

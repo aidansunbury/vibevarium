@@ -112,4 +112,23 @@ describe("control-plane API", () => {
     await api.grantIntegration("openai", "tickets");
     await expect(api.subscribeEvent({ app: "tickets", source: "github" })).resolves.toEqual(subscription);
   });
+
+  it("decodes platform users and superadmin grants", async () => {
+    const users = [{
+      sub: "user-1",
+      name: "Ada",
+      email: "ada@example.com",
+      isSuperadmin: false,
+      superadminSource: null,
+      firstSeenAt: "2026-01-01T00:00:00.000Z",
+      lastSeenAt: "2026-01-02T00:00:00.000Z",
+    }];
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ users }))
+      .mockResolvedValueOnce(Response.json({ granted: "user-1" }, { status: 201 }));
+    const { api } = await import("./api");
+
+    await expect(api.platformUsers()).resolves.toEqual({ users });
+    await expect(api.grantSuperadmin("user-1")).resolves.toEqual({ granted: "user-1" });
+  });
 });
