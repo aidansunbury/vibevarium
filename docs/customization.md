@@ -197,6 +197,9 @@ so humans and agents share one interface. Rename the binary with
 Every app grows from `packages/template-cloudflare/`: a React SPA + typed
 Effect backend on Cloudflare Worker + D1. Templates vary the **starting
 shape**, never the contract — a domain package, an Api declaration, auth
-middleware, a deploy stack. Options (an R2 bucket, a queue) are feature flags
-inside a template, not new templates. To change what "a new app" means for your
-org, fork the template.
+middleware, a deploy stack. Options are feature flags inside a template, not
+new templates. Set `TERRARIUM_FEATURES=r2` on the control plane to offer per-app
+R2 buckets in the provisioning wizard. Selected apps get a private R2 bucket
+and a read/write Worker binding named `TicketsBucket`; Cloudflare R2 must also
+be activated on the account. To change what "a new app" means for your org,
+fork the template.

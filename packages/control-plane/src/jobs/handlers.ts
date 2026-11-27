@@ -127,11 +127,16 @@ export const provisionHandler = Effect.gen(function*() {
         spec.previewOf === undefined ? undefined : { previewOf: spec.previewOf, previewPr: spec.previewPr ?? "" },
         spec.actorSub,
         markPhase,
+        spec.features,
       ).pipe(
         Effect.tap(() =>
           spec.database === "planetscale-hyperdrive" ? markStep("database", "done", "Hyperdrive bound (config)") : Effect.void
         ),
-        Effect.tap(() => (spec.features.includes("r2") ? markStep("r2", "done", "R2 bucket (config)") : Effect.void)),
+        Effect.tap(({ deployment }) =>
+          deployment?.r2BucketName === undefined
+            ? Effect.void
+            : markStep("r2", "done", `R2 bucket: ${deployment.r2BucketName}`)
+        ),
         Effect.map((value) =>
           ({
             kind: "done",

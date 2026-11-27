@@ -27,7 +27,10 @@ pnpm destroy
 (`CLOUDFLARE_ACCOUNT_ID` plus either `CLOUDFLARE_API_TOKEN`, or an
 authenticated Alchemy profile). Configuration: `WORKER_NAME`,
 `D1_DATABASE_NAME`, and `STACK_NAME` (all have per-app values supplied by the
-scaffold).
+scaffold). To attach optional object storage, set `R2_BUCKET_NAME`; Alchemy
+creates the R2 bucket and binds it to the Worker for reads and writes as
+`TicketsBucket`. The bucket is managed by the app stack and is deleted during
+teardown once it is empty.
 
 The Worker hosts the Tickets model on Cloudflare Durable Objects. Its D1
 migration provisions `app_metadata`; `GET /d1-health` proves the binding. The

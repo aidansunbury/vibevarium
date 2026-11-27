@@ -230,6 +230,7 @@ export const EcsInfra = (options: EcsInfraOptions) =>
         PORT: "4100",
         HOST: "0.0.0.0",
         TERRARIUM_AUTH_PROVIDER: "casdoor",
+        TERRARIUM_FEATURES: "r2",
         TERRARIUM_ISSUER: `https://auth.${options.domain}/orgs/vibevarium`,
         CASDOOR_ISSUER: `https://auth.${options.domain}/orgs/vibevarium`,
         CONTROL_PLANE_BASE_URL: `https://api.${options.domain}`,

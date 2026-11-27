@@ -201,6 +201,7 @@ export class Scaffold extends Context.Service<Scaffold, {
     preview: { readonly previewOf: string; readonly previewPr: string } | undefined,
     actorSub: string | undefined,
     phase: (stepId: "repo" | "oidc" | "deploy" | "router" | "directory", detail?: string) => Effect.Effect<void>,
+    features?: ReadonlyArray<string>,
   ) => Effect.Effect<ScaffoldResult, ScaffoldError>;
   readonly remove: (
     name: string,
@@ -390,6 +391,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         preview?: { readonly previewOf: string; readonly previewPr: string },
         actorSub?: string,
         phase?: (stepId: "repo" | "oidc" | "deploy" | "router" | "directory", detail?: string) => Effect.Effect<void>,
+        features: ReadonlyArray<string> = [],
       ) {
         if (deployer === undefined) {
           return yield* Effect.fail(new ScaffoldError(503, "Cloudflare deployment is not configured"));
@@ -397,7 +399,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         const appUrl = `https://${name}.${options.cloudflare!.domain}`;
         const casdoor = options.casdoor;
         const provisioner = casdoor === undefined ? undefined : yield* getProvisioner;
-        const files = yield* attempt(() => materializeCloudflareTemplate(templateRoot, name));
+        const files = yield* attempt(() => materializeCloudflareTemplate(templateRoot, name, features));
         const repo = yield* git.createRepo(name, files).pipe(
           Effect.catch((error) =>
             error.status === 409 && git.resumeRepo !== undefined
@@ -442,7 +444,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         const identity = oidc === undefined || m2m === undefined || casdoor === undefined
           ? undefined
           : { oidc, m2m, platformAudience: casdoor.platformAudience, issuer: casdoor.issuer };
-        const deployment = yield* attempt(() => deployer.deploy(name, repo.directory, identity));
+        const deployment = yield* attempt(() => deployer.deploy(name, repo.directory, identity, features));
         if (phase !== undefined) yield* phase("deploy", deployment.hostname);
         yield* attempt(() => routerBindings!.add(name));
         yield* attempt(() => routerDirectory!.put(name, name));
@@ -506,6 +508,7 @@ export class Scaffold extends Context.Service<Scaffold, {
         preview: { readonly previewOf: string; readonly previewPr: string } | undefined,
         actorSub: string | undefined,
         phase: (stepId: "repo" | "oidc" | "deploy" | "router" | "directory", detail?: string) => Effect.Effect<void>,
+        features: ReadonlyArray<string> = [],
       ) {
         if (!dnsLabel.test(name)) {
           return yield* Effect.fail(new ScaffoldError(400, "Invalid DNS-label-safe app name"));
@@ -524,7 +527,7 @@ export class Scaffold extends Context.Service<Scaffold, {
           }
         }
         return yield* (mode === "cloudflare"
-          ? createCloudflare(name, preview, actorSub, phase)
+          ? createCloudflare(name, preview, actorSub, phase, features)
           : createLocal(name, actorSub));
       });
 
