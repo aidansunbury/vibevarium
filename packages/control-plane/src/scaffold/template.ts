@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
@@ -8,9 +9,12 @@ import { join, relative } from "node:path";
 const ALWAYS_SKIPPED = new Set(["node_modules", ".alchemy", ".git", ".real-test"]);
 const SPA_DIST_SUFFIX = join("web", "dist");
 
-/** The deployable source, not a workspace wrapper, is committed to each app repo. */
-export const r2BucketName = (appName: string): string => appName.length <= 60 ? `${appName}-r2` : appName;
+export const r2BucketName = (appName: string): string => {
+  const hash = createHash("sha256").update(appName).digest("hex").slice(0, 12);
+  return `${appName.slice(0, 47)}-r2-${hash}`;
+};
 
+/** Materialize the deployable source committed to each app repo. */
 export const materializeCloudflareTemplate = async (
   templateRoot: string,
   name: string,

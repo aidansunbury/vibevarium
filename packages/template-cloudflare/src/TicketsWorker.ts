@@ -32,9 +32,8 @@ export const TicketsDatabase = Cloudflare.D1.Database("TicketsDatabase", {
 });
 
 /** Optional per-app object storage, bound to the Worker as `TicketsBucket`. */
-export const TicketsBucket = process.env.R2_BUCKET_NAME === undefined
-  ? undefined
-  : Cloudflare.R2.Bucket("TicketsBucket", { name: process.env.R2_BUCKET_NAME });
+const bucketName = process.env.R2_BUCKET_NAME?.trim();
+export const TicketsBucket = bucketName ? Cloudflare.R2.Bucket("TicketsBucket", { name: bucketName }) : undefined;
 
 const TicketsLive = TicketsModel.layer(Layer.empty).pipe(
   Layer.provide(
