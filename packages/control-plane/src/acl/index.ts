@@ -30,7 +30,10 @@ import { Database } from "../store/database.ts";
 import {
   appAcl,
   appAclMembers,
+  connections,
   platformRoles,
+  platformUsers,
+  sessions,
   type AclRole,
   type AclSource,
   type AppVisibility,
@@ -60,6 +63,16 @@ export interface MemberView {
   readonly createdAt: string;
 }
 
+export interface PlatformUserView {
+  readonly sub: string;
+  readonly name: string | null;
+  readonly email: string | null;
+  readonly isSuperadmin: boolean;
+  readonly superadminSource: "env" | "db" | null;
+  readonly firstSeenAt: string | null;
+  readonly lastSeenAt: string | null;
+}
+
 export class Acl extends Context.Service<Acl, {
   /** The app's ACL row, if one exists (legacy apps may not have been seeded). */
   readonly getAcl: (app: string) => Effect.Effect<Option.Option<AclView>>;
@@ -77,6 +90,8 @@ export class Acl extends Context.Service<Acl, {
   readonly isSuperadmin: (userSub: string) => Effect.Effect<boolean>;
   /** Grant a platform superadmin role (superadmin-gated at the route). */
   readonly grantSuperadmin: (sub: string) => Effect.Effect<void>;
+  /** List all known platform users with their superadmin status (superadmin-gated at the route). */
+  readonly listUsers: () => Effect.Effect<ReadonlyArray<PlatformUserView>>;
   /**
    * Seed the creator as admin at provision time. Idempotent: creates the ACL
    * row when missing and upserts the creator's admin member row.
@@ -214,6 +229,128 @@ export class Acl extends Context.Service<Acl, {
         );
       });
 
+      const listUsers = Effect.fnUntraced(function*() {
+        const [userRows, sessionRows, roleRows, memberRows, connectionRows] = yield* Effect.promise(() =>
+          Promise.all([
+            db.select().from(platformUsers),
+            db.select({
+              userSub: sessions.userSub,
+              userName: sessions.userName,
+              createdAt: sessions.createdAt,
+              updatedAt: sessions.updatedAt,
+            }).from(sessions),
+            db.select().from(platformRoles),
+            db.select({ userSub: appAclMembers.userSub, createdAt: appAclMembers.createdAt }).from(appAclMembers),
+            db.select({ userSub: connections.userSub, createdAt: connections.createdAt }).from(connections),
+          ])
+        );
+
+        const dbSuperadmins = new Set(
+          roleRows.filter((row) => row.role === "superadmin").map((row) => row.userSub),
+        );
+
+        const bySub = new Map<string, {
+          name: string | null;
+          email: string | null;
+          firstSeenAt: string | null;
+          lastSeenAt: string | null;
+        }>();
+
+        const touch = (
+          sub: string,
+          patch: {
+            name?: string | null;
+            email?: string | null;
+            firstSeenAt?: string | null;
+            lastSeenAt?: string | null;
+          } = {},
+        ) => {
+          const existing = bySub.get(sub) ?? {
+            name: null,
+            email: null,
+            firstSeenAt: null,
+            lastSeenAt: null,
+          };
+          if (patch.name !== undefined && patch.name !== null && patch.name.length > 0 && existing.name === null) {
+            existing.name = patch.name;
+          }
+          if (patch.email !== undefined && patch.email !== null && patch.email.length > 0 && existing.email === null) {
+            existing.email = patch.email;
+          }
+          if (
+            patch.firstSeenAt !== undefined &&
+            patch.firstSeenAt !== null &&
+            (existing.firstSeenAt === null || patch.firstSeenAt < existing.firstSeenAt)
+          ) {
+            existing.firstSeenAt = patch.firstSeenAt;
+          }
+          if (
+            patch.lastSeenAt !== undefined &&
+            patch.lastSeenAt !== null &&
+            (existing.lastSeenAt === null || patch.lastSeenAt > existing.lastSeenAt)
+          ) {
+            existing.lastSeenAt = patch.lastSeenAt;
+          }
+          bySub.set(sub, existing);
+        };
+
+        for (const row of userRows) {
+          touch(row.sub, {
+            name: row.name,
+            email: row.email,
+            firstSeenAt: row.firstSeenAt,
+            lastSeenAt: row.lastSeenAt,
+          });
+        }
+        for (const row of sessionRows) {
+          touch(row.userSub, {
+            name: row.userName,
+            firstSeenAt: row.createdAt,
+            lastSeenAt: row.updatedAt,
+          });
+        }
+        for (const row of roleRows) {
+          touch(row.userSub, { firstSeenAt: row.createdAt, lastSeenAt: row.createdAt });
+        }
+        for (const row of memberRows) {
+          touch(row.userSub, { firstSeenAt: row.createdAt, lastSeenAt: row.createdAt });
+        }
+        for (const row of connectionRows) {
+          touch(row.userSub, { firstSeenAt: row.createdAt, lastSeenAt: row.createdAt });
+        }
+        for (const sub of envSuperadmins) {
+          touch(sub);
+        }
+
+        const result: Array<PlatformUserView> = [];
+        for (const [sub, info] of bySub.entries()) {
+          const inEnv = envSuperadmins.has(sub);
+          const inDb = dbSuperadmins.has(sub);
+          const superadminSource = inEnv ? "env" : inDb ? "db" : null;
+          result.push({
+            sub,
+            name: info.name,
+            email: info.email,
+            isSuperadmin: superadminSource !== null,
+            superadminSource,
+            firstSeenAt: info.firstSeenAt,
+            lastSeenAt: info.lastSeenAt,
+          });
+        }
+
+        result.sort((a, b) => {
+          if (a.isSuperadmin !== b.isSuperadmin) return a.isSuperadmin ? -1 : 1;
+          if (a.lastSeenAt !== b.lastSeenAt) {
+            if (a.lastSeenAt === null) return 1;
+            if (b.lastSeenAt === null) return -1;
+            return b.lastSeenAt.localeCompare(a.lastSeenAt);
+          }
+          return a.sub.localeCompare(b.sub);
+        });
+
+        return result;
+      });
+
       const seedCreator = Effect.fnUntraced(function*(app: string, userSub: string) {
         const updatedAt = yield* nowIso;
         yield* Effect.promise(() =>
@@ -236,6 +373,7 @@ export class Acl extends Context.Service<Acl, {
         isAdmin,
         isSuperadmin,
         grantSuperadmin,
+        listUsers,
         seedCreator,
       });
     }));

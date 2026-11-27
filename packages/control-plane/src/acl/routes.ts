@@ -176,6 +176,22 @@ export const aclRoutes = (gated: Gated) =>
         return yield* respond(Effect.as(acl.removeMember(name, target), { removed: target }));
       })));
 
+      // Platform admin: list known users and their superadmin status (superadmin-only).
+      yield* router.add("GET", "/platform/users", gated(Effect.gen(function*() {
+        const actor = yield* Effect.serviceOption(CurrentActor);
+        if (Option.isSome(actor)) {
+          const superadmin = yield* acl.isSuperadmin(actor.value.sub);
+          if (!superadmin) {
+            return yield* HttpServerResponse.json(
+              { error: "Only superadmins can list platform users" },
+              { status: 403 },
+            );
+          }
+        }
+        const users = yield* acl.listUsers();
+        return yield* HttpServerResponse.json({ users });
+      })));
+
       // Superadmin bootstrap: the one route gated by isSuperadmin directly.
       yield* router.add("POST", "/platform/superadmins", gated(Effect.gen(function*() {
         const actor = yield* Effect.serviceOption(CurrentActor);

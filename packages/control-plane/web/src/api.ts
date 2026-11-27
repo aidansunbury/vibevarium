@@ -257,6 +257,17 @@ export const AppAcl = Schema.Struct({
 });
 export type AppAcl = typeof AppAcl.Type;
 
+export const PlatformUser = Schema.Struct({
+  sub: Schema.String,
+  name: Schema.NullOr(Schema.String),
+  email: Schema.NullOr(Schema.String),
+  isSuperadmin: Schema.Boolean,
+  superadminSource: Schema.NullOr(Schema.Literals(["env", "db"])),
+  firstSeenAt: Schema.NullOr(Schema.String),
+  lastSeenAt: Schema.NullOr(Schema.String),
+});
+export type PlatformUser = typeof PlatformUser.Type;
+
 // The scaffold result has optional/loose fields; keep it typed but permissive.
 export const ScaffoldResult = Schema.Struct({
   name: Schema.String,
@@ -335,7 +346,11 @@ const OpsApi = HttpApi.make("ControlPlane")
   .add(
     HttpApiGroup.make("ops", { topLevel: true })
       .add(HttpApiEndpoint.get("me", "/auth/me", {
-        success: Schema.Struct({ actor: Schema.NullOr(Actor), auth: Schema.Literals(["on", "off"]) }),
+        success: Schema.Struct({
+          actor: Schema.NullOr(Actor),
+          auth: Schema.Literals(["on", "off"]),
+          isSuperadmin: Schema.optional(Schema.Boolean),
+        }),
         error: Unauthorized,
       }))
       .add(HttpApiEndpoint.get("apps", "/apps", {
@@ -412,6 +427,15 @@ const OpsApi = HttpApi.make("ControlPlane")
         params: { name: Schema.String, sub: Schema.String },
         success: Schema.Unknown,
         error: Unauthorized,
+      }))
+      .add(HttpApiEndpoint.get("platformUsers", "/platform/users", {
+        success: Schema.Struct({ users: Schema.Array(PlatformUser) }),
+        error: [Unauthorized, Forbidden],
+      }))
+      .add(HttpApiEndpoint.post("grantSuperadmin", "/platform/superadmins", {
+        payload: Schema.Struct({ sub: Schema.String }),
+        success: Schema.Struct({ granted: Schema.String }).pipe(HttpApiSchema.status(201)),
+        error: [Unauthorized, Forbidden, BadRequest],
       })),
   )
   .add(
@@ -557,7 +581,7 @@ export const isSessionExpired = (error: unknown): boolean => hasStatus401(error,
  * cookie is scoped `Domain=.<domain>` + SameSite=Lax, so it's sent same-site
  * across subdomains; fetches use `credentials: "include"` to carry it.
  */
-const API_ORIGIN: string = (import.meta.env?.VITE_API_ORIGIN as string | undefined) ?? "";
+export const API_ORIGIN: string = (import.meta.env?.VITE_API_ORIGIN as string | undefined) ?? "";
 
 const transport = Layer.effect(
   HttpClient.HttpClient,
@@ -614,6 +638,9 @@ export const api = {
     clientPromise.then((client) => run(client.addAclMember({ params: { name }, payload: { sub, role } }))),
   removeAclMember: (name: string, sub: string) =>
     clientPromise.then((client) => run(client.removeAclMember({ params: { name, sub } }))),
+  platformUsers: () => clientPromise.then((client) => run(client.platformUsers())),
+  grantSuperadmin: (sub: string) =>
+    clientPromise.then((client) => run(client.grantSuperadmin({ payload: { sub } }))),
 
   integrations: () => clientPromise.then((client) => run(client.integrations())),
   integrationGrants: () => clientPromise.then((client) => run(client.integrationGrants())),

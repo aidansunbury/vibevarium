@@ -252,6 +252,15 @@ const BOOT_DDL = `
     created_at timestamptz NOT NULL DEFAULT now()
   );
 
+  -- Durable record of users who have signed into the platform.
+  CREATE TABLE IF NOT EXISTS platform_users (
+    sub text PRIMARY KEY,
+    name text,
+    email text,
+    first_seen_at timestamptz NOT NULL DEFAULT now(),
+    last_seen_at timestamptz NOT NULL DEFAULT now()
+  );
+
   -- Events (docs/internal/events.md): central webhook ingress sources + per-app
   -- subscriptions + the delivery outbox. Source secrets are references
   -- resolved by the SecretsProvider, never stored.
