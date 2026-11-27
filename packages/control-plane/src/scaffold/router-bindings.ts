@@ -34,7 +34,13 @@ export class RouterBindings {
       "RouterWorker",
     ], {
       cwd: join(this.#workspaceRoot, "packages/control-plane"),
-      env: { ...process.env, CI: "1", CLOUDFLARE_ACCOUNT_ID: this.#accountId },
+      env: {
+        ...process.env,
+        ALCHEMY_PHASE: "plan",
+        ALCHEMY_STACK_NAME: undefined,
+        CI: "1",
+        CLOUDFLARE_ACCOUNT_ID: this.#accountId,
+      },
       timeout: 180_000,
       maxBuffer: 4 * 1024 * 1024,
     }).catch((cause: { stdout?: string; stderr?: string; message?: string }) => {
