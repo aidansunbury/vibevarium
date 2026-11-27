@@ -67,6 +67,30 @@ repo-root `.env` (`GITHUB_OAUTH_CLIENT_ID=…` etc.). Providers are enabled by
 their entries in `packages/control-plane/src/config/connections.config.ts` (see
 [customization.md](./customization.md#connections)).
 
+### Parallel development with T3 Code
+
+The checked-in `t3.json` defaults new threads to isolated worktrees and defines
+a **Setup Worktree** action. Import the repository actions once in **Settings →
+Projects → Actions** if they are not already configured for your checkout. The
+setup action waits for completion before the agent starts and runs
+`scripts/setup-worktree.sh`, which:
+
+- links the main checkout's root `.env` into the worktree when one exists,
+  without overwriting a worktree-specific file;
+- runs `pnpm install --frozen-lockfile`; and
+- builds the control-plane GUI, whose `dist/` output is not tracked by Git.
+
+Add future code generation, migrations, or other initialization to that script
+so every new worktree gets the same setup. Each worktree has its own
+`node_modules` and default PGlite data under `.data/`.
+
+Ports are still shared by every checkout on the machine. To run multiple dev
+servers concurrently, give each one a different set of ports, for example:
+
+```bash
+PORT=4110 OIDC_PORT=4111 APP_PORT=4310 pnpm --dir packages/control-plane dev
+```
+
 ---
 
 ## Path 2 — AWS production
