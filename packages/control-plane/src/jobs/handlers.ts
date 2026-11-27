@@ -127,6 +127,7 @@ export const provisionHandler = Effect.gen(function*() {
         spec.previewOf === undefined ? undefined : { previewOf: spec.previewOf, previewPr: spec.previewPr ?? "" },
         spec.actorSub,
         markPhase,
+        spec.features,
       ).pipe(
         Effect.tap(() =>
           spec.database === "planetscale-hyperdrive" ? markStep("database", "done", "Hyperdrive bound (config)") : Effect.void

@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import { promisify } from "node:util";
 import { attempt, ScaffoldError } from "./errors.ts";
+import { r2BucketName } from "./template.ts";
 
 const execFileAsync = promisify(execFile);
 const alchemyCli = createRequire(import.meta.url).resolve("alchemy/bin/alchemy.js");
@@ -25,6 +26,7 @@ export interface CloudflareDeployment {
   readonly workerUrl: string;
   readonly hostname: string;
   readonly databaseName: string;
+  readonly r2BucketName?: string;
 }
 
 interface AppIdentity {
@@ -41,7 +43,7 @@ export class CloudflareDeployer {
     this.#options = options;
   }
 
-  private env(name: string, identity?: AppIdentity) {
+  private env(name: string, identity?: AppIdentity, features: ReadonlyArray<string> = []) {
     return {
       ...process.env,
       CASDOOR_PROVISIONER_CLIENT_ID: undefined,
@@ -55,6 +57,7 @@ export class CloudflareDeployer {
       WORKER_NAME: name,
       D1_DATABASE_NAME: `${name}-data`,
       APP_HOSTNAME: `${name}.${this.#options.domain}`,
+      R2_BUCKET_NAME: features.includes("r2") ? r2BucketName(name) : undefined,
       // Option B′: the app's own audience + the platform audience it also accepts.
       TERRARIUM_AUDIENCE: `${name}.${this.#options.domain}`,
       TERRARIUM_PLATFORM_AUDIENCE: `https://mcp.${this.#options.domain}`,
@@ -73,11 +76,12 @@ export class CloudflareDeployer {
     command: "deploy" | "destroy",
     deployment: CloudflareDeployment,
     identity?: AppIdentity,
+    features: ReadonlyArray<string> = [],
   ) {
     if (this.#options.packageManager === "pnpm") {
       await execFileAsync("pnpm", ["install", "--frozen-lockfile=false"], {
         cwd: deployment.directory,
-        env: this.env(deployment.name, identity),
+        env: this.env(deployment.name, identity, features),
         timeout: 3 * 60_000,
         maxBuffer: 4 * 1024 * 1024,
       });
@@ -94,7 +98,7 @@ export class CloudflareDeployer {
       try {
         return await execFileAsync(process.execPath, [alchemyCli, command, "--no-input", "--yes"], {
           cwd: deployment.directory,
-          env: this.env(deployment.name, identity),
+          env: this.env(deployment.name, identity, features),
           timeout: 5 * 60_000,
           maxBuffer: 4 * 1024 * 1024,
         });
@@ -112,6 +116,7 @@ export class CloudflareDeployer {
     name: string,
     directory: string,
     identity?: AppIdentity,
+    features: ReadonlyArray<string> = [],
   ): Promise<CloudflareDeployment> {
     const deployment = {
       name,
@@ -120,8 +125,9 @@ export class CloudflareDeployer {
       workerUrl: `https://${name}.${this.#options.workersSubdomain}.workers.dev`,
       hostname: `${name}.${this.#options.domain}`,
       databaseName: `${name}-data`,
+      ...(features.includes("r2") ? { r2BucketName: r2BucketName(name) } : {}),
     };
-    await this.alchemy("deploy", deployment, identity);
+    await this.alchemy("deploy", deployment, identity, features);
     return deployment;
   }
 
@@ -141,7 +147,8 @@ export const deployCloudflare = (
   options: CloudflareDeployerOptions,
   name: string,
   directory: string,
-) => attempt(() => new CloudflareDeployer(options).deploy(name, directory), 502);
+  features: ReadonlyArray<string> = [],
+) => attempt(() => new CloudflareDeployer(options).deploy(name, directory, undefined, features), 502);
 
 export const destroyCloudflare = (
   options: CloudflareDeployerOptions,

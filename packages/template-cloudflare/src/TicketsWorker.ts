@@ -31,6 +31,11 @@ export const TicketsDatabase = Cloudflare.D1.Database("TicketsDatabase", {
   migrations: "./migrations",
 });
 
+/** Optional per-app object storage, bound to the Worker as `TicketsBucket`. */
+export const TicketsBucket = process.env.R2_BUCKET_NAME === undefined
+  ? undefined
+  : Cloudflare.R2.Bucket("TicketsBucket", { name: process.env.R2_BUCKET_NAME });
+
 const TicketsLive = TicketsModel.layer(Layer.empty).pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -126,7 +131,15 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
   Effect.gen(function*() {
     const ticketsApi = yield* TicketsApi;
     const database = yield* Cloudflare.D1.QueryDatabase(yield* TicketsDatabase);
-    const env = yield* Cloudflare.Workers.WorkerEnvironment;
+    if (TicketsBucket !== undefined) {
+      yield* Cloudflare.R2.ReadWriteBucket(yield* TicketsBucket);
+    }
+    // Worker init also runs while Alchemy plans the deploy, where the runtime
+    // environment may not be provided. The runtime bridge always supplies it.
+    const env = Option.getOrElse(
+      yield* Effect.serviceOption(Cloudflare.Workers.WorkerEnvironment),
+      () => ({}),
+    );
     const authConfig = authConfigFromEnv(env);
     const http = yield* HttpApiBuilder.layer(TicketsHttp.api, { openapiPath: "/openapi.json" }).pipe(
       Layer.provide(TicketsHttp.layer),
@@ -236,6 +249,7 @@ export default class TicketsWorker extends Cloudflare.Worker<TicketsWorker>()(
       }),
     };
   }).pipe(
+    Effect.provide(Cloudflare.R2.ReadWriteBucketBinding),
     Effect.provide(Cloudflare.D1.QueryDatabaseBinding),
     Effect.provide(TicketsLive),
     Effect.orDie,
