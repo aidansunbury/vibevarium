@@ -48,6 +48,12 @@ export class CloudflareDeployer {
       ...process.env,
       CASDOOR_PROVISIONER_CLIENT_ID: undefined,
       CASDOOR_PROVISIONER_CLIENT_SECRET: undefined,
+      // The control plane runs inside an Alchemy-deployed ECS service, which
+      // injects ALCHEMY_PHASE=runtime and ALCHEMY_STACK_NAME. Child alchemy
+      // CLI invocations must run in plan phase so Worker bindings receive
+      // their deploy-time planServices (including WorkerEnvironment).
+      ALCHEMY_PHASE: "plan",
+      ALCHEMY_STACK_NAME: undefined,
       // Containers have no interactive alchemy profile; CI=1 makes alchemy
       // resolve credentials from environment variables (CLOUDFLARE_API_TOKEN).
       CI: "1",
